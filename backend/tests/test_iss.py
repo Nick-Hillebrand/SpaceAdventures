@@ -314,3 +314,77 @@ async def test_n2yo_error_in_body_returns_502(client):
     response = await client.get("/api/v1/iss/tle")
     assert response.status_code == 502
     assert response.json()["detail"]["error"]["code"] == "N2YO_ERROR"
+
+
+# ── Router N2YOError exception handler coverage ───────────────────────────────
+
+
+@respx.mock
+async def test_positions_n2yo_error_hits_router_handler(client):
+    """N2YOError from positions service propagates to router except block."""
+    respx.get(f"{_N2YO_BASE}/positions/25544/0.0/0.0/0.0/300").mock(
+        return_value=httpx.Response(200, json={"error": "Bad API key"})
+    )
+    response = await client.get("/api/v1/iss/positions")
+    assert response.status_code == 502
+    body = response.json()
+    assert body["detail"]["error"]["code"] == "N2YO_ERROR"
+
+
+@respx.mock
+async def test_visual_passes_n2yo_error_hits_router_handler(client):
+    """N2YOError from visual passes service propagates to router except block."""
+    respx.get(f"{_N2YO_BASE}/visualpasses/25544/0.0/0.0/0.0/7/10").mock(
+        return_value=httpx.Response(200, json={"error": "Quota exceeded"})
+    )
+    response = await client.get(
+        "/api/v1/iss/passes/visual", params={"lat": 0.0, "lng": 0.0, "alt": 0.0}
+    )
+    assert response.status_code == 502
+    body = response.json()
+    assert body["detail"]["error"]["code"] == "N2YO_ERROR"
+
+
+@respx.mock
+async def test_radio_passes_n2yo_error_hits_router_handler(client):
+    """N2YOError from radio passes service propagates to router except block."""
+    respx.get(f"{_N2YO_BASE}/radiopasses/25544/0.0/0.0/0.0/7/10").mock(
+        return_value=httpx.Response(200, json={"error": "Quota exceeded"})
+    )
+    response = await client.get(
+        "/api/v1/iss/passes/radio", params={"lat": 0.0, "lng": 0.0, "alt": 0.0}
+    )
+    assert response.status_code == 502
+    body = response.json()
+    assert body["detail"]["error"]["code"] == "N2YO_ERROR"
+
+
+async def test_n2yo_client_not_initialized_returns_503(db_engine, settings):
+    """_get_n2yo_client raises 503 when n2yo_client is missing from app state."""
+    from httpx import ASGITransport, AsyncClient as httpxAsyncClient
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+    from app.database import get_db
+    from app.main import create_app
+    from app.services.nasa_client import NasaClient
+    from app.services.ll2_client import LL2Client
+
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, class_=AsyncSession)
+
+    async def _override_get_db():
+        async with factory() as session:
+            yield session
+
+    no_n2yo_app = create_app(settings=settings)
+    no_n2yo_app.state.nasa_client = NasaClient(settings)
+    no_n2yo_app.state.ll2_client = LL2Client(settings)
+    # Intentionally do NOT set n2yo_client
+    no_n2yo_app.dependency_overrides[get_db] = _override_get_db
+
+    transport = ASGITransport(app=no_n2yo_app)
+    async with httpxAsyncClient(transport=transport, base_url="http://test") as ac:
+        response = await ac.get("/api/v1/iss/positions")
+    assert response.status_code == 503
+
+    await no_n2yo_app.state.nasa_client.close()
+    await no_n2yo_app.state.ll2_client.close()

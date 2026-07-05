@@ -79,7 +79,7 @@ Implement in this exact sequence. Do not start a step until the previous step's 
 - Tests: rover selector, camera filter, pagination branches
 
 ### Step 8 — ISS feature
-**Read:** `Architecture/05-iss-tracker.md`, `Architecture/01-database-schemas.md` §N2YO, `Architecture/02-api-routes.md`, `Architecture/10-security.md`, `Architecture/11-testing.md` §P4, P11–P13, P17
+**Read:** `Architecture/05-iss-tracker.md`, `Architecture/01-database-schemas.md` §N2YO, `Architecture/02-api-routes.md`, `Architecture/10-security.md`, `Architecture/11-testing.md` §P4, P11–P13, P174
 
 - Backend: `n2yo_quota` model, quota-guard with asyncio.Lock (P4), `n2yo_client.py` (P12), `iss_service.py`, ISS router
 - Frontend: Globe.gl `IssPage.tsx` (P13, P17), position interpolation, data panel, quota badge

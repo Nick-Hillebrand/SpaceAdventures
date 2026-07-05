@@ -135,3 +135,35 @@ export interface IssQuotaResponse {
   window_start: string;
   resets_at: string;
 }
+
+export interface LivestreamUrl {
+  title: string;
+  url: string;
+  feature_image: string;
+}
+
+export interface LaunchData {
+  ll2_id: string;
+  name: string;
+  net: string; // ISO8601
+  status_abbrev: string;
+  status_name: string;
+  agency_name: string;
+  agency_type: string | null;
+  rocket_name: string;
+  rocket_family: string | null;
+  mission_name: string | null;
+  mission_description: string | null;
+  mission_type: string | null;
+  pad_name: string;
+  pad_location: string;
+  image_url: string | null;
+  livestream_urls: LivestreamUrl[];
+  fetched_at: string;
+}
+
+export interface LaunchesResponse {
+  data: LaunchData[];
+  last_synced_at: string | null;
+  cached: boolean;
+}

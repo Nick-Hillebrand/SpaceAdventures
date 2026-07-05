@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     n2yo_hourly_cap: int = 900
 
     # Launch Library 2
-    ll2_base_url: str = "https://ll.thespacedevs.com/2.2.0"
+    ll2_base_url: str = "https://ll.thespacedevs.com/2.3.0"
+    ll2_api_key: str = ""
+    ll2_sync_interval_minutes: int = 30
 
     # JWT
     jwt_secret_key: str = ""
