@@ -8,6 +8,25 @@ All tables use SQLAlchemy 2 async ORM. SQLite for dev, PostgreSQL for prod (swap
 - Alembic migrations must use the **sync** URL (`DATABASE_URL_SYNC`), not the async URL.
 - After every `op.create_table()` in a migration, manually add `CHECK` constraints — Alembic autogenerate silently omits them on SQLite.
 
+**SQLite production note:** SQLite allows only one concurrent writer. The plan enforces `--workers 1` to work around this. For any deployment expecting sustained concurrent writes (e.g. > 50 simultaneous users actively triggering cache misses), switch to PostgreSQL via `DATABASE_URL`.
+
+**Required indexes** — add these explicitly in Alembic migrations (not auto-generated):
+
+| Table | Index columns | Reason |
+|---|---|---|
+| `login_attempts` | `(identifier, ip_address, failed_at)` | Rate-limit lookup per (identifier, IP) in last 15 min |
+| `otps` | `(user_id, channel, created_at)` | Send-rate count per (user, channel) per hour |
+| `refresh_tokens` | `(token_hash)` | Fast lookup on refresh |
+| `refresh_tokens` | `(user_id, revoked)` | Fast revocation check on logout |
+| `launches` | `(net)` | Ordering upcoming launches by NET |
+| `launches` | `(agency_name)` | Agency subscription matching during change detection |
+| `neo` | `(close_approach_date)` | Date-range queries |
+| `space_weather_event` | `(event_type, start_date)` | Filtered fetch by type + date |
+| `pending_notifications` | `(attempt_count, created_at)` | Drain queue; retry failed rows |
+| `subscriptions` | `(user_id)` | List user's subscriptions |
+| `subscriptions` | `(agency_name)` | Agency subscription matching during change detection |
+| `notification_log` | `(user_id, sent_at)` | Account page notification history |
+
 ---
 
 ## NASA Cache Tables

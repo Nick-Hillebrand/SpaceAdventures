@@ -118,6 +118,18 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
         }
     }
 
+    # Global API rate limiting — prevents abuse of data endpoints that have no application-level limits.
+    # Requires the caddy-ratelimit module: add to Caddy build or use xcaddy.
+    # Adjust `events` and `window` based on observed traffic.
+    @api path /api/*
+    rate_limit @api {
+        zone api_global {
+            key     {remote_host}
+            events  120
+            window  1m
+        }
+    }
+
     reverse_proxy /api/* backend:8000 {
         health_uri      /api/v1/health
         health_interval 30s
