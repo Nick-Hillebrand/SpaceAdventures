@@ -189,6 +189,7 @@ The app uses a persistent top navigation bar with the following tabs:
 | `/login` | Login | Not in nav; accessible via user icon in Navbar top-right |
 | `/register` | Register | Not in nav; linked from Login page |
 | `/account` | My Account | Not in nav; accessible via user icon dropdown when logged in — manage subscriptions |
+| `/confirm-unsubscribe?token=…` | Confirm Unsubscribe | Not in nav; linked from notification emails — shows subscription details and requires explicit button click to POST unsubscribe |
 
 ---
 
@@ -289,6 +290,9 @@ GET https://ll.thespacedevs.com/2.3.0/launches/upcoming/?mode=detailed&limit=50&
 
 Upcoming launch data is **not** permanently immutable — NET dates slip, launches get scrubbed, new launches are added. The cache rule is therefore time-bounded:
 
+- Before parsing any LL2 response, check the `Content-Length` header. If > 5 MB, abort and log an error — do not parse. This prevents a malicious or malfunctioning API from writing unbounded data to the DB.
+- After parsing, cap individual field lengths before storing: `mission_description` max 2 000 chars, `name` max 200 chars, any other text field max 500 chars. Truncate silently and log a warning if a field exceeds the limit.
+- If the parsed response contains > 100 launches, log a warning and process only the first 100.
 - Store all upcoming launches returned by LL2 in the DB on each sync.
 - A background sync runs **every 30 minutes** via APScheduler (`AsyncIOScheduler`, one instance per process). This is the only place the LL2 API is called; no user request ever triggers a direct LL2 call. **Important**: Uvicorn must be run as a **single worker** (`--workers 1`) to prevent multiple APScheduler instances from firing concurrent syncs and generating duplicate notifications. If multi-worker deployment is needed in future, move the scheduler to a standalone process (e.g. a separate `scheduler` Docker service running the same Python app with `--scheduler-only` flag).
 - On each sync: upsert all returned launches by `ll2_id`; mark any `ll2_id` no longer in the response as `status_abbrev = "Gone"` (do not delete — keeps historical cards available).
@@ -347,11 +351,14 @@ user_id     INTEGER  FK → users.id  ON DELETE CASCADE
 channel     TEXT     CHECK IN ('email', 'phone')
 code_hash   TEXT     NOT NULL       — bcrypt hash of the 6-digit code (never store plaintext)
 expires_at  DATETIME NOT NULL       — NOW + 10 minutes
-used        BOOLEAN  DEFAULT FALSE  — marked TRUE on first successful verify; prevents reuse
+used        BOOLEAN  DEFAULT FALSE  — atomically set TRUE in the same transaction that reads it; prevents replay via concurrent requests (use SELECT … FOR UPDATE on PostgreSQL, asyncio.Lock on SQLite)
+failed_attempts INTEGER DEFAULT 0  — incremented on each wrong code submission; OTP row is deleted after 5 failed attempts
 created_at  DATETIME DEFAULT NOW
 ```
 
-Rate limiting: at most 5 rows per `(user_id, channel)` in any 1-hour window. If this limit is reached, `POST /api/v1/auth/verify/resend` returns `429`. Old unused OTPs for the same `(user_id, channel)` are deleted when a new one is issued.
+Rate limiting — two distinct limits:
+1. **Send rate**: at most 5 OTP rows per `(user_id, channel)` in any 1-hour window. `POST /api/v1/auth/verify/resend` returns `429` if this is exceeded.
+2. **Attempt rate**: at most 5 wrong code submissions per OTP row (`failed_attempts >= 5`). On the 5th failure, the OTP row is deleted and the user must request a new code. This prevents brute-forcing a 6-digit code (1 000 000 possible values; 5 attempts allows only 0.0005% coverage). Old unused OTPs for the same `(user_id, channel)` are deleted when a new one is issued.
 
 ### `refresh_tokens` DB table
 
@@ -366,11 +373,24 @@ created_at   DATETIME DEFAULT NOW
 
 On each `/api/v1/auth/refresh` call: issue a new refresh token, mark the old one `revoked = TRUE`, and return the new token. This is **refresh token rotation** — a dropped connection on the response may leave the client with an invalid token; the client must store the new token immediately.
 
+### `login_attempts` DB table
+
+Tracks failed login attempts for rate limiting. Rows older than 1 hour are deleted on each successful login or on a scheduled cleanup.
+
+```
+id              INTEGER  PRIMARY KEY
+identifier      TEXT     NOT NULL  — email or phone submitted (hashed with SHA-256 before storage; never store plaintext)
+ip_address      TEXT     NOT NULL
+failed_at       DATETIME DEFAULT NOW
+```
+
+Before processing any login attempt: count rows for `(identifier_hash, ip_address)` in the last 15 minutes. If ≥ 5, return `429 Too Many Requests` with `Retry-After` header (seconds until the window resets). After a successful login, delete all rows for that `identifier_hash`.
+
 ### Authentication flow
 
 - **JWT-based**: access token (15-minute expiry) + refresh token (30-day expiry, stored hashed in `refresh_tokens`)
 - Access token sent in `Authorization: Bearer <token>` header
-- Frontend stores tokens in `localStorage` (acceptable for this app's scope; document the XSS risk in code comments)
+- Frontend stores tokens in `localStorage`. **XSS risk is mitigated at the transport layer**: the Caddyfile sets `Content-Security-Policy: default-src 'self'; script-src 'self'` which prevents inline script injection and external script loading (see §17c). Document the residual risk (compromised npm dependency) in a code comment in `src/lib/api.ts`. Additionally, log an anomaly at WARN level if the same access token is seen from two different IP addresses within the 15-minute validity window.
 - Verification: after registration, a 6-digit OTP is sent to the provided email and/or phone. Notifications are only dispatched to verified channels
 - Login works with either email + password or phone + password
 - **Today's rule**: once `email_verified = TRUE`, subsequent calls to the verify endpoint are a no-op (return 200 with a message, not an error). Resend OTP is only allowed if `email_verified = FALSE`
@@ -378,14 +398,14 @@ On each `/api/v1/auth/refresh` call: issue a new refresh token, mark the old one
 ### Auth API routes
 
 ```
-POST /api/v1/auth/register          # create account; sends OTP to email/phone
+POST /api/v1/auth/register          # create account; sends OTP to email/phone — on duplicate email/phone return the same generic error as invalid format: { "code": "REGISTRATION_FAILED", "message": "Please check your details and try again" }; never reveal whether the address is already registered (prevents account enumeration)
 POST /api/v1/auth/verify/email      # { otp } — mark email verified; no-op if already verified
 POST /api/v1/auth/verify/phone      # { otp } — mark phone verified; no-op if already verified
 POST /api/v1/auth/verify/resend     # { channel: "email"|"phone" } — send new OTP; rate-limited to 5/hr
-POST /api/v1/auth/login             # { email_or_phone, password } → { access_token, refresh_token }
+POST /api/v1/auth/login             # { email_or_phone, password } → { access_token, refresh_token } — rate limited: max 5 failed attempts per (email_or_phone, IP) per 15 minutes; exponential backoff after 3rd failure; lock for 15 minutes after 5th failure; send security-alert email to the user on 5th failure; always respond in constant time (no timing leak distinguishing wrong email vs wrong password)
 POST /api/v1/auth/refresh           # { refresh_token } → { access_token, refresh_token } (token rotated)
 POST /api/v1/auth/logout            # { refresh_token } — revoke refresh token
-GET  /api/v1/auth/me                # return current user profile (requires auth)
+GET  /api/v1/auth/me                # return current user profile (requires auth) — response fields: id, first_name, last_name, email, phone, email_verified, phone_verified, created_at — NEVER include password_hash or any internal field
 ```
 
 ---
@@ -402,7 +422,7 @@ GET  /api/v1/auth/me                # return current user profile (requires auth
 ### `subscriptions` DB table
 
 ```
-id              INTEGER  PRIMARY KEY
+id              TEXT     PRIMARY KEY DEFAULT (lower(hex(randomblob(16))))  — UUID v4 (opaque, prevents enumeration)
 user_id         INTEGER  FK → users.id  ON DELETE CASCADE
 type            TEXT     CHECK IN ('launch', 'agency')
 ll2_id          TEXT     NULLABLE — set when type = 'launch'
@@ -440,20 +460,24 @@ ll2_id           TEXT
 change_type      TEXT
 channel          TEXT     CHECK IN ('email', 'sms')
 delivery_status  TEXT     CHECK IN ('sent', 'failed')
-error_detail     TEXT     NULLABLE
+error_detail     TEXT     NULLABLE  — scrubbed before storage: only exception type + message stored, never the full traceback; redact any string matching password/token/auth patterns with [REDACTED]
 sent_at          DATETIME
 ```
 
 ### Notification message content
 
-**Email subject:** `"Space Adventures — Launch Update: <launch name>"`
+**Sanitisation (applies to all notification content before use):**
+All data sourced from LL2 (launch name, mission description, agency name, etc.) is **external untrusted data** and must be sanitised before embedding in notifications:
+- Strip all control characters, newlines (`\r`, `\n`), and null bytes from any field used in a notification subject, SMS body, or email header. Replace with a space.
+- In HTML email bodies, escape `<`, `>`, `&`, `"`, `'` — use Jinja2's auto-escaping (never `| safe`).
+- For SMS, validate the final body is valid GSM-7; strip any characters that would cause multi-part SMS splitting beyond what the template already accounts for.
 
-**Email body (plain text + HTML):**
+**Email subject:** `"Space Adventures — Launch Update: <launch name>"`  ← launch name sanitised (no newlines)
 - Change type heading: "NET Slip", "Status Change", or "New Launch from <agency>"
 - Launch name, rocket, agency
 - Old value → New value
 - New NET date/time in UTC only (e.g. `"New NET: 2026-07-04 19:30 UTC"`) — email cannot know the recipient's browser timezone
-- Unsubscribe link: `GET /api/v1/subscriptions/unsubscribe?token=<signed_token>`
+- Unsubscribe link in email: `https://<APP_DOMAIN>/confirm-unsubscribe?token=<signed_token>` — this is a **frontend page**, not a direct API call. The page displays the subscription details and a single "Confirm Unsubscribe" button. Clicking that button fires `POST /api/v1/subscriptions/unsubscribe` with `{ token }` in the request body. This prevents silent unsubscription via browser prefetching (e.g., an `<img src=...>` tag in a malicious email triggering a GET).
 
 **SMS body** (max 160 characters, strictly enforced):
 `"SpaceAdv: <name truncated to 40 chars> — <change type>. NET: <YYYY-MM-DD HH:MMz>. Reply STOP to opt out."`
@@ -474,10 +498,10 @@ All sends are async and non-blocking. A failed send increments `attempt_count` o
 ### Subscription API routes
 
 ```
-GET    /api/v1/subscriptions                               # list my subscriptions (auth required)
+GET    /api/v1/subscriptions                               # list MY subscriptions (filter by current_user.id — never returns other users' data)
 POST   /api/v1/subscriptions                               # create subscription (auth required)
-DELETE /api/v1/subscriptions/{id}                          # remove subscription (auth required)
-GET    /api/v1/subscriptions/unsubscribe?token=<token>     # one-click unsubscribe from email link (no auth)
+DELETE /api/v1/subscriptions/{id}                          # remove MY subscription — verify subscriptions.user_id == current_user.id; return 404 if not found OR belongs to another user (same response prevents ID enumeration)
+POST   /api/v1/subscriptions/unsubscribe                    # { token } in body — token must contain subscription_id AND user_id; DB must confirm both match; no auth required; no GET variant (prevents browser prefetch triggering silent unsubscribe)
 ```
 
 ---
@@ -566,15 +590,16 @@ GET  /api/v1/mars/rovers          # list available rovers + status
 
 GET  /api/v1/iss/positions        # current batch of 300-second positions (shared cache)
 GET  /api/v1/iss/tle              # current TLE data
-GET  /api/v1/iss/passes/visual?lat=0&lng=0&alt=0    # upcoming visible passes for observer
-GET  /api/v1/iss/passes/radio?lat=0&lng=0&alt=0     # upcoming radio passes for observer
+GET  /api/v1/iss/passes/visual?lat=0&lng=0&alt=0    # upcoming visible passes; lat∈[-90,90], lng∈[-180,180], alt∈[0,10000] — validated, 400 if invalid
+GET  /api/v1/iss/passes/radio?lat=0&lng=0&alt=0     # upcoming radio passes; same validation as above
 GET  /api/v1/iss/quota            # returns { used, cap, window_start, resets_at }
 
 GET  /api/v1/launches/upcoming    # all launches with net > now - 24h, ordered by net asc
-POST /api/v1/launches/sync        # manually trigger a LL2 sync — requires X-Admin-Key header matching ADMIN_API_KEY env var
+POST /api/v1/launches/sync        # manually trigger a LL2 sync — requires Authorization: Bearer <ADMIN_API_KEY> (never a custom header that Caddy logs)
 
-POST /api/v1/settings/nasa-api-key   # { api_key } — update NASA key in-process
-POST /api/v1/settings/n2yo-api-key   # { api_key } — update N2YO key in-process
+POST /api/v1/settings/nasa-api-key   # { api_key } — update NASA key in-process; never reflected back in any response
+POST /api/v1/settings/n2yo-api-key   # { api_key } — update N2YO key in-process; never reflected back in any response
+GET  /api/v1/settings                # returns ONLY { nasa_key_set: bool, n2yo_key_set: bool } — never the key values themselves
 ```
 
 All responses return `{ data: …, cached: bool, fetched_at: ISO8601, is_today: bool }` envelope.
@@ -727,7 +752,7 @@ A single-page form with:
 
 - Email or phone + password
 - On success: store JWT tokens in localStorage; redirect to `?return=` param or `/`
-- "Forgot password?" link — out of scope for v1; show a placeholder message
+- "Forgot password?" link — out of scope for v1; show a placeholder message. **Note for v2**: password reset must use a time-limited (30 min), single-use signed token sent to the verified email or phone. The endpoint must return the same success message regardless of whether the address exists in the DB (prevents user enumeration). Never send a temporary password in plaintext.
 
 ### `/account` — Account page
 
@@ -738,8 +763,9 @@ Accessible only when logged in (redirect to `/login` if not). Tabs:
 - Verification status badges next to email/phone ("Verified" / "Unverified — resend OTP")
 
 **My Subscriptions tab:**
-- List of all active subscriptions (launch name + NET, or agency name)
+- List of **only the current user's** active subscriptions (filtered by `user_id = current_user.id` on the backend — never expose another user's subscription data)
 - Per-subscription: notification channels (Email / SMS badges), delete button
+- Notification history: shows `sent_at`, `change_type`, `channel`, `delivery_status` only — never includes notification body content or any data referencing other users
 - "Subscribe to an agency" input — type an agency name → creates an agency-type subscription immediately
 
 ---
@@ -1009,6 +1035,12 @@ Run with: `pytest`
 `vite.config.ts` (or `vitest.config.ts`):
 
 ```ts
+// Production build settings (in defineConfig's `build` section):
+build: {
+  sourcemap: false,   // MUST be false in production — source maps expose full TypeScript source to anyone who requests .map files
+},
+
+// Test settings:
 test: {
   environment: "jsdom",
   setupFiles: ["./src/msw/setup.ts"],
@@ -1033,7 +1065,7 @@ Run with: `vitest run --coverage`
 3. **Each router test uses `httpx.AsyncClient` with `app` mounted** — test the full request/response cycle including middleware, dependency injection, and error handlers.
 4. **Test every branch of the caching logic**: cache hit, cache miss, today's date re-fetch, stale fallback.
 5. **Test every error code path**: `NO_INTERNET`, `NASA_UNAVAILABLE`, `NASA_ERROR`, `NASA_AUTH_ERROR`, `N2YO_QUOTA_EXHAUSTED`, `INTERNAL_ERROR` — each must have at least one test that asserts the correct HTTP status and `code` field.
-6. **Auth tests must cover**: successful registration, duplicate email, duplicate phone, missing both email and phone, wrong password, expired token, invalid refresh token, OTP expiry, OTP reuse, rate limit on OTP.
+6. **Auth tests must cover**: successful registration, duplicate email/phone returns same generic error (enumeration prevention), missing both email and phone, wrong password, expired token, invalid refresh token, OTP expiry, OTP reuse (second use of same OTP must return 400), OTP brute-force lockout (6th wrong attempt must delete the OTP row), rate limit on OTP sends (6th resend in 1 hour must return 429), login rate limit (6th failed login must return 429 with `Retry-After`), **concurrent refresh token rotation** (two simultaneous `/auth/refresh` calls with the same token — assert only one succeeds and the other gets 401), open redirect rejected (`?return=https://evil.com` → redirects to `/`).
 7. **Notification tests must mock** `aiosmtplib.send` and `twilio.rest.Client.messages.create`; assert call arguments for correct recipient, subject, and body content.
 8. **N2YO quota tests must verify** the row-level lock behaviour: simulate two concurrent requests when `used = 899` and assert only one succeeds in calling N2YO while the other serves cached data.
 
@@ -1127,12 +1159,14 @@ VITE_API_BASE_URL=http://localhost:8000
 - **No secrets in frontend**: the NASA API key is held only in the backend process; the frontend never calls NASA directly.
 - **Test coverage**: backend and frontend must each maintain ≥ 80 % branch coverage. The test runners are configured to exit non-zero if coverage drops below this threshold. All tests must pass; a feature is not complete until its tests pass and coverage is met.
 - **Startup validation**: `config.py` must use a Pydantic `model_validator` to assert all required env vars are present and non-empty on startup (`JWT_SECRET_KEY`, `UNSUBSCRIBE_SECRET_KEY`, `ADMIN_API_KEY`). The app must refuse to start and print a clear error if any required var is missing.
-- **Health endpoint**: `GET /api/v1/health` returns `{ db: "ok"|"error", smtp: "ok"|"error"|"unconfigured", n2yo_quota: { used, cap } }`. This lets operators detect SMTP misconfiguration before it silently swallows notifications.
+- **Health endpoint**: `GET /api/v1/health` has two tiers of response depending on whether the caller provides a valid `Authorization: Bearer <ADMIN_API_KEY>` header:
+  - **Unauthenticated** (public): `{ status: "ok" | "degraded" }` — binary only; no internal details exposed. Used by Caddy's upstream health check.
+  - **Authenticated admin**: `{ db: "ok"|"error", smtp: "ok"|"error"|"unconfigured", n2yo_quota: { status: "ok"|"warning"|"exhausted" } }` — note quota returns a status string, not the raw `used/cap` numbers, to avoid revealing usage patterns to an attacker who steals the admin key.
 - **HTTPS everywhere in production**: the app is always served over HTTPS in production. Caddy handles TLS automatically via Let's Encrypt (see §17). The backend is never exposed directly — all traffic enters through Caddy. `localhost` in development is exempt from HTTPS and does not need TLS.
 - **Password security**: passwords are hashed with bcrypt (cost factor ≥ 12) before storage. Plaintext passwords must never appear in logs, responses, or the DB.
 - **JWT security**: `JWT_SECRET_KEY` must be a cryptographically random 256-bit value. Access tokens expire in 15 minutes. Refresh tokens are stored hashed in the DB and invalidated on logout.
 - **OTP security**: OTPs are 6-digit codes, expire after 10 minutes, and are single-use. Rate-limit OTP requests to 5 per hour per user.
-- **Unsubscribe token security**: one-click unsubscribe tokens are signed with a **dedicated `UNSUBSCRIBE_SECRET_KEY`** (separate from `JWT_SECRET_KEY`). This means rotating the JWT secret for security reasons does not invalidate existing unsubscribe links. Tokens include `subscription_id` and `exp` (30-day expiry) as claims; they unsubscribe only the specific subscription embedded in the token.
+- **Unsubscribe token security**: one-click unsubscribe tokens are signed with a **dedicated `UNSUBSCRIBE_SECRET_KEY`** (separate from `JWT_SECRET_KEY`). Tokens include **both `subscription_id` and `user_id`** plus `exp` (30-day expiry) as claims. The endpoint must verify the signature, then query the DB and assert `subscriptions.id = subscription_id AND subscriptions.user_id = user_id` before deleting. If either check fails, return 404 (do not distinguish "invalid token" from "subscription not found" to avoid oracle attacks). This prevents an attacker with a leaked signing key from unsubscribing arbitrary users by guessing integer IDs.
 
 ---
 
@@ -1426,13 +1460,20 @@ export const handlers = [
 ];
 ```
 
-**P21 — `?return=` query param URL must be encoded**
+**P21 — `?return=` query param must be encoded AND validated to prevent open redirect**
 ```ts
 // Writing:
 `/login?return=${encodeURIComponent(location.pathname + location.search)}`
-// Reading:
-decodeURIComponent(new URLSearchParams(location.search).get('return') ?? '/')
+
+// Reading — validate before using:
+function safeReturnUrl(): string {
+  const raw = decodeURIComponent(new URLSearchParams(location.search).get('return') ?? '/');
+  // Must be a relative path — reject anything with a protocol or host
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('://')) return '/';
+  return raw;
+}
 ```
+An attacker crafting `/login?return=https://evil.com` is silently redirected to `/` instead.
 
 **P22 — Vite proxy target `localhost` unreachable inside Docker**
 In `vite.config.ts`, read the proxy target from the env:
@@ -1640,13 +1681,26 @@ COPY --from=builder /app/dist /dist
 
     # Security headers
     header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Strict-Transport-Security  "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options     "nosniff"
         X-Frame-Options            "DENY"
         X-XSS-Protection           "1; mode=block"
         Referrer-Policy            "strict-origin-when-cross-origin"
         Permissions-Policy         "geolocation=(self)"
+        Content-Security-Policy    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'"
         -Server                    # remove Caddy version header
+        # Never log Authorization header — admin key and user tokens must not appear in access logs
+    }
+
+    # Strip Authorization header from access logs
+    log {
+        format filter {
+            wrap json
+            fields {
+                request>headers>Authorization delete
+                request>headers>X-Admin-Key delete
+            }
+        }
     }
 
     # Proxy all API and auth traffic to the backend container
@@ -1798,8 +1852,10 @@ Run these steps on the server in order. Every step must succeed before moving to
 ```bash
 git clone <repo-url> space-adventures && cd space-adventures
 cp .env.prod.example .env.prod
+chmod 600 .env.prod               # owner read/write only — verify with: ls -l .env.prod → -rw-------
 # Fill in all values in .env.prod — especially JWT_SECRET_KEY, UNSUBSCRIBE_SECRET_KEY,
 # ADMIN_API_KEY (generate each with: python -c "import secrets; print(secrets.token_hex(32))")
+# .env.prod must be listed in .gitignore — never commit it to version control
 ```
 
 **Step 2 — Build the frontend**
@@ -1862,5 +1918,5 @@ cd frontend && npm ci && VITE_API_BASE_URL=https://<APP_DOMAIN> npm run build &&
 
 - Caddy stores certificates in the `caddy_data` Docker volume. **Never delete this volume** — Let's Encrypt rate-limits certificate issuance (5 duplicate certs per week). If the volume is lost, wait up to a week before a new cert can be issued for the same domain.
 - Caddy renews certificates automatically ≥ 30 days before expiry. No manual action is required.
-- The `Strict-Transport-Security` header is set with `preload`. Once a browser has seen this header, it will refuse to connect via HTTP for 1 year. Only add the domain to the HSTS preload list (`hstspreload.org`) once the HTTPS setup is confirmed stable.
+- The `Strict-Transport-Security` header is set with `preload` in the Caddyfile. **Do NOT submit the domain to the HSTS preload list (`hstspreload.org`) during initial deployment.** Only submit after HTTPS has been running stably for at least one month with no certificate issues. Reason: once preloaded, browsers refuse HTTP connections for up to 1 year — if HTTPS ever breaks, the domain becomes completely inaccessible to all users with no emergency workaround. Remove `preload` from the header if this risk is unacceptable.
 - `Permissions-Policy: geolocation=(self)` ensures only the app's own origin can request geolocation — no embedded third-party frames can request it silently.
