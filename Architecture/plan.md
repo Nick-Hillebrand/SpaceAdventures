@@ -24,14 +24,15 @@ This document is the authoritative specification for Claude Code to implement th
 | HTTP client (backend) | httpx (async) |
 | Caching layer | Database-backed permanent cache (see §6) |
 | 3D Globe | Globe.gl (MIT licence, Three.js-based) |
-| Calendar | FullCalendar React (`@fullcalendar/react` + `@fullcalendar/daygrid`, MIT) |
+| Calendar | FullCalendar React v6 (`@fullcalendar/react` + `@fullcalendar/daygrid`). **Licence note**: both packages are MIT in v6 when used without premium plugins. Do not add any `@fullcalendar/premium` or scheduler plugins. Set `editable: false` to disable drag-and-drop (calendar is read-only). |
 | Auth (backend) | python-jose[cryptography] (JWT) + passlib[bcrypt] (password hashing) |
 | Email (backend) | aiosmtplib — async SMTP, works with any provider (Gmail, SendGrid, etc.) |
 | SMS (backend) | Twilio Python SDK |
-| Backend testing | pytest + pytest-asyncio + pytest-cov + httpx (AsyncClient for route tests) |
-| Frontend testing | Vitest + React Testing Library + @testing-library/user-event + MSW (mock service worker) |
+| Backend testing | pytest + pytest-asyncio + pytest-cov + httpx (AsyncClient for route tests) + respx (httpx mock) |
+| Frontend testing | Vitest + React Testing Library + @testing-library/user-event + MSW v2 (mock service worker) |
 | Coverage enforcement | pytest-cov (backend, branch mode); @vitest/coverage-v8 (frontend, branch mode) |
-| Containerisation | Docker + docker-compose |
+| Reverse proxy / TLS | Caddy v2 (automatic Let's Encrypt, HTTP→HTTPS redirect, static file serving) |
+| Containerisation | Docker + docker-compose (dev) / docker-compose.prod.yml (production) |
 | Linting / formatting | Ruff (Python), ESLint + Prettier (TS) |
 
 ---
@@ -102,7 +103,7 @@ space-adventures/
 │   │   └── test_notifications.py    # pending queue drain, email/SMS dispatch, retry
 │   ├── pytest.ini                   # testpaths, asyncio_mode = auto, branch coverage config
 │   ├── requirements.txt
-│   └── Dockerfile
+│   └── Dockerfile                   # production image (installs libffi-dev/gcc for bcrypt C ext)
 ├── frontend/
 │   ├── src/
 │   │   ├── main.tsx
@@ -158,9 +159,13 @@ space-adventures/
 │   ├── index.html
 │   ├── vite.config.ts
 │   ├── tailwind.config.ts
-│   └── Dockerfile
-├── docker-compose.yml
-├── .env.example
+│   ├── Dockerfile              # production multi-stage build
+│   └── Dockerfile.dev          # dev: runs Vite dev server
+├── docker-compose.yml          # development only (HTTP, hot reload, bind mounts)
+├── docker-compose.prod.yml     # production (HTTPS via Caddy, built assets)
+├── Caddyfile                   # Caddy reverse-proxy + TLS config
+├── .env.example                # development env template
+├── .env.prod.example           # production env template
 └── Architecture/
     ├── shell.md
     └── plan.md                      # ← this file
@@ -285,7 +290,7 @@ GET https://ll.thespacedevs.com/2.3.0/launches/upcoming/?mode=detailed&limit=50&
 Upcoming launch data is **not** permanently immutable — NET dates slip, launches get scrubbed, new launches are added. The cache rule is therefore time-bounded:
 
 - Store all upcoming launches returned by LL2 in the DB on each sync.
-- A background sync runs **every 30 minutes** (APScheduler). This is the only place the LL2 API is called; no user request ever triggers a direct LL2 call.
+- A background sync runs **every 30 minutes** via APScheduler (`AsyncIOScheduler`, one instance per process). This is the only place the LL2 API is called; no user request ever triggers a direct LL2 call. **Important**: Uvicorn must be run as a **single worker** (`--workers 1`) to prevent multiple APScheduler instances from firing concurrent syncs and generating duplicate notifications. If multi-worker deployment is needed in future, move the scheduler to a standalone process (e.g. a separate `scheduler` Docker service running the same Python app with `--scheduler-only` flag).
 - On each sync: upsert all returned launches by `ll2_id`; mark any `ll2_id` no longer in the response as `status_abbrev = "Gone"` (do not delete — keeps historical cards available).
 - Launches whose `net` is more than 24 hours in the past are excluded from the `/api/v1/launches/upcoming` response but kept in the DB.
 - If the backend starts and the `launches` table is empty, run one immediate sync before responding to any frontend request.
@@ -332,23 +337,54 @@ phone_verified BOOLEAN  DEFAULT FALSE
 created_at     DATETIME DEFAULT NOW
 ```
 
+### `otps` DB table
+
+Stores pending OTPs for email and phone verification. Deleted on successful use.
+
+```
+id          INTEGER  PRIMARY KEY
+user_id     INTEGER  FK → users.id  ON DELETE CASCADE
+channel     TEXT     CHECK IN ('email', 'phone')
+code_hash   TEXT     NOT NULL       — bcrypt hash of the 6-digit code (never store plaintext)
+expires_at  DATETIME NOT NULL       — NOW + 10 minutes
+used        BOOLEAN  DEFAULT FALSE  — marked TRUE on first successful verify; prevents reuse
+created_at  DATETIME DEFAULT NOW
+```
+
+Rate limiting: at most 5 rows per `(user_id, channel)` in any 1-hour window. If this limit is reached, `POST /api/v1/auth/verify/resend` returns `429`. Old unused OTPs for the same `(user_id, channel)` are deleted when a new one is issued.
+
+### `refresh_tokens` DB table
+
+```
+id           INTEGER  PRIMARY KEY
+user_id      INTEGER  FK → users.id  ON DELETE CASCADE
+token_hash   TEXT     NOT NULL       — SHA-256 hash of the raw token; raw token is never stored
+expires_at   DATETIME NOT NULL       — NOW + 30 days
+revoked      BOOLEAN  DEFAULT FALSE  — set TRUE on logout or rotation
+created_at   DATETIME DEFAULT NOW
+```
+
+On each `/api/v1/auth/refresh` call: issue a new refresh token, mark the old one `revoked = TRUE`, and return the new token. This is **refresh token rotation** — a dropped connection on the response may leave the client with an invalid token; the client must store the new token immediately.
+
 ### Authentication flow
 
-- **JWT-based**: access token (15-minute expiry) + refresh token (30-day expiry, stored in the DB as `refresh_tokens` table)
+- **JWT-based**: access token (15-minute expiry) + refresh token (30-day expiry, stored hashed in `refresh_tokens`)
 - Access token sent in `Authorization: Bearer <token>` header
-- Frontend stores tokens in `localStorage`
+- Frontend stores tokens in `localStorage` (acceptable for this app's scope; document the XSS risk in code comments)
 - Verification: after registration, a 6-digit OTP is sent to the provided email and/or phone. Notifications are only dispatched to verified channels
 - Login works with either email + password or phone + password
+- **Today's rule**: once `email_verified = TRUE`, subsequent calls to the verify endpoint are a no-op (return 200 with a message, not an error). Resend OTP is only allowed if `email_verified = FALSE`
 
 ### Auth API routes
 
 ```
 POST /api/v1/auth/register          # create account; sends OTP to email/phone
-POST /api/v1/auth/verify/email      # { otp } — mark email verified
-POST /api/v1/auth/verify/phone      # { otp } — mark phone verified
+POST /api/v1/auth/verify/email      # { otp } — mark email verified; no-op if already verified
+POST /api/v1/auth/verify/phone      # { otp } — mark phone verified; no-op if already verified
+POST /api/v1/auth/verify/resend     # { channel: "email"|"phone" } — send new OTP; rate-limited to 5/hr
 POST /api/v1/auth/login             # { email_or_phone, password } → { access_token, refresh_token }
-POST /api/v1/auth/refresh           # { refresh_token } → new access_token
-POST /api/v1/auth/logout            # invalidate refresh token
+POST /api/v1/auth/refresh           # { refresh_token } → { access_token, refresh_token } (token rotated)
+POST /api/v1/auth/logout            # { refresh_token } — revoke refresh token
 GET  /api/v1/auth/me                # return current user profile (requires auth)
 ```
 
@@ -371,8 +407,8 @@ user_id         INTEGER  FK → users.id  ON DELETE CASCADE
 type            TEXT     CHECK IN ('launch', 'agency')
 ll2_id          TEXT     NULLABLE — set when type = 'launch'
 agency_name     TEXT     NULLABLE — set when type = 'agency'
-notify_email    BOOLEAN  DEFAULT TRUE  — only effective if user.email_verified
-notify_sms      BOOLEAN  DEFAULT FALSE — only effective if user.phone_verified
+notify_email    BOOLEAN  DEFAULT FALSE — only effective if user.email_verified; explicitly set by user in SubscribeModal
+notify_sms      BOOLEAN  DEFAULT FALSE — only effective if user.phone_verified; explicitly set by user in SubscribeModal
 created_at      DATETIME DEFAULT NOW
 UNIQUE (user_id, type, ll2_id)        — prevent duplicate subscriptions
 UNIQUE (user_id, type, agency_name)
@@ -416,11 +452,12 @@ sent_at          DATETIME
 - Change type heading: "NET Slip", "Status Change", or "New Launch from <agency>"
 - Launch name, rocket, agency
 - Old value → New value
-- New NET date/time in UTC and local time
+- New NET date/time in UTC only (e.g. `"New NET: 2026-07-04 19:30 UTC"`) — email cannot know the recipient's browser timezone
 - Unsubscribe link: `GET /api/v1/subscriptions/unsubscribe?token=<signed_token>`
 
-**SMS body** (max 160 characters):
-`"Space Adventures: <launch name> — <change>. New NET: <date UTC>. Reply STOP to opt out."`
+**SMS body** (max 160 characters, strictly enforced):
+`"SpaceAdv: <name truncated to 40 chars> — <change type>. NET: <YYYY-MM-DD HH:MMz>. Reply STOP to opt out."`
+Launch names longer than 40 characters are truncated with `…`. The change type is one of: "NET slip", "Status: Go", "Status: Hold", "New launch". The template as constructed fits within 160 characters at all times.
 
 ### Notification delivery
 
@@ -432,7 +469,7 @@ sent_at          DATETIME
 4. Write to `notification_log` with delivery status.
 5. Delete the `pending_notifications` row.
 
-All sends are async and non-blocking. A failed send logs the error and retries on the next sync cycle (max 3 attempts, tracked via an `attempt_count` column in `pending_notifications`).
+All sends are async and non-blocking. A failed send increments `attempt_count` on the `pending_notifications` row and logs the error at ERROR level. The row is retried on the next sync cycle. After 3 failed attempts, the row is deleted and a final ERROR log entry is written — the user is not retried further. If SMTP is misconfigured, this will surface as repeated ERROR logs per sync cycle and is detectable via the `/api/v1/health` endpoint (see §14).
 
 ### Subscription API routes
 
@@ -461,7 +498,7 @@ Every service follows this lookup pattern before hitting the NASA API:
 Historical dates are immutable and stored once-and-forever. However, data for **today's date** may be incomplete at query time (NASA updates intraday). The rule:
 
 - If the requested date/range **ends before today** → treat as historical, permanent cache applies.
-- If the requested date/range **includes today** → always re-fetch from NASA and upsert the DB row so the record is kept current until midnight, at which point it becomes historical and is never re-fetched again.
+- If the requested date/range **includes today** → always re-fetch from NASA and upsert the DB row so the record is kept current until midnight **UTC**, at which point it becomes historical and is never re-fetched again. "Today" is always evaluated in UTC on the backend regardless of the user's local timezone.
 
 This means the only live NASA calls the app ever makes are for the current day's data.
 
@@ -471,7 +508,7 @@ The `nasa_client.py` module keeps a single `httpx.AsyncClient` with a `NASA_API_
 
 ## 6b. N2YO Transaction Quota
 
-N2YO's free tier allows **1 000 transactions per rolling hour**. The backend must enforce a hard cap of **900 transactions per hour** (100-unit safety buffer) to ensure the app never crosses into the paid tier, regardless of how many users are active.
+N2YO's free tier allows **1 000 transactions per rolling hour**. The backend must enforce a configurable hard cap (default **900**) to ensure the app never crosses into the paid tier. The cap is read from the `N2YO_QUOTA_CAP` env var at startup; the quota model never hard-codes 900 in logic — it reads `settings.n2yo_quota_cap` everywhere. The default of 900 provides a 100-transaction safety buffer.
 
 ### Quota model (`n2yo_quota` table)
 
@@ -485,10 +522,10 @@ There is always exactly one row. On each N2YO call attempt:
 
 1. Read the row.
 2. If `NOW() - window_start >= 1 hour` → reset: set `window_start = NOW()`, `used = 0`.
-3. If `used >= 900` → **do not call N2YO**. Return cached data if available with `quota_exhausted: true` in the response envelope. If no cache exists, return a `429` with error code `N2YO_QUOTA_EXHAUSTED`.
+3. If `used >= settings.n2yo_quota_cap` → **do not call N2YO**. Return cached data if available with `quota_exhausted: true` in the response envelope. If no cache exists, return a `429` with error code `N2YO_QUOTA_EXHAUSTED`.
 4. Otherwise → call N2YO, increment `used`, upsert cache, return data.
 
-The increment in step 4 must happen **inside a DB transaction** with a row-level lock so concurrent requests cannot double-count.
+The increment in step 4 must happen **inside a DB transaction** using `SELECT … FOR UPDATE` (SQLAlchemy: `.with_for_update()`) so concurrent requests cannot double-count. For SQLite (dev), a Python-side `asyncio.Lock` singleton is used instead since SQLite does not support row-level locks; PostgreSQL (prod) uses `SELECT … FOR UPDATE` natively. The lock must be released in a `finally` block to prevent deadlocks on exception.
 
 ### ISS position cache & polling
 
@@ -534,7 +571,7 @@ GET  /api/v1/iss/passes/radio?lat=0&lng=0&alt=0     # upcoming radio passes for 
 GET  /api/v1/iss/quota            # returns { used, cap, window_start, resets_at }
 
 GET  /api/v1/launches/upcoming    # all launches with net > now - 24h, ordered by net asc
-POST /api/v1/launches/sync        # manually trigger a LL2 sync (admin / debug use)
+POST /api/v1/launches/sync        # manually trigger a LL2 sync — requires X-Admin-Key header matching ADMIN_API_KEY env var
 
 POST /api/v1/settings/nasa-api-key   # { api_key } — update NASA key in-process
 POST /api/v1/settings/n2yo-api-key   # { api_key } — update N2YO key in-process
@@ -573,8 +610,8 @@ Display the following in a side panel or HUD overlay:
 | Azimuth | positions cache | ° |
 | Elevation (from observer) | positions cache | ° |
 | Eclipsed (in Earth's shadow) | positions cache | Yes / No |
-| Next visible pass (from observer) | visual passes cache | local time + duration |
-| Next radio pass (from observer) | radio passes cache | local time + duration |
+| Next visible pass (from observer) | visual passes cache | `formatDateTime(startUTC)` in user's local timezone + duration |
+| Next radio pass (from observer) | radio passes cache | `formatDateTime(startUTC)` in user's local timezone + duration |
 | N2YO quota remaining | `/api/v1/iss/quota` | X / 900 used |
 
 ### Quota warning in the UI
@@ -582,11 +619,15 @@ Display the following in a side panel or HUD overlay:
 If the `/api/v1/iss/quota` response shows `quota_exhausted: true` OR `used >= 800`:
 - Show a persistent warning badge on the ISS tab icon and at the top of the ISS page.
 - Text: `"iss.quotaWarning"` (e.g. "N2YO API quota nearly exhausted — showing cached data")
-- If fully exhausted: `"iss.quotaExhausted"` (e.g. "N2YO API quota exhausted for this hour. Live updates paused. Resets at {{time}}.")
+- If fully exhausted: `"iss.quotaExhausted"` (e.g. "N2YO API quota exhausted for this hour. Live updates paused. Resets at {{time}}.") — `{{time}}` is rendered via `formatTime(resets_at)` in the user's local timezone
 
 ### Client-side position interpolation
 
-The frontend holds the 300-entry position array in memory. A `setInterval` running every 1 000 ms picks the entry closest to `now` and moves the ISS marker. When the batch is within 30 seconds of expiry, TanStack Query's background refetch triggers a new `/api/v1/iss/positions` call (1 transaction) to top up the array. This gives smooth 1-second animation with no per-second API calls.
+The frontend holds the 300-entry position array in memory alongside the server-side `fetched_at` timestamp returned by the backend. The `setInterval` runs every 1 000 ms and computes the target offset as `Date.now() - fetched_at_ms`, then picks the entry at that index (clamped to `[0, 299]`).
+
+**Batch exhaustion fallback**: When the computed offset exceeds 270 seconds (30 s before the 300 s batch ends), TanStack Query's query for `/api/v1/iss/positions` is manually invalidated via `queryClient.invalidateQueries()` inside a `useEffect` with a `setTimeout`. This triggers a background refetch. If the refetch has not completed by the time the batch is fully exhausted (offset ≥ 300), the ISS marker **freezes at the last known position** and a subtle "Updating…" indicator appears on the data panel. It resumes moving as soon as the new batch arrives. No extrapolation is attempted — frozen is preferable to an incorrectly extrapolated position.
+
+The `staleTime` for the ISS positions query is set to `270_000` ms (4.5 minutes) — overriding the global `Infinity` — so TanStack Query's built-in background refetch fires automatically when the data goes stale at 4.5 minutes.
 
 ---
 
@@ -625,7 +666,7 @@ Each card displays:
 - Countdown runs entirely client-side using `setInterval` at 1 Hz — no polling needed.
 - When `net` is in the future: shows `T− Xd Xh Xm Xs` in large monospace text.
 - When `net` has passed (launch occurred): shows `T+ Xh Xm Xs` with the status badge updated to the value from the last sync.
-- When `status_abbrev` is `"TBD"` or `"Hold"`: show `"NET: <date>"` instead of a live countdown, since the time is not reliable enough to count down to.
+- When `status_abbrev` is `"TBD"` or `"Hold"`: show `"NET: <date>"` instead of a live countdown, since the time is not reliable enough to count down to. The date is rendered via `formatDateTime(net)` in the user's local timezone.
 
 ### Calendar view
 
@@ -659,7 +700,7 @@ A filled bell icon on the card indicates the user is already subscribed to that 
 
 ### Data freshness indicator
 
-A small line at the top of the page shows when the launch list was last synced from LL2 (the `fetched_at` of the most recently updated record), e.g. "Last updated 4 minutes ago". TanStack Query refetches `/api/v1/launches/upcoming` every **5 minutes** in the background so the page stays current without a manual reload.
+A small line at the top of the page shows when the launch list was last synced from LL2, e.g. "Last updated 4 minutes ago". This is rendered via `formatRelative(last_synced_at)`. TanStack Query refetches `/api/v1/launches/upcoming` every **5 minutes** in the background so the page stays current without a manual reload.
 
 ---
 
@@ -795,6 +836,87 @@ Translation file structure (example keys for `en.json`):
 
 ---
 
+## 9b. Timezone Policy
+
+### Rule
+
+> **The backend stores and computes everything in UTC. The frontend displays every date and time in the user's local timezone as reported by the browser. No timezone is ever stored in the database or sent by the backend.**
+
+"Today" for cache-expiry decisions is UTC midnight on the backend. What the user *sees* is always their local time — a user in Montreal (EDT, UTC−4) sees launch times 4 hours behind UTC; a user in Frankfurt (CET, UTC+1) sees them 1 hour ahead.
+
+### Implementation
+
+Create a shared utility module `src/lib/dateTime.ts` with the following functions used by every component that displays a date or time:
+
+```ts
+const userLocale = navigator.language          // e.g. "en-CA", "de-DE"
+const userTz     = Intl.DateTimeFormat().resolvedOptions().timeZone  // e.g. "America/Toronto", "Europe/Berlin"
+
+// Full date + time: "Jul 4, 2026, 3:45 PM EDT"
+export function formatDateTime(isoUtc: string): string {
+  return new Intl.DateTimeFormat(userLocale, {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: userTz
+  }).format(new Date(isoUtc))
+}
+
+// Date only: "Jul 4, 2026"
+export function formatDate(isoUtc: string): string {
+  return new Intl.DateTimeFormat(userLocale, {
+    dateStyle: 'medium', timeZone: userTz
+  }).format(new Date(isoUtc))
+}
+
+// Time only: "3:45 PM EDT"
+export function formatTime(isoUtc: string): string {
+  return new Intl.DateTimeFormat(userLocale, {
+    timeStyle: 'short', timeZone: userTz
+  }).format(new Date(isoUtc))
+}
+
+// Relative: "4 minutes ago", "in 2 hours"
+export function formatRelative(isoUtc: string): string {
+  const diffMs = new Date(isoUtc).getTime() - Date.now()
+  const rtf = new Intl.RelativeTimeFormat(userLocale, { numeric: 'auto' })
+  // pick the largest unit that makes sense
+  const abs = Math.abs(diffMs)
+  if (abs < 60_000)  return rtf.format(Math.round(diffMs / 1_000), 'second')
+  if (abs < 3_600_000) return rtf.format(Math.round(diffMs / 60_000), 'minute')
+  if (abs < 86_400_000) return rtf.format(Math.round(diffMs / 3_600_000), 'hour')
+  return rtf.format(Math.round(diffMs / 86_400_000), 'day')
+}
+```
+
+These functions are the **only** way dates and times are rendered in JSX. No component may call `new Date().toLocaleString()`, `toLocaleDateString()`, or hardcode timezone strings directly.
+
+### Where each function is used
+
+| Feature | Data field | Function |
+|---|---|---|
+| APOD | `date` (YYYY-MM-DD) | `formatDate` |
+| NEO close approach | `close_approach_date` | `formatDate` |
+| Space weather events | event `beginTime`, `peakTime`, `endTime` | `formatDateTime` |
+| Mars photos | `earth_date` | `formatDate` |
+| ISS visual/radio passes | `startUTC`, `maxUTC`, `endUTC` | `formatDateTime` |
+| ISS quota reset | quota `resets_at` | `formatTime` |
+| Launch NET (TBD/Hold display) | `net` | `formatDateTime` |
+| Launch countdown transition label | `net` | `formatDateTime` (shown when `T+` kicks in) |
+| "Last updated X ago" (launches) | `last_synced_at` | `formatRelative` |
+| "Fetched at" / "Cached from" badges | `fetched_at` | `formatDateTime` |
+| Notification log in Account page | `sent_at` | `formatDateTime` |
+
+### Email notifications
+
+The backend cannot know the user's browser timezone. Email notifications show times in **UTC only**, clearly labelled:
+- `"New NET: 2026-07-04 19:30 UTC"`
+
+The email body does **not** attempt to convert to local time. Users who want local time can check the app (which uses their browser timezone).
+
+### Date picker inputs (APOD, NEO, Mars)
+
+Date pickers send a plain `YYYY-MM-DD` string to the backend — no timezone conversion needed for date-only inputs. The backend treats these as calendar dates, not moments in time.
+
+---
+
 ## 10. Settings Page — Behaviour
 
 | Setting | Type | Storage | Effect |
@@ -809,27 +931,51 @@ NASA and N2YO API keys entered in Settings are forwarded to the backend via `POS
 
 ---
 
-## 11. Docker Compose
+## 11. Docker Compose — Development Only
+
+`docker-compose.yml` is for **local development only**. It runs HTTP (no TLS), uses `--reload` for hot-reload, and mounts source code directories only — never the full `/app` directory (which would overwrite pip-installed packages; see P30).
 
 ```yaml
-# docker-compose.yml (generated)
+# docker-compose.yml  ─── DEVELOPMENT ONLY ───
 services:
   backend:
-    build: ./backend
-    ports: ["8000:8000"]
-    environment:
-      - DATABASE_URL=sqlite+aiosqlite:///./space_adventures.db
-      - NASA_API_KEY=${NASA_API_KEY:-DEMO_KEY}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports: ["8000:8000"]          # exposed directly for dev tools / browser access
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --reload
+    env_file: .env
     volumes:
-      - ./backend:/app
+      - ./backend/app:/app/app    # source code only — does NOT overwrite site-packages
+      - sa_db_data:/app/data
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev  # runs Vite dev server with HMR
     ports: ["5173:5173"]
     environment:
       - VITE_API_BASE_URL=http://localhost:8000
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     depends_on: [backend]
+
+volumes:
+  sa_db_data:
 ```
+
+`frontend/Dockerfile.dev`:
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json .
+RUN npm ci
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+```
+
+**Localhost is exempt from the HTTPS requirement**, so the browser Geolocation API works in dev without TLS. For production HTTPS, see §17.
 
 ---
 
@@ -893,7 +1039,7 @@ Run with: `vitest run --coverage`
 
 ### Frontend test rules
 
-1. **MSW intercepts all API calls.** `src/msw/handlers.ts` defines handlers for every backend route. Tests import these handlers; no real network traffic occurs.
+1. **MSW intercepts all API calls.** `src/msw/handlers.ts` defines handlers for every backend route. Tests import these handlers; no real network traffic occurs. **Setup**: run `npx msw init public/` once after project creation to generate `public/mockServiceWorker.js`; commit this file. `src/msw/setup.ts` calls `server.listen()` in `beforeAll`, `server.resetHandlers()` in `afterEach`, and `server.close()` in `afterAll`.
 2. **Render with all required providers** (QueryClientProvider, i18next provider, Router) via a shared `renderWithProviders` test utility.
 3. **Test user interactions**, not implementation details: use `userEvent` to click, type, and select; assert on visible text and ARIA roles — not on internal state or component refs.
 4. **Each page test must cover**:
@@ -901,9 +1047,12 @@ Run with: `vitest run --coverage`
    - Loading state: skeleton/spinner is shown while data is pending
    - Error state: correct `<ErrorBanner>` is shown for each error code the page can receive
    - Empty state: correct empty-state message is shown when the API returns an empty array
-5. **Countdown timer tests** mock `Date.now()` / `setInterval` via Vitest's fake timers — never rely on wall-clock time.
-6. **`<SubscribeModal>` tests** must cover: unauthenticated user sees login prompt; authenticated user with unverified channels sees verification prompt; successful subscription POST is called with correct body; existing subscription shows unsubscribe flow.
-7. **Calendar view tests** assert that toggling from grid to calendar view renders FullCalendar and that events appear with the correct label and colour class.
+5. **Countdown timer tests** use `vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'setInterval', 'clearInterval'] })` — explicitly exclude `requestAnimationFrame` to avoid breaking Globe.gl. Never rely on wall-clock time in countdown tests. Restore real timers with `vi.useRealTimers()` in `afterEach`.
+6. **Globe.gl tests** must use real timers (no `vi.useFakeTimers()`). Globe initialization must be wrapped in a `useEffect` with cleanup in the component (`globe.current?._destructor?.()` or equivalent). Tests for `IssPage` should mock the `globe.gl` module entirely (`vi.mock('globe.gl', () => ({ default: vi.fn(() => ({ ... })) }))`) to avoid WebGL context requirements in jsdom.
+7. **`<SubscribeModal>` tests** must cover: unauthenticated user sees login prompt; authenticated user with unverified channels sees verification prompt; successful subscription POST is called with correct body; existing subscription shows unsubscribe flow.
+8. **Calendar view tests** assert that toggling from grid to calendar view renders FullCalendar and that events appear with the correct label and colour class. Set `editable: false` in the FullCalendar config; assert that dragging is disabled.
+
+9. **Timezone tests**: `src/lib/dateTime.ts` must have unit tests covering `formatDateTime`, `formatDate`, `formatTime`, and `formatRelative` with a mocked `Intl.DateTimeFormat` that simulates both a North American timezone (e.g. `America/Toronto`) and a European timezone (e.g. `Europe/Berlin`). Assert that the same UTC ISO string produces different output for different timezones. Each page test that renders a date or time must mock the `dateTime` module and assert that the correct formatting function was called — not the raw UTC string.
 
 ### What is explicitly out of scope for unit tests
 
@@ -960,7 +1109,9 @@ SMTP_FROM=noreply@space-adventures.app
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_FROM_NUMBER=                 # E.164 format, e.g. +14155552671
-N2YO_QUOTA_CAP=900                  # Hard cap below the 1000/hour free-tier limit
+N2YO_QUOTA_CAP=900                  # Hard cap below the 1000/hour free-tier limit (quota logic reads this — never hard-code 900)
+ADMIN_API_KEY=change_me             # Required header value for POST /api/v1/launches/sync
+UNSUBSCRIBE_SECRET_KEY=change_me_to_a_random_256bit_secret  # Separate from JWT_SECRET_KEY — rotating JWT does not break unsubscribe links
 DATABASE_URL=sqlite+aiosqlite:///./space_adventures.db
 CORS_ORIGINS=http://localhost:5173
 VITE_API_BASE_URL=http://localhost:8000
@@ -975,10 +1126,13 @@ VITE_API_BASE_URL=http://localhost:8000
 - **Accessibility**: all images must have `alt` text; colour contrast must meet WCAG AA; keyboard navigation must work across all tabs and controls.
 - **No secrets in frontend**: the NASA API key is held only in the backend process; the frontend never calls NASA directly.
 - **Test coverage**: backend and frontend must each maintain ≥ 80 % branch coverage. The test runners are configured to exit non-zero if coverage drops below this threshold. All tests must pass; a feature is not complete until its tests pass and coverage is met.
+- **Startup validation**: `config.py` must use a Pydantic `model_validator` to assert all required env vars are present and non-empty on startup (`JWT_SECRET_KEY`, `UNSUBSCRIBE_SECRET_KEY`, `ADMIN_API_KEY`). The app must refuse to start and print a clear error if any required var is missing.
+- **Health endpoint**: `GET /api/v1/health` returns `{ db: "ok"|"error", smtp: "ok"|"error"|"unconfigured", n2yo_quota: { used, cap } }`. This lets operators detect SMTP misconfiguration before it silently swallows notifications.
+- **HTTPS everywhere in production**: the app is always served over HTTPS in production. Caddy handles TLS automatically via Let's Encrypt (see §17). The backend is never exposed directly — all traffic enters through Caddy. `localhost` in development is exempt from HTTPS and does not need TLS.
 - **Password security**: passwords are hashed with bcrypt (cost factor ≥ 12) before storage. Plaintext passwords must never appear in logs, responses, or the DB.
 - **JWT security**: `JWT_SECRET_KEY` must be a cryptographically random 256-bit value. Access tokens expire in 15 minutes. Refresh tokens are stored hashed in the DB and invalidated on logout.
 - **OTP security**: OTPs are 6-digit codes, expire after 10 minutes, and are single-use. Rate-limit OTP requests to 5 per hour per user.
-- **Unsubscribe token security**: one-click unsubscribe tokens are signed with the JWT secret and include an expiry of 30 days; they unsubscribe only the specific subscription embedded in the token.
+- **Unsubscribe token security**: one-click unsubscribe tokens are signed with a **dedicated `UNSUBSCRIBE_SECRET_KEY`** (separate from `JWT_SECRET_KEY`). This means rotating the JWT secret for security reasons does not invalidate existing unsubscribe links. Tokens include `subscription_id` and `exp` (30-day expiry) as claims; they unsubscribe only the specific subscription embedded in the token.
 
 ---
 
@@ -1099,12 +1253,614 @@ Configure the global `QueryClient` with:
 new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,                  // retry failed requests twice before showing error UI
+      retry: 2,
       retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000),
-      staleTime: Infinity,       // data never goes stale on the client — cache is permanent on the backend
+      staleTime: Infinity,   // global default — backend cache is permanent for historical data
     },
   },
 })
 ```
 
+**Per-query `staleTime` overrides** — two queries must override the global `Infinity` to enable automatic background refetching:
+
+| Query | `staleTime` | Reason |
+|---|---|---|
+| `/api/v1/iss/positions` | `270_000` ms (4.5 min) | Triggers background refetch 30 s before 5-min batch expires |
+| `/api/v1/launches/upcoming` | `300_000` ms (5 min) | Refreshes launch list every 5 minutes to reflect NET slips |
+
+These overrides are set directly on the `useQuery` call in the respective hooks, not globally. All other queries keep `staleTime: Infinity`.
+
 Each query hook must expose the `error` and `isError` values from TanStack Query and pass them to `<ErrorBanner>` rather than swallowing them silently.
+
+---
+
+## 16. Known Implementation Pitfalls
+
+**Read this section before implementing each feature area.** These are specific failure modes that are easy to introduce and hard to debug. Each entry states the exact failure, why it is likely to happen, and the fix.
+
+---
+
+### 16a. Python / FastAPI / SQLAlchemy Async
+
+**P1 — AsyncSession scoping in dependency injection**
+`async def get_db(): session = SessionLocal()` without a context manager leaks sessions and causes `MissingGreenlet` or closed-session errors in services. The correct pattern is:
+```python
+async def get_db():
+    async with AsyncSession(engine) as session:
+        yield session
+```
+Register with `Depends(get_db)` on every route that touches the DB.
+
+**P2 — Lazy-loaded relationships silently return `None` in async**
+`subscription.user.email` accessed after the session closes returns `None` with no exception — the notification never finds the email address. Always use eager loading for relationships needed outside the initial query:
+```python
+select(Subscription).options(selectinload(Subscription.user))
+```
+Apply this to every query in `notification_service.py` and `subscription_service.py`.
+
+**P3 — APScheduler started before the event loop exists**
+Calling `scheduler.start()` at module import time raises `RuntimeError: no running event loop`. Start the scheduler exclusively inside the FastAPI `lifespan` async context manager:
+```python
+@asynccontextmanager
+async def lifespan(app):
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(sync_launches, "interval", minutes=30)
+    scheduler.start()
+    yield
+    scheduler.shutdown()
+```
+
+**P4 — `asyncio.Lock` for SQLite quota guard re-created per call**
+A lock defined inside a function is a new object every time — concurrent requests bypass it entirely. Define at module level in `n2yo_client.py`:
+```python
+_quota_lock = asyncio.Lock()   # one instance for the lifetime of the process
+```
+
+**P5 — Alembic receives the async `aiosqlite://` URL, autogenerate produces empty migrations**
+Alembic requires a synchronous engine for migrations. In `alembic/env.py`, use `sqlite:///` (not `sqlite+aiosqlite:///`). Keep the async URL only for the runtime `create_async_engine()` call. Provide both URLs in `.env`:
+```
+DATABASE_URL=sqlite+aiosqlite:///./data/space_adventures.db
+DATABASE_URL_SYNC=sqlite:///./data/space_adventures.db
+```
+
+**P6 — `httpx.AsyncClient` created per request exhausts the connection pool**
+Creating a client inside every service method means a new TCP connection pool per call. Create one shared client at startup and close it on shutdown:
+```python
+# In lifespan:
+app.state.http_client = httpx.AsyncClient(timeout=10.0)
+yield
+await app.state.http_client.aclose()
+```
+Pass via dependency injection or access via `request.app.state.http_client`.
+
+---
+
+### 16b. Authentication
+
+**P7 — `CryptContext` created per request**
+`CryptContext(schemes=["bcrypt"])` is expensive. Define it once at module level in `auth_service.py`, never inside a function or route handler.
+
+**P8 — JWT expiry not verified by default in some `python-jose` versions**
+Always pass `options={"verify_exp": True}` explicitly to `jwt.decode()`. Never rely on the default.
+
+**P9 — OTP rate-limit check is not atomic**
+SELECT count → check < 5 → INSERT is a read-modify-write race. Two concurrent requests both read count=4 and both insert. Fix: wrap in the SQLite asyncio.Lock (P4) or use `SELECT … FOR UPDATE` (PostgreSQL).
+
+**P10 — Concurrent `/auth/refresh` with the same token issues two valid tokens**
+Both requests read `revoked=FALSE`, both generate new tokens, only one revoke lands. Fix: use `SELECT … FOR UPDATE` on the `refresh_tokens` row at the start of the refresh handler to serialize concurrent attempts.
+
+---
+
+### 16c. N2YO / ISS
+
+**P11 — N2YO position timestamps are Unix epoch seconds (integers), not ISO strings**
+`position.timestamp` is an integer (e.g. `1751000000`). Multiply by 1000 before comparing to JavaScript's `Date.now()` (milliseconds). Store as-is in the DB; the backend API response should surface `timestamp_ms = timestamp * 1000` for the frontend's benefit.
+
+**P12 — N2YO errors are HTTP 200 with `{"error": "..."}` body**
+`response.status_code == 200` does not mean success for N2YO. Always inspect the body:
+```python
+data = response.json()
+if "error" in data:
+    raise N2YOError(data["error"])
+```
+
+**P13 — `globe.gl` has no `@types/globe.gl` package**
+TypeScript will infer `any` or refuse to compile. Add a manual declaration file:
+```ts
+// src/types/globe.d.ts
+declare module 'globe.gl' { const Globe: any; export default Globe; }
+```
+
+---
+
+### 16d. Launch Library 2
+
+**P14 — `vidURLs` may be absent (not just empty)**
+Always use `launch.get('vidURLs') or []` in Python and `launch.vidURLs ?? []` in TypeScript. Never access `.length` without a null guard.
+
+**P15 — `net` field has microseconds and `Z` suffix; `datetime.fromisoformat()` fails on Python < 3.11**
+Use `dateutil.parser.isoparse(net)` (add `python-dateutil` to `requirements.txt`) which handles all ISO 8601 variants including `Z`, sub-seconds, and `+00:00`.
+
+**P16 — LL2 response is paginated; default page is 10–25 items, not all upcoming launches**
+Always pass `limit=100` and loop until `response['next']` is `None`:
+```python
+url = f"{LL2_BASE}/launches/upcoming/?mode=detailed&limit=100"
+while url:
+    r = await client.get(url); data = r.json()
+    launches.extend(data["results"]); url = data["next"]
+```
+
+---
+
+### 16e. React / Vite / TypeScript
+
+**P17 — Globe.gl initialized before the ref element mounts (`ref.current` is `null`)**
+Always guard in `useEffect`:
+```ts
+useEffect(() => {
+  if (!containerRef.current) return;
+  const globe = new Globe()(containerRef.current);
+  return () => { /* cleanup */ };
+}, []);
+```
+Never pass `containerRef.current` outside a `useEffect`.
+
+**P18 — FullCalendar renders unstyled without explicit CSS imports**
+Add to the component file (not `vite.config.ts`):
+```ts
+import '@fullcalendar/core/main.css';
+import '@fullcalendar/daygrid/main.css';
+```
+
+**P19 — `i18next-browser-languagedetector` returns `en-US`, i18n config expects `en`**
+Set `load: 'languageOnly'` in the i18next init options so `en-US` resolves to `en.json`.
+
+**P20 — MSW v2 API is `http.get()`, not `rest.get()` (v1)**
+Every handler must use the v2 import:
+```ts
+import { http, HttpResponse } from 'msw';
+export const handlers = [
+  http.get('http://localhost:8000/api/v1/launches/upcoming', () =>
+    HttpResponse.json({ data: [], cached: false })
+  ),
+];
+```
+
+**P21 — `?return=` query param URL must be encoded**
+```ts
+// Writing:
+`/login?return=${encodeURIComponent(location.pathname + location.search)}`
+// Reading:
+decodeURIComponent(new URLSearchParams(location.search).get('return') ?? '/')
+```
+
+**P22 — Vite proxy target `localhost` unreachable inside Docker**
+In `vite.config.ts`, read the proxy target from the env:
+```ts
+proxy: { '/api': { target: process.env.VITE_API_BASE_URL ?? 'http://localhost:8000' } }
+```
+Set `VITE_API_BASE_URL=http://backend:8000` in `docker-compose.yml` for the frontend service.
+
+---
+
+### 16f. Database / Alembic / SQLite
+
+**P23 — Alembic emits `DEFAULT NOW()` which SQLite does not support**
+Edit generated migrations to replace `NOW()` with `CURRENT_TIMESTAMP`. In models, use `server_default=text("CURRENT_TIMESTAMP")` rather than `server_default=func.now()` to avoid the issue at generation time.
+
+**P24 — Alembic autogenerate silently omits `CHECK` constraints on SQLite**
+After every `op.create_table()` in a migration, manually add:
+```python
+op.create_check_constraint('ck_otps_channel', 'otps', "channel IN ('email','phone')")
+```
+Do this for every `CHECK IN (...)` constraint defined in the models.
+
+**P25 — SQLite foreign key enforcement is OFF by default; `ON DELETE CASCADE` does nothing**
+Add this event listener in `database.py`:
+```python
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_conn, _):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+```
+
+---
+
+### 16g. Testing
+
+**P26 — `TestClient` (sync) mixed with `async def` tests causes event loop conflicts**
+Never use `TestClient` in async test functions. Always use:
+```python
+async with httpx.AsyncClient(
+    transport=httpx.ASGITransport(app=app), base_url="http://test"
+) as client:
+    response = await client.get("/api/v1/...")
+```
+
+**P27 — `respx` mocks are only active inside the `with respx.mock:` block**
+If the HTTP call happens in a service called from a background task or a fixture, the mock is not active. Use the `@pytest.mark.respx(assert_all_called=False)` decorator or `respx.mock` as a pytest fixture for test-wide mocking.
+
+**P28 — `vi.mock()` is hoisted; variables defined below it are `undefined`**
+Use `vi.hoisted()` for any value referenced in a mock factory:
+```ts
+const { mockInstance } = vi.hoisted(() => ({
+  mockInstance: { method: vi.fn() }
+}));
+vi.mock('globe.gl', () => ({ default: vi.fn(() => mockInstance) }));
+```
+
+**P29 — `@testing-library/user-event` v14 calls are async; missing `await` causes silent false passes**
+Every `userEvent` call must be awaited:
+```ts
+await userEvent.click(button);
+await userEvent.type(input, 'hello');
+```
+Lint rule: add `@typescript-eslint/no-floating-promises` to the ESLint config so unawaited promises are caught statically.
+
+---
+
+### 16h. Docker / Deployment
+
+**P30 — Bind mount `./backend:/app` overwrites `pip install`'d packages**
+Mount only the application code, not the entire `/app` directory:
+```yaml
+volumes:
+  - ./backend/app:/app/app        # source code only
+  - sa_db_data:/app/data          # persisted DB
+```
+Install dependencies into a layer that the bind mount does not overlay.
+
+**P31 — `/app/data/` directory missing in container; SQLite file creation fails silently**
+Add to `backend/Dockerfile`:
+```dockerfile
+RUN mkdir -p /app/data
+```
+
+---
+
+### 16i. Miscellaneous
+
+**P32 — Twilio SDK is synchronous; calling it directly in an async route blocks the event loop**
+Wrap every Twilio call:
+```python
+await asyncio.to_thread(
+    twilio_client.messages.create,
+    to=phone, from_=TWILIO_FROM, body=sms_body
+)
+```
+
+**P33 — `aiosmtplib` STARTTLS vs SMTPS: wrong parameter for the port**
+- Port 587 (STARTTLS): `aiosmtplib.SMTP(hostname=..., port=587, start_tls=True)`
+- Port 465 (SMTPS): `aiosmtplib.SMTP(hostname=..., port=465, use_tls=True)`
+Mixing these causes silent connection failures with no exception.
+
+**P34 — jsdom's `Intl` implementation is incomplete; some IANA timezone names throw**
+In timezone unit tests, only use well-known zones: `America/New_York`, `Europe/London`, `Asia/Tokyo`. Do not rely on jsdom for timezone rendering; mock `Intl.DateTimeFormat` in `dateTime.test.ts` and test the formatting logic independently of the runtime's Intl support.
+
+**P35 — `passlib[bcrypt]` on a minimal Linux Docker image falls back to slow pure-Python bcrypt**
+The C extension requires system packages. Add to `backend/Dockerfile`:
+```dockerfile
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libffi-dev python3-dev gcc && rm -rf /var/lib/apt/lists/*
+```
+Without this, bcrypt hashing takes ~10 seconds per password instead of ~100 ms, causing registration and login timeouts.
+
+---
+
+## 17. Deployment
+
+### 17a. Architecture Overview
+
+```
+Internet
+   │  HTTPS (443) / HTTP (80 → redirect)
+   ▼
+┌─────────────────────────────────────┐
+│  Caddy (reverse proxy + TLS)        │
+│  • Provisions Let's Encrypt certs   │
+│  • Enforces HTTPS, HSTS             │
+│  • Serves frontend static files     │
+│  • Proxies /api/* → backend:8000    │
+└────────────────┬────────────────────┘
+                 │ Docker internal network (not exposed)
+                 ▼
+┌────────────────────────────────────┐
+│  Backend (Uvicorn, single worker)  │
+│  port 8000 — NOT publicly exposed  │
+└────────────────────────────────────┘
+         │
+         ▼
+  /app/data/space_adventures.db  (named volume, persisted)
+```
+
+The frontend is **not a running container in production**. It is built into static files (`npm run build`) and served directly by Caddy. This eliminates an entire container tier and simplifies the stack.
+
+---
+
+### 17b. Dockerfiles
+
+**`backend/Dockerfile`** (production):
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Required for bcrypt C extension (P35)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libffi-dev python3-dev gcc curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ app/
+COPY alembic/ alembic/
+COPY alembic.ini .
+
+# Data directory for SQLite (P31)
+RUN mkdir -p /app/data
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+```
+
+**`frontend/Dockerfile`** (multi-stage production build):
+```dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json .
+RUN npm ci
+COPY . .
+ARG VITE_API_BASE_URL
+RUN npm run build          # outputs to /app/dist
+
+# Export stage — just the built assets; Caddy serves them via bind mount
+FROM scratch AS dist
+COPY --from=builder /app/dist /dist
+```
+
+> In practice the frontend is built on the host or in CI, not inside a running container. The `dist/` output folder is bind-mounted into the Caddy container (see §17d).
+
+---
+
+### 17c. Caddyfile
+
+```caddy
+# Caddyfile — place at repository root
+
+{
+    email {$CADDY_TLS_EMAIL}        # Let's Encrypt account email (set in .env.prod)
+}
+
+{$APP_DOMAIN} {
+    encode gzip zstd               # response compression
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options     "nosniff"
+        X-Frame-Options            "DENY"
+        X-XSS-Protection           "1; mode=block"
+        Referrer-Policy            "strict-origin-when-cross-origin"
+        Permissions-Policy         "geolocation=(self)"
+        -Server                    # remove Caddy version header
+    }
+
+    # Proxy all API and auth traffic to the backend container
+    reverse_proxy /api/* backend:8000 {
+        health_uri     /api/v1/health
+        health_interval 30s
+    }
+
+    # Serve the pre-built React SPA
+    root * /srv
+    try_files {path} /index.html   # SPA fallback for React Router
+    file_server
+}
+```
+
+Caddy automatically:
+- Provisions and renews the Let's Encrypt certificate for `APP_DOMAIN`
+- Redirects all HTTP (port 80) traffic to HTTPS (port 443) with a 308 permanent redirect
+- Enables HTTP/3 (QUIC) on UDP 443
+
+---
+
+### 17d. docker-compose.prod.yml
+
+```yaml
+# docker-compose.prod.yml  ─── PRODUCTION ───
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"               # HTTP/3
+    environment:
+      - APP_DOMAIN=${APP_DOMAIN}
+      - CADDY_TLS_EMAIL=${CADDY_TLS_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend/dist:/srv:ro     # pre-built React app (read-only)
+      - caddy_data:/data            # TLS certificates — NEVER delete this volume
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    env_file: .env.prod
+    volumes:
+      - sa_db_data:/app/data        # persisted SQLite DB
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    # No `ports:` entry — backend is not reachable from outside the Docker network
+
+volumes:
+  caddy_data:     # TLS certs — must persist across deployments
+  caddy_config:   # Caddy internal config cache
+  sa_db_data:     # SQLite database
+```
+
+---
+
+### 17e. Environment Files
+
+**`.env.example`** (development — copy to `.env`):
+```dotenv
+# Development — HTTP only, no TLS required
+NASA_API_KEY=DEMO_KEY
+N2YO_API_KEY=
+LL2_API_KEY=
+LL2_SYNC_INTERVAL_MINUTES=30
+JWT_SECRET_KEY=dev_jwt_secret_change_in_prod
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=30
+UNSUBSCRIBE_SECRET_KEY=dev_unsub_secret_change_in_prod
+ADMIN_API_KEY=dev_admin_key
+N2YO_QUOTA_CAP=900
+DATABASE_URL=sqlite+aiosqlite:///./data/space_adventures.db
+DATABASE_URL_SYNC=sqlite:///./data/space_adventures.db
+CORS_ORIGINS=http://localhost:5173
+SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=noreply@localhost
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+```
+
+**`.env.prod.example`** (production — copy to `.env.prod` on the server, fill all values):
+```dotenv
+# Production — all values are mandatory; app refuses to start if any are missing
+APP_DOMAIN=space-adventures.example.com
+CADDY_TLS_EMAIL=admin@example.com
+
+NASA_API_KEY=your_registered_nasa_api_key
+N2YO_API_KEY=your_n2yo_api_key
+LL2_API_KEY=your_ll2_api_key_optional
+LL2_SYNC_INTERVAL_MINUTES=30
+
+# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+JWT_SECRET_KEY=
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=30
+UNSUBSCRIBE_SECRET_KEY=
+ADMIN_API_KEY=
+
+N2YO_QUOTA_CAP=900
+DATABASE_URL=sqlite+aiosqlite:///./data/space_adventures.db
+DATABASE_URL_SYNC=sqlite:///./data/space_adventures.db
+CORS_ORIGINS=https://space-adventures.example.com
+
+# Email (SMTP)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=notifications@example.com
+SMTP_PASSWORD=
+SMTP_FROM=noreply@space-adventures.example.com
+
+# SMS (Twilio)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+```
+
+---
+
+### 17f. First Deployment Runbook
+
+Run these steps on the server in order. Every step must succeed before moving to the next.
+
+**Prerequisites on the server:**
+- Docker Engine ≥ 26 and Docker Compose v2 installed
+- Ports 80 and 443 open in the firewall
+- A domain name pointing at the server's public IP (DNS must resolve before starting Caddy, or Let's Encrypt will fail)
+
+**Step 1 — Clone and configure**
+```bash
+git clone <repo-url> space-adventures && cd space-adventures
+cp .env.prod.example .env.prod
+# Fill in all values in .env.prod — especially JWT_SECRET_KEY, UNSUBSCRIBE_SECRET_KEY,
+# ADMIN_API_KEY (generate each with: python -c "import secrets; print(secrets.token_hex(32))")
+```
+
+**Step 2 — Build the frontend**
+```bash
+cd frontend
+npm ci
+VITE_API_BASE_URL=https://<APP_DOMAIN> npm run build
+# Verify: ls dist/index.html  (must exist)
+cd ..
+```
+
+**Step 3 — Run database migrations**
+```bash
+docker compose -f docker-compose.prod.yml run --rm backend \
+  alembic upgrade head
+```
+
+**Step 4 — Start the stack**
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Step 5 — Verify**
+```bash
+# Backend health
+curl -sf https://<APP_DOMAIN>/api/v1/health | python -m json.tool
+
+# TLS certificate
+curl -sv https://<APP_DOMAIN> 2>&1 | grep "SSL certificate"
+
+# Check logs for errors
+docker compose -f docker-compose.prod.yml logs --tail=50
+```
+
+Caddy provisions the Let's Encrypt certificate on first request. This takes 5–30 seconds. If it fails, check that DNS resolves correctly and that port 80 is reachable from the internet (Let's Encrypt uses HTTP-01 challenge).
+
+---
+
+### 17g. Redeployment (Updates)
+
+```bash
+# Pull changes
+git pull
+
+# Rebuild and restart backend if Python code changed
+docker compose -f docker-compose.prod.yml build backend
+docker compose -f docker-compose.prod.yml up -d backend
+
+# Run any new migrations
+docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
+
+# Rebuild frontend if React code changed
+cd frontend && npm ci && VITE_API_BASE_URL=https://<APP_DOMAIN> npm run build && cd ..
+# Caddy picks up the new files immediately — no restart needed
+```
+
+---
+
+### 17h. TLS Certificate Notes
+
+- Caddy stores certificates in the `caddy_data` Docker volume. **Never delete this volume** — Let's Encrypt rate-limits certificate issuance (5 duplicate certs per week). If the volume is lost, wait up to a week before a new cert can be issued for the same domain.
+- Caddy renews certificates automatically ≥ 30 days before expiry. No manual action is required.
+- The `Strict-Transport-Security` header is set with `preload`. Once a browser has seen this header, it will refuse to connect via HTTP for 1 year. Only add the domain to the HSTS preload list (`hstspreload.org`) once the HTTPS setup is confirmed stable.
+- `Permissions-Policy: geolocation=(self)` ensures only the app's own origin can request geolocation — no embedded third-party frames can request it silently.
