@@ -14,6 +14,7 @@ from app import models  # noqa: F401 — import registers all ORM models with Ba
 from app.config import Settings
 from app.database import Base, get_db
 from app.main import create_app
+from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient
 
 
@@ -43,6 +44,9 @@ async def settings() -> Settings:
         require_secrets=False,
         nasa_api_key="TEST_KEY",
         nasa_base_url="https://api.nasa.example",
+        n2yo_api_key="TEST_N2YO",
+        n2yo_base_url="https://api.n2yo.example/rest/v1/satellite",
+        n2yo_hourly_cap=900,
     )
 
 
@@ -56,6 +60,7 @@ async def client(db_engine, settings) -> AsyncIterator[AsyncClient]:
 
     app = create_app(settings=settings)
     app.state.nasa_client = NasaClient(settings)
+    app.state.n2yo_client = N2YOClient(settings)
     app.dependency_overrides[get_db] = _override_get_db
 
     transport = ASGITransport(app=app)
@@ -64,3 +69,4 @@ async def client(db_engine, settings) -> AsyncIterator[AsyncClient]:
             yield ac
     finally:
         await app.state.nasa_client.close()
+        await app.state.n2yo_client.close()

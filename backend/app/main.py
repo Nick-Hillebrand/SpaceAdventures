@@ -7,6 +7,11 @@ from fastapi.responses import JSONResponse
 
 from app.config import Settings
 from app.routers import apod as apod_router
+from app.routers import iss as iss_router
+from app.routers import mars as mars_router
+from app.routers import neo as neo_router
+from app.routers import space_weather as space_weather_router
+from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient, NasaClientError
 
 
@@ -14,10 +19,12 @@ from app.services.nasa_client import NasaClient, NasaClientError
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
     app.state.nasa_client = NasaClient(settings)
+    app.state.n2yo_client = N2YOClient(settings)
     try:
         yield
     finally:
         await app.state.nasa_client.close()
+        await app.state.n2yo_client.close()
 
 
 def _default_settings() -> Settings:
@@ -52,6 +59,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(apod_router.router)
+    app.include_router(neo_router.router)
+    app.include_router(space_weather_router.router)
+    app.include_router(mars_router.router)
+    app.include_router(iss_router.router)
 
     return app
 
