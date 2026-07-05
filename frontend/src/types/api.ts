@@ -167,3 +167,19 @@ export interface LaunchesResponse {
   last_synced_at: string | null;
   cached: boolean;
 }
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+}
+
+export interface UserResponse {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  email_verified: boolean;
+  phone_verified: boolean;
+  created_at: string;
+}

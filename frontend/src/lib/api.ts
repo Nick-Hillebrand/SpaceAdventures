@@ -1,4 +1,5 @@
 const ACCESS_TOKEN_KEY = "space-adventures-access-token";
+const REFRESH_TOKEN_KEY = "space-adventures-refresh-token";
 
 // NOTE: JWT is stored in localStorage. XSS on the frontend would allow token
 // extraction — this is mitigated by a strict CSP header in production (see
@@ -15,6 +16,23 @@ export function setAccessToken(token: string | null): void {
   try {
     if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
     else localStorage.removeItem(ACCESS_TOKEN_KEY);
+  } catch {
+    /* localStorage unavailable — no-op */
+  }
+}
+
+export function getRefreshToken(): string | null {
+  try {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setRefreshToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(REFRESH_TOKEN_KEY, token);
+    else localStorage.removeItem(REFRESH_TOKEN_KEY);
   } catch {
     /* localStorage unavailable — no-op */
   }
@@ -49,8 +67,8 @@ export async function apiGet<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const token = getAccessToken();
+export async function apiPost<T>(path: string, body: unknown, tokenOverride?: string): Promise<T> {
+  const token = tokenOverride ?? getAccessToken();
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
