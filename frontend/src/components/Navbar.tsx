@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMe } from "@/hooks/useAuth";
 import { setAccessToken, setRefreshToken } from "@/lib/api";
@@ -26,6 +26,14 @@ export default function Navbar() {
       <Link to="/" className="navbar-brand">
         Space Adventures
       </Link>
+      <div className="navbar-nav">
+        <NavLink to="/apod">{t("nav.apod")}</NavLink>
+        <NavLink to="/launches">{t("nav.launches")}</NavLink>
+        <NavLink to="/iss">{t("nav.iss")}</NavLink>
+        <NavLink to="/mars">{t("nav.mars")}</NavLink>
+        <NavLink to="/neo">{t("nav.neo")}</NavLink>
+        <NavLink to="/space-weather">{t("nav.spaceWeather")}</NavLink>
+      </div>
       <div className="navbar-actions">
         {user ? (
           <div className="navbar-user">
