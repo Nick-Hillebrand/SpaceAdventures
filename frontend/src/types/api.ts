@@ -203,3 +203,8 @@ export interface UserResponse {
   phone_verified: boolean;
   created_at: string;
 }
+
+export interface SettingsStatus {
+  nasa_key_set: boolean;
+  n2yo_key_set: boolean;
+}

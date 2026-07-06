@@ -16,6 +16,7 @@ from app.routers import space_weather as space_weather_router
 from app.routers import auth as auth_router
 from app.routers import launches as launches_router
 from app.routers import subscriptions as subscriptions_router
+from app.routers import settings as settings_router
 from app.services import launches_service
 from app.services.ll2_client import LL2Client
 from app.services.n2yo_client import N2YOClient
@@ -95,6 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(launches_router.router)
     app.include_router(auth_router.router)
     app.include_router(subscriptions_router.router)
+    app.include_router(settings_router.router)
 
     return app
 

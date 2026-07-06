@@ -181,7 +181,12 @@
     "title": "Paramètres",
     "language": "Langue",
     "apiKey": "Clé API NASA",
-    "n2yoApiKey": "Clé API N2YO"
+    "n2yoApiKey": "Clé API N2YO",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "keyConfigured": "Clé configurée",
+    "keyNotConfigured": "Non configuré",
+    "saveError": "Échec de la sauvegarde"
   },
   "common": {
     "loading": "Chargement…",

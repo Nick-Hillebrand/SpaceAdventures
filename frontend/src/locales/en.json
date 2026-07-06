@@ -181,7 +181,12 @@
     "title": "Settings",
     "language": "Language",
     "apiKey": "NASA API Key",
-    "n2yoApiKey": "N2YO API Key"
+    "n2yoApiKey": "N2YO API Key",
+    "save": "Save",
+    "saved": "Saved",
+    "keyConfigured": "Key configured",
+    "keyNotConfigured": "Not configured",
+    "saveError": "Failed to save"
   },
   "common": {
     "loading": "Loading…",

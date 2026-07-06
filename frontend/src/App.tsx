@@ -5,6 +5,7 @@ import LoginPage from "@/routes/LoginPage";
 import RegisterPage from "@/routes/RegisterPage";
 import AccountPage from "@/routes/AccountPage";
 import ConfirmUnsubscribePage from "@/routes/ConfirmUnsubscribePage";
+import SettingsPage from "@/routes/SettingsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/confirm-unsubscribe" element={<ConfirmUnsubscribePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route
             path="/"
             element={

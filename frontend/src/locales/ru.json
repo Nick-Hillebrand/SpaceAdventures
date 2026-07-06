@@ -181,7 +181,12 @@
     "title": "Настройки",
     "language": "Язык",
     "apiKey": "API-ключ NASA",
-    "n2yoApiKey": "API-ключ N2YO"
+    "n2yoApiKey": "API-ключ N2YO",
+    "save": "Сохранить",
+    "saved": "Сохранено",
+    "keyConfigured": "Ключ настроен",
+    "keyNotConfigured": "Не настроено",
+    "saveError": "Ошибка сохранения"
   },
   "common": {
     "loading": "Загрузка…",

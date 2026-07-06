@@ -56,4 +56,16 @@ export const handlers = [
   ),
 
   http.delete("/api/v1/subscriptions/:id", () => new HttpResponse(null, { status: 204 })),
+
+  http.get("/api/v1/settings", () =>
+    HttpResponse.json({ nasa_key_set: false, n2yo_key_set: false }),
+  ),
+
+  http.post("/api/v1/settings/nasa-api-key", () =>
+    HttpResponse.json({ message: "NASA API key updated" }),
+  ),
+
+  http.post("/api/v1/settings/n2yo-api-key", () =>
+    HttpResponse.json({ message: "N2YO API key updated" }),
+  ),
 ];

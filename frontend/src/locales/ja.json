@@ -181,7 +181,12 @@
     "title": "設定",
     "language": "言語",
     "apiKey": "NASA APIキー",
-    "n2yoApiKey": "N2YO APIキー"
+    "n2yoApiKey": "N2YO APIキー",
+    "save": "保存",
+    "saved": "保存済み",
+    "keyConfigured": "キー設定済み",
+    "keyNotConfigured": "未設定",
+    "saveError": "保存失敗"
   },
   "common": {
     "loading": "読み込み中…",

@@ -181,7 +181,12 @@
     "title": "Einstellungen",
     "language": "Sprache",
     "apiKey": "NASA API-Schlüssel",
-    "n2yoApiKey": "N2YO API-Schlüssel"
+    "n2yoApiKey": "N2YO API-Schlüssel",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "keyConfigured": "Schlüssel konfiguriert",
+    "keyNotConfigured": "Nicht konfiguriert",
+    "saveError": "Fehler beim Speichern"
   },
   "common": {
     "loading": "Wird geladen…",
