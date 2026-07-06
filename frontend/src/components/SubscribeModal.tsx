@@ -94,22 +94,12 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
         style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }}
         onClick={onClose}
       />
-      <div
-        style={{
-          position: "relative",
-          margin: "10vh auto",
-          maxWidth: 480,
-          background: "#fff",
-          borderRadius: 8,
-          padding: 24,
-          zIndex: 1,
-        }}
-      >
+      <div className="subscribe-modal__panel">
         <button
           type="button"
           onClick={onClose}
           aria-label={t("common.close")}
-          style={{ position: "absolute", top: 12, right: 12 }}
+          className="modal-close"
         >
           ✕
         </button>
@@ -160,7 +150,7 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
               </label>
             </fieldset>
 
-            <fieldset style={{ marginTop: 12 }}>
+            <fieldset>
               <legend>{t("subscriptions.notifyVia")}</legend>
               {hasVerifiedEmail ? (
                 <label>
@@ -196,14 +186,14 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
             </fieldset>
 
             {noChannelAvailable && (
-              <p data-testid="no-channel-prompt" style={{ color: "#888" }}>
+              <p data-testid="no-channel-prompt" style={{ color: "var(--color-text-muted)" }}>
                 {t("subscriptions.verifyChannelPrompt")}
               </p>
             )}
 
             {status && <p data-testid="subscribe-status">{status}</p>}
 
-            <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+            <div className="modal-actions">
               <button
                 type="button"
                 onClick={handleConfirm}
