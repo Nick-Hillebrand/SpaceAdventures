@@ -124,6 +124,21 @@ describe("LoginPage", () => {
     expect(screen.getByRole("link", { name: /Register/i })).toBeInTheDocument();
   });
 
+  it("toggling the show-password button reveals and re-hides the password", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    const passwordInput = screen.getByLabelText(/^Password$/i);
+    expect(passwordInput).toHaveAttribute("type", "password");
+
+    const toggleBtn = screen.getByRole("button", { name: /Show password/i });
+    await user.click(toggleBtn);
+    expect(passwordInput).toHaveAttribute("type", "text");
+
+    await user.click(screen.getByRole("button", { name: /Hide password/i }));
+    expect(passwordInput).toHaveAttribute("type", "password");
+  });
+
   it("locale switching — German title appears after changing language to de", async () => {
     renderWithProviders(<LoginPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Log In");
