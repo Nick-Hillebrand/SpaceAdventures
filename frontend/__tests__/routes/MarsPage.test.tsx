@@ -304,6 +304,56 @@ describe("MarsPage", () => {
     expect(img).toHaveAttribute("alt", expect.stringContaining("MAST"));
   });
 
+  it("earth date mode: query includes earth_date param", async () => {
+    let capturedUrl = "";
+    server.use(
+      http.get("/api/v1/mars/rovers", () => HttpResponse.json(ROVERS_PAYLOAD)),
+      http.get("/api/v1/mars/photos", ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json(makePhotosResponse([makePhoto(1)]));
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<MarsPage />);
+
+    // Wait for initial render
+    await screen.findByRole("img", { name: /Mars photo 1/i });
+
+    // Switch to earth date mode
+    await user.click(screen.getByRole("radio", { name: /Earth date/i }));
+
+    // Enter a date
+    const dateInput = screen.getByLabelText(/Earth date/i, { selector: 'input[type="date"]' });
+    await user.type(dateInput, "2020-06-15");
+
+    await waitFor(() => {
+      expect(capturedUrl).toContain("earth_date=2020-06-15");
+    });
+  });
+
+  it("camera filter: query includes camera param when selected", async () => {
+    let capturedUrl = "";
+    server.use(
+      http.get("/api/v1/mars/rovers", () => HttpResponse.json(ROVERS_PAYLOAD)),
+      http.get("/api/v1/mars/photos", ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json(makePhotosResponse([makePhoto(1)]));
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<MarsPage />);
+
+    // Wait for camera select to appear (cameras from rover data)
+    const cameraSelect = await screen.findByRole("combobox", { name: /Camera/i });
+    await user.selectOptions(cameraSelect, "NAVCAM");
+
+    await waitFor(() => {
+      expect(capturedUrl).toContain("camera=NAVCAM");
+    });
+  });
+
   it("locale switching — German title appears after changing language to de", async () => {
     renderWithProviders(<MarsPage />);
     expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();

@@ -404,6 +404,97 @@ describe("LaunchesPage", () => {
     });
   });
 
+  it("launch card with image_url renders img", async () => {
+    server.use(
+      http.get("/api/v1/launches/upcoming", () =>
+        HttpResponse.json(makeResponse([
+          makeLaunch({ ll2_id: "img-001", name: "With Image", image_url: "https://example.com/rocket.jpg" }),
+        ])),
+      ),
+    );
+    renderWithProviders(<LaunchesPage />);
+    const img = await screen.findByRole("img", { name: /With Image/i });
+    expect(img).toHaveAttribute("src", "https://example.com/rocket.jpg");
+  });
+
+  it("launch card description expand/collapse toggle", async () => {
+    server.use(
+      http.get("/api/v1/launches/upcoming", () =>
+        HttpResponse.json(makeResponse([
+          makeLaunch({ ll2_id: "desc-001", name: "With Desc", mission_description: "Mission details here" }),
+        ])),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<LaunchesPage />);
+
+    const toggle = await screen.findByTestId("description-toggle");
+    expect(toggle).toHaveTextContent(/Show more/i);
+
+    await user.click(toggle);
+    expect(toggle).toHaveTextContent(/Show less/i);
+  });
+
+  it("launch card extra stream dropdown opens on click", async () => {
+    server.use(
+      http.get("/api/v1/launches/upcoming", () =>
+        HttpResponse.json(makeResponse([
+          makeLaunch({
+            ll2_id: "multi-stream",
+            name: "Multi Stream",
+            livestream_urls: [
+              { title: "Main", url: "https://yt.com/1", feature_image: "" },
+              { title: "Alt", url: "https://yt.com/2", feature_image: "" },
+            ],
+          }),
+        ])),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<LaunchesPage />);
+
+    const dropdownToggle = await screen.findByTestId("stream-dropdown-toggle");
+    expect(screen.queryByTestId("stream-dropdown-menu")).not.toBeInTheDocument();
+
+    await user.click(dropdownToggle);
+    expect(screen.getByTestId("stream-dropdown-menu")).toBeInTheDocument();
+  });
+
+  it("bell button opens subscribe modal", async () => {
+    setupDefaultHandler();
+    const user = userEvent.setup();
+    renderWithProviders(<LaunchesPage />);
+
+    const bellBtns = await screen.findAllByTestId("bell-button");
+    await user.click(bellBtns[0]);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("launch card shows agency type when present", async () => {
+    server.use(
+      http.get("/api/v1/launches/upcoming", () =>
+        HttpResponse.json(makeResponse([
+          makeLaunch({ ll2_id: "agency-001", agency_type: "Government" }),
+        ])),
+      ),
+    );
+    renderWithProviders(<LaunchesPage />);
+    expect(await screen.findByText(/Government/i)).toBeInTheDocument();
+  });
+
+  it("launch card shows mission type badge", async () => {
+    server.use(
+      http.get("/api/v1/launches/upcoming", () =>
+        HttpResponse.json(makeResponse([
+          makeLaunch({ ll2_id: "mission-001", mission_type: "Science" }),
+        ])),
+      ),
+    );
+    renderWithProviders(<LaunchesPage />);
+    expect(await screen.findByTestId("launch-mission-type")).toHaveTextContent("Science");
+  });
+
   it("locale switching — German title appears after changing language to de", async () => {
     setupDefaultHandler();
     renderWithProviders(<LaunchesPage />);

@@ -1,4 +1,5 @@
 import { screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, it, expect, afterEach } from "vitest";
 import ApodPage from "@/routes/ApodPage";
@@ -123,6 +124,37 @@ describe("ApodPage", () => {
 
     renderWithProviders(<ApodPage />);
     expect(await screen.findByText(/Showing cached data from/i)).toBeInTheDocument();
+  });
+
+  it("renders empty state when query returns null", async () => {
+    server.use(
+      http.get("/api/v1/apod", () => HttpResponse.json(null)),
+    );
+    renderWithProviders(<ApodPage />);
+    expect(await screen.findByTestId("empty-state")).toBeInTheDocument();
+  });
+
+  it("useApod queryFn appends date param when date is set", async () => {
+    let capturedUrl = "";
+    server.use(
+      http.get("/api/v1/apod", ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json(apodPayload);
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<ApodPage />);
+
+    // Wait for initial render then change date
+    await screen.findByRole("heading", { name: /Great APOD/i });
+
+    const dateInput = screen.getByLabelText(/date/i);
+    await user.type(dateInput, "2020-01-01");
+
+    await waitFor(() => {
+      expect(capturedUrl).toContain("date=2020-01-01");
+    });
   });
 
   it("locale switching — German title appears after changing language to de", async () => {

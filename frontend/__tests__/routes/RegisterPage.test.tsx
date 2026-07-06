@@ -145,6 +145,57 @@ describe("RegisterPage", () => {
     });
   });
 
+  it("OTP step — shows error when verification fails", async () => {
+    server.use(
+      http.post("/api/v1/auth/verify/email", () =>
+        HttpResponse.json(
+          { error: { code: "INVALID_OTP", message: "Invalid code" } },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<RegisterPage />);
+
+    await fillBaseForm(user);
+    await user.click(screen.getByRole("button", { name: /Register/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Verify Your Account/i)).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText(/Enter the code/i), "000000");
+    await user.click(screen.getByRole("button", { name: /Verify Email/i }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/Invalid code/i);
+  });
+
+  it("OTP step — shows phone OTP section when registered with phone", async () => {
+    server.use(
+      http.post("/api/v1/auth/register", () =>
+        HttpResponse.json({ id: 1, message: "Registration successful." }, { status: 201 }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<RegisterPage />);
+
+    await user.type(screen.getByLabelText(/First Name/i), "Alice");
+    await user.type(screen.getByLabelText(/Last Name/i), "Liddell");
+    await user.type(screen.getByLabelText(/Phone/i), "+15551234567");
+    await user.type(screen.getByLabelText(/^Password$/i), "securepassword");
+    await user.type(screen.getByLabelText(/Confirm Password/i), "securepassword");
+    await user.click(screen.getByRole("button", { name: /Register/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Verify Your Account/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText(/Enter the code sent to your phone/i)).toBeInTheDocument();
+  });
+
   it("locale switching — German title appears after changing language to de", async () => {
     renderWithProviders(<RegisterPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Create Account");

@@ -65,6 +65,30 @@ describe("ConfirmUnsubscribePage", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Abmeldung bestätigen");
   });
 
+  it("renders with empty token when no query param present", () => {
+    renderWithProviders(<ConfirmUnsubscribePage />, undefined, {
+      initialEntries: ["/confirm-unsubscribe"],
+    });
+    expect(screen.getByTestId("confirm-unsubscribe-page")).toBeInTheDocument();
+  });
+
+  it("shows generic error when error has no message", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.post("/api/v1/subscriptions/unsubscribe", () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    renderPage("some-token");
+    await user.click(screen.getByTestId("confirm-unsubscribe-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unsubscribe-error")).toBeInTheDocument();
+    });
+  });
+
   it("shows error message on POST failure", async () => {
     const user = userEvent.setup();
 

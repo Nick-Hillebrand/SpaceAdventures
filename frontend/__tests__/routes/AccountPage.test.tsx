@@ -116,6 +116,103 @@ describe("AccountPage", () => {
     expect(await screen.findByTestId("no-subscriptions")).toBeInTheDocument();
   });
 
+  it("resend OTP button calls resend endpoint and shows success status", async () => {
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json({
+          id: 1,
+          first_name: "Alice",
+          last_name: "Liddell",
+          email: "alice@example.com",
+          phone: null,
+          email_verified: false,
+          phone_verified: false,
+          created_at: "2024-01-01T00:00:00Z",
+        }),
+      ),
+      http.post("/api/v1/auth/verify/resend", () =>
+        HttpResponse.json({ message: "OTP resent" }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+
+    const resendBtn = await screen.findByRole("button", { name: /Resend OTP/i });
+    await user.click(resendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/OTP sent!/i)).toBeInTheDocument();
+    });
+  });
+
+  it("resend OTP shows error status on failure", async () => {
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json({
+          id: 1,
+          first_name: "Alice",
+          last_name: "Liddell",
+          email: "alice@example.com",
+          phone: null,
+          email_verified: false,
+          phone_verified: false,
+          created_at: "2024-01-01T00:00:00Z",
+        }),
+      ),
+      http.post("/api/v1/auth/verify/resend", () =>
+        HttpResponse.json({ error: { code: "RATE_LIMIT", message: "Rate limited" } }, { status: 429 }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+
+    const resendBtn = await screen.findByRole("button", { name: /Resend OTP/i });
+    await user.click(resendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to send OTP/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows phone verified badge when phone is verified", async () => {
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json({
+          id: 1,
+          first_name: "Alice",
+          last_name: "Liddell",
+          email: "alice@example.com",
+          phone: "+15551234567",
+          email_verified: true,
+          phone_verified: true,
+          created_at: "2024-01-01T00:00:00Z",
+        }),
+      ),
+    );
+
+    renderWithProviders(<AccountPage />);
+    expect(await screen.findByLabelText(/phone verified/i)).toBeInTheDocument();
+  });
+
+  it("shows subscriptions loading state", async () => {
+    server.use(
+      http.get("/api/v1/subscriptions", async () => {
+        await new Promise((r) => setTimeout(r, 200));
+        return HttpResponse.json([]);
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+
+    await screen.findByText(/Alice Liddell/i);
+    await user.click(screen.getByRole("button", { name: /Subscriptions/i }));
+
+    expect(await screen.findByText(/Loading subscriptions/i)).toBeInTheDocument();
+  });
+
   it("locale switching — German title appears after changing language to de", async () => {
     renderWithProviders(<AccountPage />);
     await screen.findByText(/Alice Liddell/i);

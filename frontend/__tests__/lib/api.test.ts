@@ -3,9 +3,12 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/msw/server";
 import {
   apiGet,
+  apiDelete,
   apiPost,
   getAccessToken,
   setAccessToken,
+  getRefreshToken,
+  setRefreshToken,
 } from "@/lib/api";
 
 describe("api helpers", () => {
@@ -77,6 +80,44 @@ describe("api helpers", () => {
     );
     const result = await apiPost<{ ok: boolean }>("/api/v1/thing", { name: "Ada" });
     expect(result.ok).toBe(true);
+  });
+
+  it("setRefreshToken(null) removes the refresh token key", () => {
+    setRefreshToken("my-refresh");
+    expect(getRefreshToken()).toBe("my-refresh");
+    setRefreshToken(null);
+    expect(getRefreshToken()).toBeNull();
+  });
+
+  it("apiDelete returns undefined for 204 No Content", async () => {
+    server.use(
+      http.delete("/api/v1/thing/1", () => new HttpResponse(null, { status: 204 })),
+    );
+    const result = await apiDelete("/api/v1/thing/1");
+    expect(result).toBeUndefined();
+  });
+
+  it("apiDelete returns parsed json for non-204 success", async () => {
+    server.use(
+      http.delete("/api/v1/thing/1", () => HttpResponse.json({ deleted: true }, { status: 200 })),
+    );
+    const result = await apiDelete<{ deleted: boolean }>("/api/v1/thing/1");
+    expect(result).toEqual({ deleted: true });
+  });
+
+  it("apiDelete throws structured error on non-ok response", async () => {
+    server.use(
+      http.delete("/api/v1/thing/1", () =>
+        HttpResponse.json(
+          { error: { code: "NOT_FOUND", message: "not found" } },
+          { status: 404 },
+        ),
+      ),
+    );
+    await expect(apiDelete("/api/v1/thing/1")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      status: 404,
+    });
   });
 
   it("apiPost surfaces error via detail.error branch (FastAPI HTTPException)", async () => {
