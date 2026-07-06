@@ -106,7 +106,7 @@ describe("SpaceWeatherPage", () => {
     const flrTab = screen.getByRole("tab", { name: /Solar Flares/i });
     expect(flrTab).toHaveAttribute("aria-selected", "true");
 
-    // Event card appears
+    // Flare row appears in the dashboard
     expect(await screen.findByLabelText(/FLR event/i)).toBeInTheDocument();
   });
 
@@ -239,7 +239,7 @@ describe("SpaceWeatherPage", () => {
     expect(screen.getByText(/^Live/i)).toBeInTheDocument();
   });
 
-  it("event card renders time fields from raw_json", async () => {
+  it("FLR dashboard shows class type in event row and peak stat", async () => {
     const raw = JSON.stringify({
       flrID: "FLR-TEST-1",
       beginTime: "2020-01-05T06:00Z",
@@ -263,14 +263,90 @@ describe("SpaceWeatherPage", () => {
       ),
     );
     renderWithProviders(<SpaceWeatherPage />);
-    const card = await screen.findByLabelText(/FLR event/i);
-    expect(within(card).getByText("beginTime")).toBeInTheDocument();
-    expect(within(card).getByText("peakTime")).toBeInTheDocument();
-    expect(within(card).getByText("classType")).toBeInTheDocument();
-    expect(within(card).getByText("X1.5")).toBeInTheDocument();
+
+    // Flare row contains the class type
+    const row = await screen.findByLabelText(/FLR event FLR:FLR-TEST-1/i);
+    expect(within(row).getByText("X1.5")).toBeInTheDocument();
+
+    // Stats section
+    expect(screen.getByTestId("flare-total")).toHaveTextContent("1");
+    expect(screen.getByTestId("flare-peak")).toHaveTextContent("X1.5");
   });
 
-  it("event card handles malformed raw_json gracefully", async () => {
+  it("FLR dashboard shows source location when present", async () => {
+    const raw = JSON.stringify({
+      flrID: "FLR-SRC-1",
+      peakTime: "2020-01-05T10:00Z",
+      classType: "C2.5",
+      sourceLocation: "N15W35",
+    });
+    server.use(
+      http.get(ROUTES.FLR, () =>
+        HttpResponse.json(
+          makePayload("FLR", {
+            data: [
+              {
+                id: "FLR:FLR-SRC-1",
+                event_type: "FLR",
+                start_date: "2020-01-05",
+                raw_json: raw,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    renderWithProviders(<SpaceWeatherPage />);
+    expect(await screen.findByText("N15W35")).toBeInTheDocument();
+  });
+
+  it("FLR dashboard shows — for peak when classType is absent", async () => {
+    server.use(
+      http.get(ROUTES.FLR, () =>
+        HttpResponse.json(
+          makePayload("FLR", {
+            data: [
+              {
+                id: "FLR:FLR-NOCLASS",
+                event_type: "FLR",
+                start_date: "2020-01-05",
+                raw_json: JSON.stringify({ flrID: "FLR-NOCLASS" }),
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    renderWithProviders(<SpaceWeatherPage />);
+    await screen.findByLabelText(/FLR event/i);
+    expect(screen.getByTestId("flare-peak")).toHaveTextContent("—");
+  });
+
+  it("FLR dashboard shows date when peakTime is absent", async () => {
+    const raw = JSON.stringify({ flrID: "FLR-NOTIME", classType: "B1.0" });
+    server.use(
+      http.get(ROUTES.FLR, () =>
+        HttpResponse.json(
+          makePayload("FLR", {
+            data: [
+              {
+                id: "FLR:FLR-NOTIME",
+                event_type: "FLR",
+                start_date: "2020-01-05",
+                raw_json: raw,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    renderWithProviders(<SpaceWeatherPage />);
+    // Row renders without crashing; class badge shows
+    const row = await screen.findByLabelText(/FLR event FLR:FLR-NOTIME/i);
+    expect(within(row).getByText("B1.0")).toBeInTheDocument();
+  });
+
+  it("FLR dashboard handles malformed raw_json gracefully", async () => {
     server.use(
       http.get(ROUTES.FLR, () =>
         HttpResponse.json(
@@ -288,8 +364,44 @@ describe("SpaceWeatherPage", () => {
       ),
     );
     renderWithProviders(<SpaceWeatherPage />);
-    // Should render without crashing
     expect(await screen.findByLabelText(/FLR event/i)).toBeInTheDocument();
+    expect(screen.getByTestId("flare-peak")).toHaveTextContent("—");
+  });
+
+  it("GST event card renders time fields from raw_json", async () => {
+    const raw = JSON.stringify({
+      gstID: "GST-TEST-1",
+      startTime: "2020-01-05T00:00Z",
+      allKpIndex: [{ kpIndex: 5 }],
+    });
+    server.use(
+      http.get(ROUTES.FLR, () => HttpResponse.json(makePayload("FLR"))),
+      http.get(ROUTES.GST, () =>
+        HttpResponse.json(
+          makePayload("GST", {
+            data: [
+              {
+                id: "GST:GST-TEST-1",
+                event_type: "GST",
+                start_date: "2020-01-05",
+                raw_json: raw,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    for (const [type, route] of Object.entries(ROUTES)) {
+      if (type !== "FLR" && type !== "GST") {
+        server.use(http.get(route, () => HttpResponse.json(makePayload("FLR"))));
+      }
+    }
+    const user = userEvent.setup();
+    renderWithProviders(<SpaceWeatherPage />);
+
+    await user.click(screen.getByRole("tab", { name: /Geomagnetic Storms/i }));
+    const card = await screen.findByLabelText(/GST event/i);
+    expect(within(card).getByText("startTime")).toBeInTheDocument();
   });
 
   it("date range inputs update correctly", async () => {
@@ -359,6 +471,74 @@ describe("SpaceWeatherPage", () => {
 
     await user.click(screen.getByRole("tab", { name: /Radiation Belt Enhancements/i }));
     expect(await screen.findByLabelText(/RBE event/i)).toBeInTheDocument();
+  });
+
+  it("FLR dashboard sorts by date when class scores tie", async () => {
+    // Two events with the same classType on different dates → hits the date tie-breaker in sort
+    server.use(
+      http.get(ROUTES.FLR, () =>
+        HttpResponse.json(
+          makePayload("FLR", {
+            data: [
+              {
+                id: "FLR:FLR-A",
+                event_type: "FLR",
+                start_date: "2020-01-03",
+                raw_json: JSON.stringify({ classType: "C3.0", peakTime: "2020-01-03T08:00Z" }),
+              },
+              {
+                id: "FLR:FLR-B",
+                event_type: "FLR",
+                start_date: "2020-01-05",
+                raw_json: JSON.stringify({ classType: "C3.0", peakTime: "2020-01-05T10:00Z" }),
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    renderWithProviders(<SpaceWeatherPage />);
+    const rows = await screen.findAllByRole("listitem");
+    // Most recent date first (2020-01-05 before 2020-01-03)
+    expect(rows[0]).toHaveAttribute("aria-label", "FLR event FLR:FLR-B");
+    expect(rows[1]).toHaveAttribute("aria-label", "FLR event FLR:FLR-A");
+    expect(screen.getByTestId("flare-total")).toHaveTextContent("2");
+  });
+
+  it("CME event with speed shows speed in card highlight", async () => {
+    const raw = JSON.stringify({
+      activityID: "CME-SPEED-1",
+      startTime: "2020-01-05T12:00Z",
+      cmeAnalyses: [{ speed: 850, type: "C" }],
+    });
+    server.use(
+      http.get(ROUTES.FLR, () => HttpResponse.json(makePayload("FLR"))),
+      http.get(ROUTES.CME, () =>
+        HttpResponse.json(
+          makePayload("CME", {
+            data: [
+              {
+                id: "CME:CME-SPEED-1",
+                event_type: "CME",
+                start_date: "2020-01-05",
+                raw_json: raw,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    for (const [type, route] of Object.entries(ROUTES)) {
+      if (type !== "FLR" && type !== "CME") {
+        server.use(http.get(route, () => HttpResponse.json(makePayload("FLR"))));
+      }
+    }
+    const user = userEvent.setup();
+    renderWithProviders(<SpaceWeatherPage />);
+
+    await user.click(screen.getByRole("tab", { name: /Coronal Mass Ejections/i }));
+    expect(await screen.findByText(/850/)).toBeInTheDocument();
+    expect(screen.getByText(/km\/s/i)).toBeInTheDocument();
   });
 
   it("locale switching — German title appears after changing language to de", async () => {

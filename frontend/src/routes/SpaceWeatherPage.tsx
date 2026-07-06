@@ -109,38 +109,130 @@ function renderTimestamp(value: unknown): string {
   return value != null ? String(value) : "—";
 }
 
-// ── Type-specific highlights ───────────────────────────────────────────────────
+// ── Flare dashboard ────────────────────────────────────────────────────────────
 
-const FLR_LEVELS = ["A", "B", "C", "M", "X"] as const;
-const FLR_COLORS = ["#9ca3af", "#22c55e", "#eab308", "#f97316", "#ef4444"];
-const FLR_LETTER_COLORS: Record<string, string> = {
-  X: "#ef4444", M: "#f97316", C: "#facc15", B: "#22c55e", A: "#9ca3af",
+const FLR_CLASS_COLORS: Record<string, string> = {
+  X: "#ef4444", M: "#f97316", C: "#facc15", B: "#22c55e", A: "#6b7280",
 };
+const FLR_CLASS_ORDER = ["X", "M", "C", "B", "A"] as const;
 
-function FlareHighlight({ classType }: { classType: string }) {
+function flareClassScore(classType: string): number {
   const letter = classType[0]?.toUpperCase() ?? "";
-  const number = classType.slice(1);
-  const levelIdx = (FLR_LEVELS as readonly string[]).indexOf(letter);
-  const color = FLR_LETTER_COLORS[letter] ?? "#9ca3af";
+  const idx = (FLR_CLASS_ORDER as readonly string[]).indexOf(letter);
+  const num = parseFloat(classType.slice(1)) || 0;
+  return idx >= 0 ? (4 - idx) * 100 + num : -1;
+}
+
+interface FlareRow {
+  id: string;
+  date: string;
+  classType: string;
+  peakTime: string;
+  sourceLocation: string;
+}
+
+function FlareDashboard({ events }: { events: SpaceWeatherEventData[] }) {
+  const flares: FlareRow[] = useMemo(() => events.map((e) => {
+    const d = parseRaw(e.raw_json);
+    return {
+      id: e.id,
+      date: e.start_date.slice(0, 10),
+      classType: typeof d.classType === "string" ? d.classType : "",
+      peakTime: typeof d.peakTime === "string" ? d.peakTime : "",
+      sourceLocation: typeof d.sourceLocation === "string" ? d.sourceLocation : "",
+    };
+  }), [events]);
+
+  const sorted = useMemo(
+    () => [...flares].sort((a, b) =>
+      flareClassScore(b.classType) - flareClassScore(a.classType) || b.date.localeCompare(a.date)
+    ),
+    [flares],
+  );
+
+  const classCounts = useMemo(() => {
+    const c: Record<string, number> = { X: 0, M: 0, C: 0, B: 0, A: 0 };
+    for (const f of flares) {
+      const l = f.classType[0]?.toUpperCase();
+      if (l && l in c) c[l]++;
+    }
+    return c;
+  }, [flares]);
+
+  const maxCount = Math.max(...Object.values(classCounts), 1);
+  const activeDays = new Set(flares.map((f) => f.date)).size;
+  const peak = sorted[0]?.classType || "—";
+  const peakColor = FLR_CLASS_COLORS[peak[0]?.toUpperCase()] ?? "#9ca3af";
 
   return (
-    <div className="sw-flare-class">
-      <div className="sw-flare-label">
-        <span className="sw-class-letter" style={{ color }}>{letter}</span>
-        {number && <span className="sw-class-number" style={{ color }}>{number}</span>}
+    <div className="sw-flare-dashboard">
+      <div className="sw-flare-stats">
+        <div className="sw-flare-stat">
+          <span className="sw-flare-stat__value" data-testid="flare-total">{flares.length}</span>
+          <span className="sw-flare-stat__label">Total flares</span>
+        </div>
+        <div className="sw-flare-stat">
+          <span className="sw-flare-stat__value" style={{ color: peakColor }} data-testid="flare-peak">
+            {peak}
+          </span>
+          <span className="sw-flare-stat__label">Peak class</span>
+        </div>
+        <div className="sw-flare-stat">
+          <span className="sw-flare-stat__value">{activeDays}</span>
+          <span className="sw-flare-stat__label">Active days</span>
+        </div>
       </div>
-      <div className="sw-class-bar">
-        {FLR_LEVELS.map((l, i) => (
-          <div
-            key={l}
-            className="sw-class-segment"
-            style={{ background: i <= levelIdx ? FLR_COLORS[i] : undefined, opacity: i <= levelIdx ? 1 : 0.2 }}
-          />
-        ))}
+
+      <div className="sw-class-dist">
+        {FLR_CLASS_ORDER.map((letter) => {
+          const count = classCounts[letter];
+          return (
+            <div key={letter} className="sw-class-dist__row">
+              <span className="sw-class-dist__letter" style={{ color: FLR_CLASS_COLORS[letter] }}>
+                {letter}
+              </span>
+              <div className="sw-class-dist__track" role="presentation">
+                <div
+                  className="sw-class-dist__fill"
+                  style={{ width: `${(count / maxCount) * 100}%`, background: FLR_CLASS_COLORS[letter] }}
+                />
+              </div>
+              <span className="sw-class-dist__count">{count}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="sw-flare-list" role="list">
+        {sorted.map((flare) => {
+          const letter = flare.classType[0]?.toUpperCase() ?? "";
+          const color = FLR_CLASS_COLORS[letter] ?? "#9ca3af";
+          const timeLabel = flare.peakTime
+            ? renderTimestamp(flare.peakTime)
+            : formatDate(flare.date);
+          return (
+            <div
+              key={flare.id}
+              className="sw-flare-row"
+              role="listitem"
+              aria-label={`FLR event ${flare.id}`}
+            >
+              <span className="sw-flare-row__class" style={{ color }}>
+                {flare.classType || "—"}
+              </span>
+              <span className="sw-flare-row__time">{timeLabel}</span>
+              {flare.sourceLocation && (
+                <span className="sw-flare-row__loc">{flare.sourceLocation}</span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
+
+// ── Storm / CME highlights (used inside EventCard for GST / CME) ───────────────
 
 function StormHighlight({ data }: { data: Record<string, unknown> }) {
   const allKp = Array.isArray(data.allKpIndex) ? data.allKpIndex : [];
@@ -192,7 +284,7 @@ function CmeHighlight({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-// ── Activity Timeline ──────────────────────────────────────────────────────────
+// ── Activity Timeline (used for non-FLR tabs) ──────────────────────────────────
 
 function ActivityTimeline({ events, start, end, color }: {
   events: SpaceWeatherEventData[];
@@ -250,11 +342,10 @@ function ActivityTimeline({ events, start, end, color }: {
   );
 }
 
-// ── EventCard ──────────────────────────────────────────────────────────────────
+// ── EventCard (used for GST / CME / SEP / RBE) ────────────────────────────────
 
 const TIME_FIELDS = ["beginTime", "startTime", "eventTime", "peakTime", "endTime"] as const;
 const TIME_SET = new Set<string>(TIME_FIELDS);
-// Keys shown in type-specific highlights — hide from generic dl (but FLR classType stays in dl for tests)
 const HIGHLIGHT_KEYS: Record<Tab, Set<string>> = {
   FLR: new Set(),
   GST: new Set(["allKpIndex"]),
@@ -276,10 +367,6 @@ function EventCard({ event }: { event: SpaceWeatherEventData }) {
 
   const renderHighlight = () => {
     switch (event.event_type) {
-      case "FLR": {
-        const ct = typeof data.classType === "string" ? data.classType : null;
-        return ct ? <FlareHighlight classType={ct} /> : null;
-      }
       case "GST": return <StormHighlight data={data} />;
       case "CME": return <CmeHighlight data={data} />;
       default: return null;
@@ -357,15 +444,20 @@ function TabPanel({ eventType, start, end }: { eventType: Tab; start: string; en
             : `${t("common.live")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`}
       </p>
 
-      <ActivityTimeline events={data.data} start={start} end={end} color={color} />
-
-      <div className="sw-card-grid" role="list">
-        {data.data.map((event) => (
-          <div key={event.id} role="listitem">
-            <EventCard event={event} />
+      {eventType === "FLR" ? (
+        <FlareDashboard events={data.data} />
+      ) : (
+        <>
+          <ActivityTimeline events={data.data} start={start} end={end} color={color} />
+          <div className="sw-card-grid" role="list">
+            {data.data.map((event) => (
+              <div key={event.id} role="listitem">
+                <EventCard event={event} />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </>
   );
 }
