@@ -284,6 +284,67 @@ input::placeholder {
   background: var(--color-bg);
 }
 
+/* ── Language switcher ──────────────────────────────────────── */
+.lang-switcher {
+  position: relative;
+}
+
+.lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.375rem 0.625rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  white-space: nowrap;
+}
+
+.lang-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.lang-btn[aria-expanded="true"] {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.lang-menu {
+  min-width: 148px;
+}
+
+.lang-option {
+  display: flex !important;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.lang-code {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  min-width: 1.5rem;
+}
+
+.lang-option--active {
+  color: var(--color-primary) !important;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
+}
+
+.lang-option--active .lang-code {
+  color: var(--color-primary);
+}
+
 /* ── Auth pages (Login + Register) ─────────────────────────── */
 .auth-layout {
   min-height: calc(100vh - 60px);
