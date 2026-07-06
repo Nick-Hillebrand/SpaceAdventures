@@ -38,7 +38,7 @@ describe("LoginPage", () => {
     renderWithProviders(<LoginPage />);
 
     await user.type(screen.getByLabelText(/Email or Phone/i), "alice@example.com");
-    await user.type(screen.getByLabelText(/Password/i), "securepassword");
+    await user.type(screen.getByLabelText(/^Password$/i), "securepassword");
     await user.click(screen.getByRole("button", { name: /Log In/i }));
 
     await waitFor(() => {
@@ -61,7 +61,7 @@ describe("LoginPage", () => {
     renderWithProviders(<LoginPage />);
 
     await user.type(screen.getByLabelText(/Email or Phone/i), "alice@example.com");
-    await user.type(screen.getByLabelText(/Password/i), "securepassword");
+    await user.type(screen.getByLabelText(/^Password$/i), "securepassword");
     await user.click(screen.getByRole("button", { name: /Log In/i }));
 
     expect(screen.getByRole("button", { name: /Logging in/i })).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe("LoginPage", () => {
     renderWithProviders(<LoginPage />);
 
     await user.type(screen.getByLabelText(/Email or Phone/i), "alice@example.com");
-    await user.type(screen.getByLabelText(/Password/i), "wrongpassword");
+    await user.type(screen.getByLabelText(/^Password$/i), "wrongpassword");
     await user.click(screen.getByRole("button", { name: /Log In/i }));
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("LoginPage", () => {
     renderWithProviders(<LoginPage />);
 
     await user.type(screen.getByLabelText(/Email or Phone/i), "alice@example.com");
-    await user.type(screen.getByLabelText(/Password/i), "securepassword");
+    await user.type(screen.getByLabelText(/^Password$/i), "securepassword");
     await user.click(screen.getByRole("button", { name: /Log In/i }));
 
     await waitFor(() => {
@@ -111,7 +111,7 @@ describe("LoginPage", () => {
     renderWithProviders(<LoginPage />);
 
     await user.type(screen.getByLabelText(/Email or Phone/i), "alice@example.com");
-    await user.type(screen.getByLabelText(/Password/i), "securepassword");
+    await user.type(screen.getByLabelText(/^Password$/i), "securepassword");
     await user.click(screen.getByRole("button", { name: /Log In/i }));
 
     await waitFor(() => {

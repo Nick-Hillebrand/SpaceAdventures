@@ -43,6 +43,7 @@ async def db_session(db_engine) -> AsyncIterator[AsyncSession]:
 async def settings() -> Settings:
     return Settings(  # type: ignore[call-arg]
         require_secrets=False,
+        admin_api_key="",
         nasa_api_key="TEST_KEY",
         nasa_base_url="https://api.nasa.example",
         n2yo_api_key="TEST_N2YO",

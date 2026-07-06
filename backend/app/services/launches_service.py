@@ -21,14 +21,25 @@ logger = logging.getLogger(__name__)
 _NET_SLIP_THRESHOLD_SECONDS = 5 * 60  # 5 minutes
 
 
-def _trunc(value: str | None, max_len: int) -> str | None:
-    if value is None:
+def _trunc(value: object, max_len: int) -> str | None:
+    if value is None or not isinstance(value, str):
         return None
     return value[:max_len]
 
 
-def _trunc_required(value: str, max_len: int) -> str:
+def _trunc_required(value: object, max_len: int) -> str:
+    if not isinstance(value, str):
+        value = str(value) if value is not None else ""
     return value[:max_len]
+
+
+def _extract_image_url(raw_image: object) -> str | None:
+    """Handle LL2 API v2.3.0+ where 'image' changed from a URL string to an object."""
+    if isinstance(raw_image, dict):
+        return raw_image.get("image_url") or raw_image.get("thumbnail_url") or None
+    if isinstance(raw_image, str):
+        return raw_image or None
+    return None
 
 
 def _parse_raw(raw: dict) -> dict:
@@ -74,7 +85,7 @@ def _parse_raw(raw: dict) -> dict:
         "mission_type": _trunc(mission.get("type"), 500),
         "pad_name": _trunc_required(pad.get("name") or "", 500),
         "pad_location": _trunc_required(location.get("name") or "", 500),
-        "image_url": _trunc(raw.get("image"), 500),
+        "image_url": _trunc(_extract_image_url(raw.get("image")), 500),
         "livestream_urls": json.dumps(livestream_urls),
     }
 
