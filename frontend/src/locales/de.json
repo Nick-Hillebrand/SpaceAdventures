@@ -49,7 +49,12 @@
     "page": "Seite {{n}}",
     "prevPage": "Zurück",
     "nextPage": "Weiter",
-    "closeLightbox": "Vollbild schließen"
+    "closeLightbox": "Vollbild schließen",
+    "rover3dTitle": "3D-Modell",
+    "rover3dLoading": "3D-Modell wird geladen…",
+    "rover3dUnavailable": "3D-Modell nicht verfügbar.",
+    "rover3dCredit": "Modell: NASA/JPL-Caltech",
+    "rover3dCanvasLabel": "3D-Modell von {{rover}}"
   },
   "iss": {
     "title": "ISS-Tracker",

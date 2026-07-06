@@ -116,7 +116,7 @@ vi.mock('globe.gl', () => ({ default: vi.fn(() => mockInstance) }));
 
 ---
 
-## Known Pitfalls (P1–P35)
+## Known Pitfalls (P1–P36)
 
 Read the relevant pitfall before implementing each area. All pitfalls have an exact failure mode, cause, and fix.
 
@@ -172,3 +172,4 @@ Read the relevant pitfall before implementing each area. All pitfalls have an ex
 - **P33** aiosmtplib: port 587 → `start_tls=True`; port 465 → `use_tls=True`
 - **P34** jsdom Intl: only use well-known IANA timezone names in tests
 - **P35** bcrypt C extension: add `libffi-dev python3-dev gcc` to Dockerfile before `pip install`
+- **P36** three.js: no bundled types — add `src/types/three-jsm.d.ts` with loose `declare module` stubs for `'three'`, `'three/examples/jsm/loaders/GLTFLoader.js'`, and `'.../controls/OrbitControls.js'` (same convention as P13). Because `THREE` is then typed `any`, define local structural interfaces for anything that needs a shape (see `Disposable`/`MeshLike`/`Object3DLike` in `roverScene.ts`) instead of referencing `THREE.Object3D` as a type. In tests, mock `three`/`GLTFLoader`/`OrbitControls` at the module level — jsdom has no WebGL context and `THREE.WebGLRenderer`'s constructor throws (unlike 2D canvas, which returns `null` gracefully). Every scene instance registers a real `window` resize listener; track and `dispose()` each one in `afterEach`, or listeners leak across tests in the same file and a later `dispatchEvent(new Event("resize"))` fires all of them at once.

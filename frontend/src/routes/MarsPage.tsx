@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMarsPhotos, useRovers } from "@/hooks/useMars";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { RoverViewer } from "@/components/RoverViewer";
 import { formatDate, formatDateTime } from "@/lib/dateTime";
 import type { MarsPhotoData } from "@/types/api";
 
@@ -64,6 +65,7 @@ export default function MarsPage() {
   const [camera, setCamera] = useState<string>("");
   const [page, setPage] = useState<number>(1);
   const [lightboxPhoto, setLightboxPhoto] = useState<MarsPhotoData | null>(null);
+  const [show3d, setShow3d] = useState<boolean>(false);
   const { t } = useTranslation();
 
   const { data: roversData } = useRovers();
@@ -184,6 +186,14 @@ export default function MarsPage() {
           </label>
         )}
       </div>
+
+      <details
+        className="mars-rover-3d"
+        onToggle={(e) => setShow3d((e.target as HTMLDetailsElement).open)}
+      >
+        <summary>{t("mars.rover3dTitle")}</summary>
+        {show3d && <RoverViewer rover={rover} />}
+      </details>
 
       {isLoading ? (
         <p role="status">{t("common.loading")}</p>

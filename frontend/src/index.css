@@ -1340,6 +1340,53 @@ input::placeholder {
   width: auto;
 }
 
+.mars-rover-3d {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.mars-rover-3d summary {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+.mars-rover-3d summary:hover { color: var(--color-text); }
+
+.mars-rover-viewer {
+  padding: 0 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mars-rover-canvas {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #05070d;
+}
+.mars-rover-canvas canvas {
+  display: block;
+}
+
+.mars-rover-status {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+.mars-rover-status--error { color: var(--color-danger); }
+
+.mars-rover-credit {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
 .mars-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -2359,6 +2406,10 @@ input::placeholder {
 
   /* Mars */
   .mars-controls {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .mars-rover-3d {
     background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
     border-color: #172a45;
   }

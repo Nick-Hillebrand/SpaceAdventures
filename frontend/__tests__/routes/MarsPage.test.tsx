@@ -1,12 +1,22 @@
 import { screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import MarsPage from "@/routes/MarsPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
 import type { MarsPhotosResponse, RoversResponse } from "@/types/api";
 import i18n from "@/i18n";
+
+// P36: @/components/RoverViewer is mocked here the same way IssPage.test.tsx
+// mocks globe.gl — the real component drives a three.js/WebGL pipeline that
+// has no business running inside jsdom, and MarsPage only needs to know it
+// gets mounted with the right `rover` prop.
+vi.mock("@/components/RoverViewer", () => ({
+  RoverViewer: ({ rover }: { rover: string }) => (
+    <div data-testid="rover-viewer-mock">{rover}</div>
+  ),
+}));
 
 afterEach(async () => {
   await act(async () => { await i18n.changeLanguage("en"); });
@@ -360,5 +370,53 @@ describe("MarsPage", () => {
 
     await act(async () => { await i18n.changeLanguage("de"); });
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Mars-Explorer");
+  });
+
+  it("does not mount the 3D rover viewer until the disclosure is expanded", async () => {
+    mockDefault();
+    renderWithProviders(<MarsPage />);
+
+    await screen.findByRole("img", { name: /Mars photo 1/i });
+    expect(screen.queryByTestId("rover-viewer-mock")).toBeNull();
+  });
+
+  it("mounts the 3D rover viewer for the selected rover once expanded", async () => {
+    mockDefault();
+    const user = userEvent.setup();
+    renderWithProviders(<MarsPage />);
+
+    await screen.findByRole("img", { name: /Mars photo 1/i });
+    await user.click(screen.getByText(/3D Model/i));
+
+    expect(await screen.findByTestId("rover-viewer-mock")).toHaveTextContent("curiosity");
+  });
+
+  it("passes the newly selected rover to the 3D viewer after switching rovers", async () => {
+    mockDefault();
+    const user = userEvent.setup();
+    renderWithProviders(<MarsPage />);
+
+    await screen.findByRole("img", { name: /Mars photo 1/i });
+    await user.click(screen.getByText(/3D Model/i));
+    await screen.findByTestId("rover-viewer-mock");
+
+    const roverSelect = screen.getByRole("combobox", { name: /Rover/i });
+    await user.selectOptions(roverSelect, "opportunity");
+
+    expect(await screen.findByTestId("rover-viewer-mock")).toHaveTextContent("opportunity");
+  });
+
+  it("unmounts the 3D rover viewer when the disclosure is collapsed again", async () => {
+    mockDefault();
+    const user = userEvent.setup();
+    renderWithProviders(<MarsPage />);
+
+    await screen.findByRole("img", { name: /Mars photo 1/i });
+    const summary = screen.getByText(/3D Model/i);
+    await user.click(summary);
+    await screen.findByTestId("rover-viewer-mock");
+
+    await user.click(summary);
+    expect(screen.queryByTestId("rover-viewer-mock")).toBeNull();
   });
 });

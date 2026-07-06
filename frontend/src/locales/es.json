@@ -49,7 +49,12 @@
     "page": "Página {{n}}",
     "prevPage": "Anterior",
     "nextPage": "Siguiente",
-    "closeLightbox": "Cerrar pantalla completa"
+    "closeLightbox": "Cerrar pantalla completa",
+    "rover3dTitle": "Modelo 3D",
+    "rover3dLoading": "Cargando modelo 3D…",
+    "rover3dUnavailable": "Modelo 3D no disponible.",
+    "rover3dCredit": "Modelo: NASA/JPL-Caltech",
+    "rover3dCanvasLabel": "Modelo 3D de {{rover}}"
   },
   "iss": {
     "title": "Rastreador de la ISS",

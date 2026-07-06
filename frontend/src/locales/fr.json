@@ -49,7 +49,12 @@
     "page": "Page {{n}}",
     "prevPage": "Précédent",
     "nextPage": "Suivant",
-    "closeLightbox": "Fermer le plein écran"
+    "closeLightbox": "Fermer le plein écran",
+    "rover3dTitle": "Modèle 3D",
+    "rover3dLoading": "Chargement du modèle 3D…",
+    "rover3dUnavailable": "Modèle 3D indisponible.",
+    "rover3dCredit": "Modèle : NASA/JPL-Caltech",
+    "rover3dCanvasLabel": "Modèle 3D de {{rover}}"
   },
   "iss": {
     "title": "Suivi de l'ISS",

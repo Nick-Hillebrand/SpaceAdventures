@@ -49,7 +49,12 @@
     "page": "Страница {{n}}",
     "prevPage": "Назад",
     "nextPage": "Вперёд",
-    "closeLightbox": "Закрыть полный экран"
+    "closeLightbox": "Закрыть полный экран",
+    "rover3dTitle": "3D-модель",
+    "rover3dLoading": "Загрузка 3D-модели…",
+    "rover3dUnavailable": "3D-модель недоступна.",
+    "rover3dCredit": "Модель: NASA/JPL-Caltech",
+    "rover3dCanvasLabel": "3D-модель {{rover}}"
   },
   "iss": {
     "title": "Трекер МКС",
