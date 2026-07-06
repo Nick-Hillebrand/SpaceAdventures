@@ -733,6 +733,51 @@ input::placeholder {
 }
 
 /* ── ISS ────────────────────────────────────────────────────── */
+.iss-header {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  flex-wrap: wrap;
+}
+
+.iss-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.3125rem 0.75rem;
+  border-radius: 100px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.iss-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-text-muted);
+}
+.iss-live-badge--live {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
+}
+.iss-live-badge--live .iss-live-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+  animation: iss-pulse 2.2s ease-in-out infinite;
+}
+@keyframes iss-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.iss-globe-wrap {
+  position: relative;
+}
+
 .iss-globe {
   width: 100%;
   height: 480px;
@@ -741,38 +786,74 @@ input::placeholder {
   background: #0a0e1a;
 }
 
+.iss-globe-overlay {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, #0a0e1a 65%, transparent);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: monospace;
+  font-size: 0.8125rem;
+  color: #e7edf9;
+  pointer-events: none;
+}
+
 .iss-data-panel {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
 }
 
-.iss-data-panel dl {
-  grid-column: 1 / -1;
+.iss-stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 0.75rem 1.5rem;
-  padding: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.iss-stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  padding: 0.875rem 1rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
   border-radius: var(--radius);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
+.iss-stat-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.1);
+}
+.iss-stat-tile--sunlit { border-left-color: var(--color-solar); }
+.iss-stat-tile--eclipsed { border-left-color: var(--color-nebula); }
 
-.iss-data-panel dt {
-  font-size: 0.75rem;
+.iss-stat-tile dt {
+  font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--color-text-muted);
-  margin-bottom: 0.125rem;
 }
 
-.iss-data-panel dd {
-  font-size: 1rem;
-  font-weight: 500;
+.iss-stat-tile dd {
+  font-size: 1.125rem;
+  font-weight: 600;
   font-family: monospace;
   color: var(--color-text);
   margin: 0;
+}
+
+.iss-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.875rem;
 }
 
 .iss-tle {
@@ -802,15 +883,19 @@ input::placeholder {
   margin: 0;
 }
 
-.iss-next-pass,
-.iss-next-radio-pass {
+.iss-pass-card {
   padding: 1rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
   border-radius: var(--radius);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-.iss-next-pass h3,
-.iss-next-radio-pass h3 {
+.iss-pass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.1);
+}
+.iss-pass-card h3 {
   font-size: 0.875rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -818,8 +903,7 @@ input::placeholder {
   color: var(--color-text-muted);
   margin-bottom: 0.5rem;
 }
-.iss-next-pass p,
-.iss-next-radio-pass p {
+.iss-pass-card p {
   font-size: 0.9375rem;
   margin: 0.25rem 0;
 }
@@ -2260,12 +2344,11 @@ input::placeholder {
   }
 
   /* ISS data panel */
-  .iss-data-panel dl {
+  .iss-stat-tile {
     background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
     border-color: #172a45;
   }
-  .iss-next-pass,
-  .iss-next-radio-pass {
+  .iss-pass-card {
     background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
     border-color: #172a45;
   }

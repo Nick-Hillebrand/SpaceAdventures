@@ -72,6 +72,7 @@
     "locationDenied": "Location access denied — using default observer position (0°N 0°E)",
     "unavailable": "ISS data unavailable",
     "updating": "Updating…",
+    "live": "Live",
     "tleData": "TLE data"
   },
   "launches": {

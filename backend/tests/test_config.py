@@ -4,7 +4,9 @@ from app.config import Settings
 
 
 def test_defaults_load_without_secrets_in_dev_mode():
-    settings = Settings(require_secrets=False)  # type: ignore[call-arg]
+    # _env_file=None isolates this from the developer's real backend/.env,
+    # which may contain real API keys that would shadow the class defaults.
+    settings = Settings(require_secrets=False, _env_file=None)  # type: ignore[call-arg]
     assert settings.nasa_api_key == "DEMO_KEY"
     assert settings.nasa_base_url.startswith("https://")
     assert settings.jwt_algorithm == "HS256"

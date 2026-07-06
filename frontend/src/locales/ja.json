@@ -72,6 +72,7 @@
     "locationDenied": "位置情報アクセスが拒否されました — デフォルトの観測位置(0°N 0°E)を使用",
     "unavailable": "ISSデータが利用できません",
     "updating": "更新中…",
+    "live": "ライブ",
     "tleData": "TLEデータ"
   },
   "launches": {

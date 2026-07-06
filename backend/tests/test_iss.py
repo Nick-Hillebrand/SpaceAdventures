@@ -230,6 +230,25 @@ async def test_get_radio_passes_live(client):
 
 
 @respx.mock
+async def test_get_radio_passes_computes_missing_duration(client):
+    """N2YO's real radiopasses endpoint never returns a `duration` field."""
+    radio_pass = {k: v for k, v in _PASS.items() if k != "duration"}
+    respx.get(f"{_N2YO_BASE}/radiopasses/25544/51.5/-0.1/30.0/7/10").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "info": {"satname": "ISS", "satid": 25544, "transactionscount": 1},
+                "passes": [radio_pass],
+            },
+        )
+    )
+    response = await client.get("/api/v1/iss/passes/radio", params={"lat": 51.5, "lng": -0.1, "alt": 30.0})
+    assert response.status_code == 200
+    body = response.json()["passes"][0]
+    assert body["duration"] == radio_pass["endUTC"] - radio_pass["startUTC"]
+
+
+@respx.mock
 async def test_get_passes_cached(client, db_session):
     import json
     db_session.add(

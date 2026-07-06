@@ -72,6 +72,7 @@
     "locationDenied": "Accès à la localisation refusé — utilisation de la position d'observation par défaut (0°N 0°E)",
     "unavailable": "Données ISS indisponibles",
     "updating": "Mise à jour…",
+    "live": "En direct",
     "tleData": "Données TLE"
   },
   "launches": {

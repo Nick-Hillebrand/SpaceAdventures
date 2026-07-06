@@ -19,12 +19,33 @@ import type {
 //   2. factory(el)  → returns the globe API object (also mockGlobe)
 // So mockGlobe must be a callable vi.fn that returns itself.
 const { mockGlobe } = vi.hoisted(() => {
-  const fn = vi.fn(() => fn) as ReturnType<typeof vi.fn> & {
-    _destructor: ReturnType<typeof vi.fn>;
-    globeImageUrl: ReturnType<typeof vi.fn>;
-  };
+  const chainMethods = [
+    "width",
+    "height",
+    "globeImageUrl",
+    "bumpImageUrl",
+    "backgroundImageUrl",
+    "showAtmosphere",
+    "atmosphereColor",
+    "atmosphereAltitude",
+    "pointAltitude",
+    "pointRadius",
+    "pointColor",
+    "pointLabel",
+    "pointsData",
+    "ringColor",
+    "ringMaxRadius",
+    "ringPropagationSpeed",
+    "ringRepeatPeriod",
+    "ringsData",
+    "pointOfView",
+  ] as const;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fn = vi.fn(() => fn) as any;
   fn._destructor = vi.fn();
-  fn.globeImageUrl = vi.fn(() => fn);
+  for (const method of chainMethods) {
+    fn[method] = vi.fn(() => fn);
+  }
   return { mockGlobe: fn };
 });
 
@@ -228,6 +249,22 @@ describe("IssPage — position interpolation (fake timers)", () => {
       vi.advanceTimersByTime(1001);
     });
   }
+
+  it("pushes the interpolated ISS position onto the globe as a point and ring, matching the data panel", async () => {
+    await renderAndAdvance();
+    expect(mockGlobe.pointsData).toHaveBeenCalled();
+    expect(mockGlobe.ringsData).toHaveBeenCalled();
+    const [marker] = mockGlobe.pointsData.mock.calls.at(-1)![0];
+
+    // The globe marker must reflect exactly what the data panel displays.
+    const latTile = screen.getByText(/^Latitude$/i).nextElementSibling;
+    expect(latTile?.textContent).toContain(Math.abs(marker.lat).toFixed(4));
+
+    expect(mockGlobe.pointOfView).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: marker.lat, lng: marker.lng }),
+      expect.any(Number),
+    );
+  });
 
   it("renders data panel with position fields after interval fires", async () => {
     await renderAndAdvance();

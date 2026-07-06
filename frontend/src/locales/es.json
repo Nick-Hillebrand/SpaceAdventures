@@ -72,6 +72,7 @@
     "locationDenied": "Acceso a la ubicación denegado — usando posición de observador predeterminada (0°N 0°E)",
     "unavailable": "Datos de la ISS no disponibles",
     "updating": "Actualizando…",
+    "live": "En vivo",
     "tleData": "Datos TLE"
   },
   "launches": {

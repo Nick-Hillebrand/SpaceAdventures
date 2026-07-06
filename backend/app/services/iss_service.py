@@ -187,6 +187,14 @@ async def get_tle(
 # ── passes ────────────────────────────────────────────────────────────────────
 
 
+def _with_duration(passes: list[dict]) -> list[dict]:
+    """N2YO's radiopasses endpoint (unlike visualpasses) never includes `duration`."""
+    for p in passes:
+        if not p.get("duration") and "endUTC" in p and "startUTC" in p:
+            p["duration"] = p["endUTC"] - p["startUTC"]
+    return passes
+
+
 async def _get_pass_set(
     session: AsyncSession, pass_type: PassType, lat: float, lng: float, alt: float
 ) -> IssPassSet | None:
@@ -213,17 +221,17 @@ async def get_passes(
     """Returns (passes, fetched_at, cached, quota_exhausted)."""
     existing = await _get_pass_set(session, pass_type, lat, lng, alt)
     if existing is not None and _age_seconds(existing.fetched_at) < PASSES_TTL:
-        return json.loads(existing.passes_json), existing.fetched_at, True, False
+        return _with_duration(json.loads(existing.passes_json)), existing.fetched_at, True, False
 
     async with _QUOTA_LOCK:
         existing = await _get_pass_set(session, pass_type, lat, lng, alt)
         if existing is not None and _age_seconds(existing.fetched_at) < PASSES_TTL:
-            return json.loads(existing.passes_json), existing.fetched_at, True, False
+            return _with_duration(json.loads(existing.passes_json)), existing.fetched_at, True, False
 
         quota, exceeded = await _check_and_increment_quota(session, cap)
         if exceeded:
             if existing is not None:
-                return json.loads(existing.passes_json), existing.fetched_at, True, True
+                return _with_duration(json.loads(existing.passes_json)), existing.fetched_at, True, True
             raise N2YOError("N2YO_QUOTA_EXHAUSTED", "N2YO quota exhausted", 429)
 
         try:
@@ -233,10 +241,10 @@ async def get_passes(
                 data = await client.get_radio_passes(lat, lng, alt)
         except N2YOError:
             if existing is not None:
-                return json.loads(existing.passes_json), existing.fetched_at, True, False
+                return _with_duration(json.loads(existing.passes_json)), existing.fetched_at, True, False
             raise
 
-    passes = data.get("passes") or []
+    passes = _with_duration(data.get("passes") or [])
     now = _utcnow()
 
     if existing is None:
