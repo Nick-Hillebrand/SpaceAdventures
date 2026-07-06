@@ -312,6 +312,22 @@ async def test_error_no_cache(client):
 
 
 @respx.mock
+async def test_upstream_404_is_reported_as_unavailable(client):
+    # The mars-photos backend returning 404 (e.g. its Heroku app being gone)
+    # is not a legitimate "not found" — the rover is validated before this
+    # call, so any 404 here means the endpoint itself is broken.
+    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
+        return_value=httpx.Response(404)
+    )
+    response = await client.get(
+        "/api/v1/mars/photos",
+        params={"rover": "curiosity", "sol": 1237},
+    )
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "NASA_UNAVAILABLE"
+
+
+@respx.mock
 async def test_auth_error(client):
     respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
         return_value=httpx.Response(403)

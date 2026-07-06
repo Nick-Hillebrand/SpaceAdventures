@@ -78,6 +78,14 @@ async def test_get_nasa_error_on_4xx(nasa_client):
 
 
 @respx.mock
+async def test_get_404_treated_as_unavailable_when_opted_in(nasa_client):
+    respx.get("https://api.nasa.example/x").mock(return_value=httpx.Response(404))
+    with pytest.raises(NasaClientError) as exc:
+        await nasa_client.get("/x", treat_404_as_unavailable=True)
+    assert exc.value.code == "NASA_UNAVAILABLE"
+
+
+@respx.mock
 async def test_get_invalid_json_returns_nasa_error(nasa_client):
     respx.get("https://api.nasa.example/x").mock(
         return_value=httpx.Response(200, content=b"not json"),

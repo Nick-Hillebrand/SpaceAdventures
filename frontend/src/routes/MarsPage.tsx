@@ -200,6 +200,7 @@ export default function MarsPage() {
       ) : isError && error ? (
         <ErrorBanner
           titleKey={errorTitleKey(error.code)}
+          detailKey={error.code === "NASA_UNAVAILABLE" ? "error.nasaUnavailableDetail" : undefined}
           detail={error.message}
           onRetry={() => refetch()}
           variant="section"

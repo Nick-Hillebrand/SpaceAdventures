@@ -171,7 +171,9 @@ async def fetch_photos(
         params["camera"] = camera.lower()
 
     try:
-        payload = await client.get(_photos_path(rover), params=params)
+        payload = await client.get(
+            _photos_path(rover), params=params, treat_404_as_unavailable=True
+        )
     except NasaClientError:
         if existing:
             return MarsResult(

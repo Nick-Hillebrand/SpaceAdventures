@@ -190,6 +190,22 @@ describe("MarsPage", () => {
     expect(await screen.findByText(/Invalid NASA API Key/i)).toBeInTheDocument();
   });
 
+  it("renders NASA_UNAVAILABLE banner with a friendly detail instead of the raw backend message", async () => {
+    server.use(
+      http.get("/api/v1/mars/rovers", () => HttpResponse.json(ROVERS_PAYLOAD)),
+      http.get("/api/v1/mars/photos", () =>
+        HttpResponse.json(
+          { error: { code: "NASA_UNAVAILABLE", message: "NASA returned 404 (endpoint unavailable)" } },
+          { status: 502 },
+        ),
+      ),
+    );
+    renderWithProviders(<MarsPage />);
+    expect(await screen.findByText(/NASA services are currently unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Live data could not be retrieved from NASA/i)).toBeInTheDocument();
+    expect(screen.queryByText(/NASA returned 404/i)).not.toBeInTheDocument();
+  });
+
   it("renders NO_INTERNET error banner", async () => {
     server.use(
       http.get("/api/v1/mars/rovers", () => HttpResponse.json(ROVERS_PAYLOAD)),

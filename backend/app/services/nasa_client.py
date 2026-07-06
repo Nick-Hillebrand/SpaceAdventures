@@ -51,10 +51,22 @@ class NasaClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+    async def get(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        *,
+        treat_404_as_unavailable: bool = False,
+    ) -> Any:
         """GET a NASA endpoint and return parsed JSON.
 
         Raises ``NasaClientError`` with a structured error code on failure.
+
+        ``treat_404_as_unavailable`` is for endpoints where the caller already
+        validates all inputs that could legitimately produce a 404, so any 404
+        actually observed means the upstream route itself is gone (e.g. the
+        mars-photos API's Heroku backend returning its "no such app" page)
+        rather than a normal not-found response.
         """
         query = {"api_key": self._settings.nasa_api_key}
         if params:
@@ -70,6 +82,8 @@ class NasaClient:
 
         if response.status_code in (401, 403):
             raise NasaClientError("NASA_AUTH_ERROR", "NASA rejected the API key")
+        if response.status_code == 404 and treat_404_as_unavailable:
+            raise NasaClientError("NASA_UNAVAILABLE", "NASA returned 404 (endpoint unavailable)")
         if response.status_code >= 500:
             raise NasaClientError("NASA_UNAVAILABLE", f"NASA returned {response.status_code}")
         if response.status_code >= 400:
