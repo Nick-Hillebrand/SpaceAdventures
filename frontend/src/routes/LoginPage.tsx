@@ -40,6 +40,7 @@ export default function LoginPage() {
   }
 
   return (
+    <div className="auth-layout">
     <div className="login-page">
       <h1>{t("auth.loginTitle")}</h1>
       {error && (
@@ -75,6 +76,7 @@ export default function LoginPage() {
       <p>
         {t("auth.noAccount")} <Link to="/register">{t("auth.register")}</Link>
       </p>
+    </div>
     </div>
   );
 }

@@ -80,6 +80,7 @@ export default function RegisterPage() {
 
   if (step === "otp") {
     return (
+      <div className="auth-layout">
       <div className="register-page">
         <h1>{t("auth.verifyAccount")}</h1>
         {otpError && (
@@ -122,10 +123,12 @@ export default function RegisterPage() {
           </div>
         )}
       </div>
+      </div>
     );
   }
 
   return (
+    <div className="auth-layout">
     <div className="register-page">
       <h1>{t("auth.registerTitle")}</h1>
       {error && (
@@ -199,6 +202,7 @@ export default function RegisterPage() {
       <p>
         {t("auth.alreadyHaveAccount")} <Link to="/login">{t("auth.loginTitle")}</Link>
       </p>
+    </div>
     </div>
   );
 }
