@@ -20,3 +20,4 @@ class Apod(Base):
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
+    translations_json: Mapped[str | None] = mapped_column(String, nullable=True)

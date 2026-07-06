@@ -501,6 +501,6 @@ describe("LaunchesPage", () => {
     await screen.findAllByTestId("launch-card");
 
     await act(async () => { await i18n.changeLanguage("de"); });
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Bevorstehende Starts");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Bevorstehende Starts");
   });
 });

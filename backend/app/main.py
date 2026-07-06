@@ -18,6 +18,7 @@ from app.routers import launches as launches_router
 from app.routers import subscriptions as subscriptions_router
 from app.routers import settings as settings_router
 from app.services import launches_service
+from app.services import translation_service
 from app.services.ll2_client import LL2Client
 from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient, NasaClientError
@@ -29,12 +30,16 @@ async def lifespan(app: FastAPI):
     app.state.nasa_client = NasaClient(settings)
     app.state.n2yo_client = N2YOClient(settings)
     app.state.ll2_client = LL2Client(settings)
+    app.state.translator = translation_service.translate_fields
 
     scheduler = AsyncIOScheduler()
 
     async def _sync_job() -> None:
         async with AsyncSessionLocal() as session:
-            await launches_service.sync_launches(session, app.state.ll2_client, settings)
+            await launches_service.sync_launches(
+                session, app.state.ll2_client, settings,
+                translator=app.state.translator,
+            )
 
     scheduler.add_job(
         _sync_job,
@@ -46,7 +51,10 @@ async def lifespan(app: FastAPI):
     # Startup: immediate sync if table is empty
     async with AsyncSessionLocal() as session:
         if await launches_service.is_launches_table_empty(session):
-            await launches_service.sync_launches(session, app.state.ll2_client, settings)
+            await launches_service.sync_launches(
+                session, app.state.ll2_client, settings,
+                translator=app.state.translator,
+            )
 
     try:
         yield

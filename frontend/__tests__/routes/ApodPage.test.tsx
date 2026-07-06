@@ -166,6 +166,6 @@ describe("ApodPage", () => {
     await screen.findByRole("heading", { level: 1 });
 
     await act(async () => { await i18n.changeLanguage("de"); });
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Astronomisches Bild des Tages");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Astronomisches Bild des Tages");
   });
 });

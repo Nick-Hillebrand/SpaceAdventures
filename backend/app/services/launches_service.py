@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Any, Awaitable, Callable
 
 from dateutil.parser import isoparse
 from sqlalchemy import func, select
@@ -19,6 +20,8 @@ from app.services.ll2_client import LL2Client, LL2ClientError
 logger = logging.getLogger(__name__)
 
 _NET_SLIP_THRESHOLD_SECONDS = 5 * 60  # 5 minutes
+
+_Translator = Callable[[dict[str, str]], Awaitable[dict[str, dict[str, str]]]] | None
 
 
 def _trunc(value: object, max_len: int) -> str | None:
@@ -90,6 +93,28 @@ def _parse_raw(raw: dict) -> dict:
     }
 
 
+def _translation_fields(launch: Launch) -> dict[str, str]:
+    """Collect the translatable text fields from a Launch row."""
+    fields: dict[str, str] = {}
+    if launch.mission_name:
+        fields["mission_name"] = launch.mission_name
+    if launch.mission_description:
+        fields["mission_description"] = launch.mission_description
+    return fields
+
+
+async def _translate_launch(launch: Launch, translator: Any) -> None:
+    """Translate mission fields and update launch.translations_json in-place."""
+    fields = _translation_fields(launch)
+    if not fields:
+        return
+    try:
+        i18n = await translator(fields)
+        launch.translations_json = json.dumps(i18n, ensure_ascii=False)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Launch translation for %s failed: %s", launch.ll2_id, exc)
+
+
 async def _get_subscriptions_for_launch(
     session: AsyncSession, ll2_id: str, agency_name: str, change_type: str
 ) -> list[Subscription]:
@@ -137,7 +162,12 @@ async def _insert_pending_notifications(
         session.add(notification)
 
 
-async def sync_launches(session: AsyncSession, client: LL2Client, settings: Settings | None = None) -> None:
+async def sync_launches(
+    session: AsyncSession,
+    client: LL2Client,
+    settings: Settings | None = None,
+    translator: _Translator = None,
+) -> None:
     """Fetch upcoming launches from LL2 and upsert into the DB."""
     try:
         raw_launches = await client.fetch_upcoming()
@@ -179,6 +209,8 @@ async def sync_launches(session: AsyncSession, client: LL2Client, settings: Sett
             )
             launch = Launch(fetched_at=fetched_at, **fields)
             session.add(launch)
+            if translator is not None:
+                await _translate_launch(launch, translator)
         else:
             # Check for NET_SLIP
             old_net: datetime = existing.net
@@ -205,10 +237,20 @@ async def sync_launches(session: AsyncSession, client: LL2Client, settings: Sett
                     new_value=fields["status_abbrev"],
                 )
 
+            # Re-translate if mission content changed or translations are missing
+            needs_translation = translator is not None and (
+                existing.translations_json is None
+                or existing.mission_description != fields.get("mission_description")
+                or existing.mission_name != fields.get("mission_name")
+            )
+
             # Update all fields
             for key, value in fields.items():
                 setattr(existing, key, value)
             existing.fetched_at = fetched_at
+
+            if needs_translation:
+                await _translate_launch(existing, translator)
 
     # Mark launches no longer returned as "Gone"
     if seen_ids:
