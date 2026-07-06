@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useApod } from "@/hooks/useApod";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import Skeleton from "@/components/Skeleton";
+import EmptyState from "@/components/EmptyState";
 import { formatDateTime } from "@/lib/dateTime";
 
 function errorTitleKey(code: string): string {
@@ -22,7 +24,14 @@ export default function ApodPage() {
   if (isLoading) {
     return (
       <div className="apod-page">
-        <p role="status">{t("common.loading")}</p>
+        <div role="status" aria-label="Loading">
+          <span className="sr-only">Loading</span>
+          <Skeleton height="2rem" />
+          <Skeleton height="400px" />
+          <Skeleton height="1.5rem" width="60%" />
+          <Skeleton height="1rem" />
+          <Skeleton height="1rem" />
+        </div>
       </div>
     );
   }
@@ -43,7 +52,7 @@ export default function ApodPage() {
   if (!data) {
     return (
       <div className="apod-page">
-        <p>{t("common.noData")}</p>
+        <EmptyState message={t("common.noData")} />
       </div>
     );
   }
