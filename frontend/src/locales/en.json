@@ -15,7 +15,9 @@
     "title": "Astronomy Picture of the Day",
     "explanation": "Explanation",
     "copyright": "Copyright",
-    "noImage": "No image available"
+    "noImage": "No image available",
+    "prevDay": "Previous day",
+    "nextDay": "Next day"
   },
   "neo": {
     "title": "Near-Earth Objects",

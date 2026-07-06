@@ -16,10 +16,21 @@ function errorTitleKey(code: string): string {
   }
 }
 
+export function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function offsetDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function ApodPage() {
-  const [date, setDate] = useState<string>("");
+  const today = todayUtc();
+  const [date, setDate] = useState<string>(today);
   const { t } = useTranslation();
-  const { data, isLoading, isError, error, refetch } = useApod(date || undefined);
+  const { data, isLoading, isError, error, refetch } = useApod(date);
 
   if (isLoading) {
     return (
@@ -73,19 +84,38 @@ export default function ApodPage() {
         />
       </label>
 
-      <div className="apod-hero">
-        {apod.media_type === "video" ? (
-          <iframe
-            src={apod.url}
-            title={apod.title}
-            allow="fullscreen"
-            aria-label={apod.title}
-          />
-        ) : apod.url ? (
-          <img src={apod.hdurl ?? apod.url} alt={apod.title} />
-        ) : (
-          <p>{t("apod.noImage")}</p>
-        )}
+      <div className="apod-nav-wrapper">
+        <button
+          className="apod-nav-btn apod-nav-btn--prev"
+          aria-label={t("apod.prevDay")}
+          onClick={() => setDate(offsetDate(date, -1))}
+        >
+          ‹
+        </button>
+
+        <div className="apod-hero">
+          {apod.media_type === "video" ? (
+            <iframe
+              src={apod.url}
+              title={apod.title}
+              allow="fullscreen"
+              aria-label={apod.title}
+            />
+          ) : apod.url ? (
+            <img src={apod.hdurl ?? apod.url} alt={apod.title} />
+          ) : (
+            <p>{t("apod.noImage")}</p>
+          )}
+        </div>
+
+        <button
+          className="apod-nav-btn apod-nav-btn--next"
+          aria-label={t("apod.nextDay")}
+          onClick={() => setDate(offsetDate(date, 1))}
+          disabled={date >= today}
+        >
+          ›
+        </button>
       </div>
 
       <h2>{apod.title}</h2>

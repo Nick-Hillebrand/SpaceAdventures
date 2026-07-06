@@ -15,7 +15,9 @@
     "title": "今日の天文写真",
     "explanation": "説明",
     "copyright": "著作権",
-    "noImage": "画像はありません"
+    "noImage": "画像はありません",
+    "prevDay": "前の日",
+    "nextDay": "次の日"
   },
   "neo": {
     "title": "地球近傍天体",

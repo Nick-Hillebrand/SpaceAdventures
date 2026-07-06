@@ -15,7 +15,9 @@
     "title": "Astronomisches Bild des Tages",
     "explanation": "Erklärung",
     "copyright": "Urheberrecht",
-    "noImage": "Kein Bild verfügbar"
+    "noImage": "Kein Bild verfügbar",
+    "prevDay": "Vorheriger Tag",
+    "nextDay": "Nächster Tag"
   },
   "neo": {
     "title": "Erdnahe Objekte",

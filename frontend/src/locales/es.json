@@ -15,7 +15,9 @@
     "title": "Imagen astronómica del día",
     "explanation": "Explicación",
     "copyright": "Derechos de autor",
-    "noImage": "No hay imagen disponible"
+    "noImage": "No hay imagen disponible",
+    "prevDay": "Día anterior",
+    "nextDay": "Día siguiente"
   },
   "neo": {
     "title": "Objetos cercanos a la Tierra",

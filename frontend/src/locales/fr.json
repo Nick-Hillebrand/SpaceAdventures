@@ -15,7 +15,9 @@
     "title": "Image astronomique du jour",
     "explanation": "Explication",
     "copyright": "Droits d'auteur",
-    "noImage": "Aucune image disponible"
+    "noImage": "Aucune image disponible",
+    "prevDay": "Jour précédent",
+    "nextDay": "Jour suivant"
   },
   "neo": {
     "title": "Objets géocroiseurs",
