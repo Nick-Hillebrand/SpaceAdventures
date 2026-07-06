@@ -1,31 +1,28 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useApod } from "@/hooks/useApod";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { formatDateTime } from "@/lib/dateTime";
 
-function errorTitle(code: string): string {
+function errorTitleKey(code: string): string {
   switch (code) {
-    case "NO_INTERNET":
-      return "No internet connection";
-    case "NASA_UNAVAILABLE":
-      return "NASA services are currently unavailable";
-    case "NASA_AUTH_ERROR":
-      return "Invalid NASA API Key";
-    case "NASA_ERROR":
-      return "NASA returned an error";
-    default:
-      return "Something went wrong";
+    case "NO_INTERNET": return "error.noInternet";
+    case "NASA_UNAVAILABLE": return "error.nasaUnavailable";
+    case "NASA_AUTH_ERROR": return "error.nasaAuthError";
+    case "NASA_ERROR": return "error.nasaError";
+    default: return "common.error";
   }
 }
 
 export default function ApodPage() {
   const [date, setDate] = useState<string>("");
+  const { t } = useTranslation();
   const { data, isLoading, isError, error, refetch } = useApod(date || undefined);
 
   if (isLoading) {
     return (
       <div className="apod-page">
-        <p role="status">Loading…</p>
+        <p role="status">{t("common.loading")}</p>
       </div>
     );
   }
@@ -34,7 +31,7 @@ export default function ApodPage() {
     return (
       <div className="apod-page">
         <ErrorBanner
-          title={errorTitle(error.code)}
+          titleKey={errorTitleKey(error.code)}
           detail={error.message}
           onRetry={() => refetch()}
           variant="page"
@@ -46,7 +43,7 @@ export default function ApodPage() {
   if (!data) {
     return (
       <div className="apod-page">
-        <p>No data available</p>
+        <p>{t("common.noData")}</p>
       </div>
     );
   }
@@ -55,10 +52,10 @@ export default function ApodPage() {
 
   return (
     <div className="apod-page">
-      <h1>Astronomy Picture of the Day</h1>
+      <h1>{t("apod.title")}</h1>
 
       <label htmlFor="apod-date">
-        Date
+        {t("common.date")}
         <input
           id="apod-date"
           type="date"
@@ -78,7 +75,7 @@ export default function ApodPage() {
         ) : apod.url ? (
           <img src={apod.hdurl ?? apod.url} alt={apod.title} />
         ) : (
-          <p>No image available</p>
+          <p>{t("apod.noImage")}</p>
         )}
       </div>
 
@@ -88,10 +85,10 @@ export default function ApodPage() {
 
       <p className="apod-badge" aria-label={cached ? "cached" : "live"}>
         {stale
-          ? `Showing cached data from ${formatDateTime(fetched_at)}`
+          ? t("error.staleData", { date: formatDateTime(fetched_at) })
           : cached
-            ? `Served from cache · fetched ${formatDateTime(fetched_at)}`
-            : `Live · fetched ${formatDateTime(fetched_at)}`}
+            ? `${t("common.cached")} · ${t("common.fetchedAt")} ${formatDateTime(fetched_at)}`
+            : `${t("common.live")} · ${t("common.fetchedAt")} ${formatDateTime(fetched_at)}`}
       </p>
     </div>
   );

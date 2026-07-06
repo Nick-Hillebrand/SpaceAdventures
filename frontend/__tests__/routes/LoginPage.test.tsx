@@ -1,10 +1,11 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import LoginPage from "@/routes/LoginPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
+import i18n from "@/i18n";
 
 // P28: use vi.hoisted() for variables referenced in mock factories
 const { mockNavigate, mockLocation } = vi.hoisted(() => ({
@@ -25,6 +26,10 @@ beforeEach(() => {
   mockNavigate.mockClear();
   mockLocation.mockReturnValue({ search: "" });
   localStorage.clear();
+});
+
+afterEach(async () => {
+  await act(async () => { await i18n.changeLanguage("en"); });
 });
 
 describe("LoginPage", () => {
@@ -117,5 +122,13 @@ describe("LoginPage", () => {
   it("link to register visible", () => {
     renderWithProviders(<LoginPage />);
     expect(screen.getByRole("link", { name: /Register/i })).toBeInTheDocument();
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    renderWithProviders(<LoginPage />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Log In");
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Anmelden");
   });
 });

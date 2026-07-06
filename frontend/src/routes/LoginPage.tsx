@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { apiPost, setAccessToken, setRefreshToken } from "@/lib/api";
 import type { TokenResponse } from "@/types/api";
 import type { ApiError } from "@/lib/api";
@@ -13,6 +14,7 @@ export function safeReturnUrl(search: string): string {
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const [emailOrPhone, setEmailOrPhone] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -39,15 +41,15 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <h1>Log In</h1>
+      <h1>{t("auth.loginTitle")}</h1>
       {error && (
         <div role="alert" className="error-banner">
-          {error.message || "Login failed. Please check your credentials."}
+          {error.message || t("auth.loginFailed")}
         </div>
       )}
       <form onSubmit={handleSubmit}>
         <label htmlFor="email_or_phone">
-          Email or Phone
+          {t("auth.emailOrPhoneLabel")}
           <input
             id="email_or_phone"
             type="text"
@@ -57,7 +59,7 @@ export default function LoginPage() {
           />
         </label>
         <label htmlFor="password">
-          Password
+          {t("auth.password")}
           <input
             id="password"
             type="password"
@@ -67,11 +69,11 @@ export default function LoginPage() {
           />
         </label>
         <button type="submit" disabled={isLoading}>
-          {isLoading ? "Logging in…" : "Log In"}
+          {isLoading ? t("auth.loggingIn") : t("auth.loginTitle")}
         </button>
       </form>
       <p>
-        Don&apos;t have an account? <Link to="/register">Register</Link>
+        {t("auth.noAccount")} <Link to="/register">{t("auth.register")}</Link>
       </p>
     </div>
   );

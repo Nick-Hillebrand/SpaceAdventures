@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { apiPost } from "@/lib/api";
 
 export default function ConfirmUnsubscribePage() {
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   const token = searchParams.get("token") ?? "";
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -14,7 +16,7 @@ export default function ConfirmUnsubscribePage() {
       setStatus("success");
     } catch (err: unknown) {
       const e = err as { message?: string };
-      setErrorMessage(e?.message ?? "An error occurred. Please try again.");
+      setErrorMessage(e?.message ?? t("common.error"));
       setStatus("error");
     }
   }
@@ -22,16 +24,16 @@ export default function ConfirmUnsubscribePage() {
   if (status === "success") {
     return (
       <div data-testid="unsubscribe-success">
-        <h1>Unsubscribed</h1>
-        <p>You have been unsubscribed successfully.</p>
+        <h1>{t("subscriptions.unsubscribedTitle")}</h1>
+        <p>{t("subscriptions.unsubscribedSuccess")}</p>
       </div>
     );
   }
 
   return (
     <div data-testid="confirm-unsubscribe-page">
-      <h1>Confirm Unsubscribe</h1>
-      <p>Click the button below to confirm that you want to unsubscribe from launch notifications.</p>
+      <h1>{t("subscriptions.confirmUnsubscribeTitle")}</h1>
+      <p>{t("subscriptions.confirmUnsubscribeText")}</p>
 
       {status === "error" && (
         <p data-testid="unsubscribe-error" style={{ color: "red" }}>
@@ -44,7 +46,7 @@ export default function ConfirmUnsubscribePage() {
         onClick={handleUnsubscribe}
         data-testid="confirm-unsubscribe-button"
       >
-        Confirm Unsubscribe
+        {t("subscriptions.confirmButton")}
       </button>
     </div>
   );

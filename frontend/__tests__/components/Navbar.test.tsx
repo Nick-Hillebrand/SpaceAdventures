@@ -1,10 +1,11 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import Navbar from "@/components/Navbar";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
+import i18n from "@/i18n";
 
 // P28: use vi.hoisted() for variables referenced in mock factories
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -21,6 +22,10 @@ vi.mock("react-router-dom", async (importOriginal) => {
 beforeEach(() => {
   mockNavigate.mockClear();
   localStorage.clear();
+});
+
+afterEach(async () => {
+  await act(async () => { await i18n.changeLanguage("en"); });
 });
 
 describe("Navbar", () => {
@@ -64,6 +69,23 @@ describe("Navbar", () => {
     expect(localStorage.getItem("space-adventures-access-token")).toBeNull();
     expect(localStorage.getItem("space-adventures-refresh-token")).toBeNull();
     expect(mockNavigate).toHaveBeenCalledWith("/");
+  });
+
+  it("locale switching — German Log In link appears after changing language to de", async () => {
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          { error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    renderWithProviders(<Navbar />);
+    expect(await screen.findByRole("link", { name: /Log In/i })).toBeInTheDocument();
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("link", { name: /Anmelden/i })).toBeInTheDocument();
   });
 
   it('"My Account" link navigates to /account', async () => {

@@ -1,11 +1,16 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import MarsPage from "@/routes/MarsPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
 import type { MarsPhotosResponse, RoversResponse } from "@/types/api";
+import i18n from "@/i18n";
+
+afterEach(async () => {
+  await act(async () => { await i18n.changeLanguage("en"); });
+});
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -297,5 +302,13 @@ describe("MarsPage", () => {
     const img = await screen.findByRole("img", { name: /Mars photo 5/i });
     expect(img).toHaveAttribute("alt", expect.stringContaining("curiosity"));
     expect(img).toHaveAttribute("alt", expect.stringContaining("MAST"));
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    renderWithProviders(<MarsPage />);
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Mars-Explorer");
   });
 });

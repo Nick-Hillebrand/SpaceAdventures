@@ -1,10 +1,15 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import AccountPage from "@/routes/AccountPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
+import i18n from "@/i18n";
+
+afterEach(async () => {
+  await act(async () => { await i18n.changeLanguage("en"); });
+});
 
 // P28: use vi.hoisted() for variables referenced in mock factories
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -109,6 +114,15 @@ describe("AccountPage", () => {
     await user.click(screen.getByRole("button", { name: /Subscriptions/i }));
 
     expect(await screen.findByTestId("no-subscriptions")).toBeInTheDocument();
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("My Account");
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Mein Konto");
   });
 
   it("delete button calls DELETE endpoint", async () => {

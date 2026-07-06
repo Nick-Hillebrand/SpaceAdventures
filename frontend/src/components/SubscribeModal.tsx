@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMe } from "@/hooks/useAuth";
 import {
   useCreateSubscription,
@@ -14,6 +15,7 @@ interface SubscribeModalProps {
 }
 
 export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps) {
+  const { t } = useTranslation();
   const { data: user, isError: isMeError, error: meError } = useMe();
   const { data: subscriptions } = useSubscriptions();
   const createSubscription = useCreateSubscription();
@@ -28,7 +30,6 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
 
   const isUnauthenticated = isMeError && meError && meError.status === 401;
 
-  // Check if already subscribed to this launch
   const isLaunchSubscribed = subscriptions?.some(
     (s) => s.type === "launch" && s.ll2_id === launch.ll2_id
   ) ?? false;
@@ -70,10 +71,10 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
 
     try {
       await Promise.all(tasks);
-      setStatus("Subscribed successfully!");
+      setStatus(t("subscriptions.success"));
       setTimeout(onClose, 1500);
     } catch {
-      setStatus("Failed to subscribe. Please try again.");
+      setStatus(t("subscriptions.failedSubscribe"));
     }
   }
 
@@ -85,7 +86,7 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Subscribe to launch updates"
+      aria-label={t("subscriptions.modalTitle")}
       data-testid="subscribe-modal"
       style={{ position: "fixed", inset: 0, zIndex: 50 }}
     >
@@ -107,36 +108,35 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("common.close")}
           style={{ position: "absolute", top: 12, right: 12 }}
         >
           ✕
         </button>
 
-        <h2>Subscribe to Updates</h2>
+        <h2>{t("subscriptions.modalTitle")}</h2>
 
         {isUnauthenticated ? (
           <div data-testid="login-prompt">
-            <p>Log in to subscribe to launch notifications.</p>
+            <p>{t("subscriptions.loginRequired")}</p>
             <a
               href={`/login?return=/launches`}
               data-testid="login-link"
             >
-              Log In
+              {t("subscriptions.logIn")}
             </a>
             {" | "}
             <a
               href={`/register?return=/launches`}
               data-testid="register-link"
             >
-              Register
+              {t("subscriptions.register")}
             </a>
           </div>
         ) : user ? (
           <div>
-            {/* What to subscribe to */}
             <fieldset>
-              <legend>Subscribe to:</legend>
+              <legend>{t("subscriptions.subscribeTo")}</legend>
               <label>
                 <input
                   type="checkbox"
@@ -144,7 +144,7 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
                   onChange={(e) => setSubscribeLaunch(e.target.checked)}
                   data-testid="checkbox-launch"
                 />
-                {" "}This launch: <strong>{launch.name}</strong>
+                {" "}{t("subscriptions.thisLaunch")}: <strong>{launch.name}</strong>
                 <br />
                 <small>NET: {formatDateTime(launch.net)}</small>
               </label>
@@ -156,13 +156,12 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
                   onChange={(e) => setSubscribeAgency(e.target.checked)}
                   data-testid="checkbox-agency"
                 />
-                {" "}All <strong>{launch.agency_name}</strong> launches
+                {" "}{t("subscriptions.allFromAgency", { agency: launch.agency_name })}
               </label>
             </fieldset>
 
-            {/* Notification channels */}
             <fieldset style={{ marginTop: 12 }}>
-              <legend>Notify me via:</legend>
+              <legend>{t("subscriptions.notifyVia")}</legend>
               {hasVerifiedEmail ? (
                 <label>
                   <input
@@ -171,11 +170,11 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
                     onChange={(e) => setNotifyEmail(e.target.checked)}
                     data-testid="checkbox-email"
                   />
-                  {" "}Email ({user.email})
+                  {" "}{t("account.channelEmail")} ({user.email})
                 </label>
               ) : (
                 <p data-testid="verify-email-prompt">
-                  Verify your email in Account Settings to enable email notifications.
+                  {t("subscriptions.verifyEmailPrompt")}
                 </p>
               )}
               <br />
@@ -187,18 +186,18 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
                     onChange={(e) => setNotifySms(e.target.checked)}
                     data-testid="checkbox-sms"
                   />
-                  {" "}SMS ({user.phone})
+                  {" "}{t("account.channelSms")} ({user.phone})
                 </label>
               ) : (
                 <p data-testid="verify-phone-prompt">
-                  Verify your phone in Account Settings to enable SMS notifications.
+                  {t("subscriptions.verifyPhonePrompt")}
                 </p>
               )}
             </fieldset>
 
             {noChannelAvailable && (
               <p data-testid="no-channel-prompt" style={{ color: "#888" }}>
-                Verify your email or phone in Account Settings to receive notifications.
+                {t("subscriptions.verifyChannelPrompt")}
               </p>
             )}
 
@@ -211,15 +210,15 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
                 data-testid="confirm-subscribe"
                 disabled={createSubscription.isPending}
               >
-                Confirm
+                {t("subscriptions.confirm")}
               </button>
               <button type="button" onClick={onClose}>
-                Cancel
+                {t("subscriptions.cancel")}
               </button>
             </div>
           </div>
         ) : (
-          <p>Loading…</p>
+          <p>{t("common.loading")}</p>
         )}
       </div>
     </div>

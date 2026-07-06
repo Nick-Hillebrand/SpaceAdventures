@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useMe } from "@/hooks/useAuth";
 import { setAccessToken, setRefreshToken } from "@/lib/api";
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { data: user } = useMe();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -42,17 +44,17 @@ export default function Navbar() {
                   role="menuitem"
                   onClick={() => setDropdownOpen(false)}
                 >
-                  My Account
+                  {t("nav.myAccount")}
                 </Link>
                 <button type="button" role="menuitem" onClick={handleLogout}>
-                  Log Out
+                  {t("nav.logout")}
                 </button>
               </div>
             )}
           </div>
         ) : (
           <Link to="/login" className="login-link">
-            Log In
+            {t("nav.login")}
           </Link>
         )}
       </div>

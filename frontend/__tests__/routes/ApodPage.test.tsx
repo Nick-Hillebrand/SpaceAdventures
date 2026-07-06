@@ -1,9 +1,14 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import ApodPage from "@/routes/ApodPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
+import i18n from "@/i18n";
+
+afterEach(async () => {
+  await act(async () => { await i18n.changeLanguage("en"); });
+});
 
 const apodPayload = {
   data: {
@@ -118,5 +123,17 @@ describe("ApodPage", () => {
 
     renderWithProviders(<ApodPage />);
     expect(await screen.findByText(/Showing cached data from/i)).toBeInTheDocument();
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    server.use(
+      http.get("/api/v1/apod", () => HttpResponse.json(apodPayload)),
+    );
+
+    renderWithProviders(<ApodPage />);
+    await screen.findByRole("heading", { level: 1 });
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Astronomisches Bild des Tages");
   });
 });

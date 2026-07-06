@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNeoFeed } from "@/hooks/useNeo";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { formatDate, formatDateTime } from "@/lib/dateTime";
@@ -7,20 +8,14 @@ import type { NeoData } from "@/types/api";
 type SortKey = "name" | "close_approach_date" | "diameter" | "velocity" | "miss_distance";
 type SortDir = "asc" | "desc";
 
-function errorTitle(code: string): string {
+function errorTitleKey(code: string): string {
   switch (code) {
-    case "NO_INTERNET":
-      return "No internet connection";
-    case "NASA_UNAVAILABLE":
-      return "NASA services are currently unavailable";
-    case "NASA_AUTH_ERROR":
-      return "Invalid NASA API Key";
-    case "NASA_ERROR":
-      return "NASA returned an error";
-    case "INVALID_RANGE":
-      return "Invalid date range";
-    default:
-      return "Something went wrong";
+    case "NO_INTERNET": return "error.noInternet";
+    case "NASA_UNAVAILABLE": return "error.nasaUnavailable";
+    case "NASA_AUTH_ERROR": return "error.nasaAuthError";
+    case "NASA_ERROR": return "error.nasaError";
+    case "INVALID_RANGE": return "error.invalidRange";
+    default: return "common.error";
   }
 }
 
@@ -83,6 +78,7 @@ export default function NeoPage() {
   const [sortKey, setSortKey] = useState<SortKey>("close_approach_date");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const { data, isLoading, isError, error, refetch } = useNeoFeed(start, end);
 
@@ -112,11 +108,11 @@ export default function NeoPage() {
 
   return (
     <div className="neo-page">
-      <h1>Near-Earth Objects</h1>
+      <h1>{t("neo.title")}</h1>
 
       <div className="neo-filters">
         <label htmlFor="neo-start">
-          Start
+          {t("common.start")}
           <input
             id="neo-start"
             type="date"
@@ -126,7 +122,7 @@ export default function NeoPage() {
           />
         </label>
         <label htmlFor="neo-end">
-          End
+          {t("common.end")}
           <input
             id="neo-end"
             type="date"
@@ -140,16 +136,16 @@ export default function NeoPage() {
       </div>
 
       {isLoading ? (
-        <p role="status">Loading…</p>
+        <p role="status">{t("common.loading")}</p>
       ) : isError && error ? (
         <ErrorBanner
-          title={errorTitle(error.code)}
+          titleKey={errorTitleKey(error.code)}
           detail={error.message}
           onRetry={() => refetch()}
           variant="section"
         />
       ) : !data || rows.length === 0 ? (
-        <p className="neo-empty">No near-earth objects found in this range.</p>
+        <p className="neo-empty">{t("neo.noResults")}</p>
       ) : (
         <>
           <p
@@ -157,13 +153,13 @@ export default function NeoPage() {
             aria-label={data.cached ? "cached" : "live"}
           >
             {data.stale
-              ? `Showing cached data from ${formatDateTime(data.fetched_at)}`
+              ? t("error.staleData", { date: formatDateTime(data.fetched_at) })
               : data.cached
-                ? `Served from cache · fetched ${formatDateTime(data.fetched_at)}`
-                : `Live · fetched ${formatDateTime(data.fetched_at)}`}
+                ? `${t("common.cached")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`
+                : `${t("common.live")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`}
           </p>
 
-          <table className="neo-table" aria-label="Near-earth objects">
+          <table className="neo-table" aria-label={t("neo.title")}>
             <thead>
               <tr>
                 <th>
@@ -178,20 +174,20 @@ export default function NeoPage() {
                 </th>
                 <th>
                   <button type="button" onClick={() => toggleSort("diameter")}>
-                    Diameter (km){sortIndicator("diameter")}
+                    {t("neo.diameter")} (km){sortIndicator("diameter")}
                   </button>
                 </th>
                 <th>
                   <button type="button" onClick={() => toggleSort("velocity")}>
-                    Velocity (kph){sortIndicator("velocity")}
+                    {t("neo.velocity")} (kph){sortIndicator("velocity")}
                   </button>
                 </th>
                 <th>
                   <button type="button" onClick={() => toggleSort("miss_distance")}>
-                    Miss Distance (km){sortIndicator("miss_distance")}
+                    {t("neo.missDistance")} (km){sortIndicator("miss_distance")}
                   </button>
                 </th>
-                <th>Hazardous</th>
+                <th>{t("neo.hazardous")}</th>
               </tr>
             </thead>
             <tbody>
@@ -220,8 +216,8 @@ export default function NeoPage() {
                   <td>{fmtNumber(row.miss_distance_km)}</td>
                   <td>
                     {row.is_potentially_hazardous ? (
-                      <span className="neo-hazard-badge" aria-label="Potentially Hazardous">
-                        Potentially Hazardous
+                      <span className="neo-hazard-badge" aria-label={t("neo.hazardous")}>
+                        {t("neo.hazardous")}
                       </span>
                     ) : (
                       <span className="neo-safe">—</span>
@@ -244,9 +240,9 @@ export default function NeoPage() {
             type="button"
             className="neo-drawer-close"
             onClick={() => setSelectedId(null)}
-            aria-label="Close details"
+            aria-label={t("neo.closeDetails")}
           >
-            Close
+            {t("neo.closeDetails")}
           </button>
           <h2>{selected.name}</h2>
           <dl>
@@ -266,8 +262,8 @@ export default function NeoPage() {
             <dd>{fmtNumber(selected.miss_distance_km)}</dd>
             <dt>Orbiting body</dt>
             <dd>{selected.orbiting_body ?? "—"}</dd>
-            <dt>Hazardous</dt>
-            <dd>{selected.is_potentially_hazardous ? "Yes" : "No"}</dd>
+            <dt>{t("neo.hazardous")}</dt>
+            <dd>{selected.is_potentially_hazardous ? t("iss.yes") : t("iss.no")}</dd>
             {selected.nasa_jpl_url ? (
               <>
                 <dt>JPL</dt>

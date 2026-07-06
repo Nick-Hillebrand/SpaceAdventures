@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { apiPost } from "@/lib/api";
 import type { ApiError } from "@/lib/api";
 
 type Step = "register" | "otp";
 
 export default function RegisterPage() {
+  const { t } = useTranslation();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,9 +24,9 @@ export default function RegisterPage() {
   const [accessToken, setAccessTokenLocal] = useState<string | null>(null);
 
   function validate(): string | null {
-    if (!email && !phone) return "At least one of email or phone is required.";
-    if (password.length < 8) return "Password must be at least 8 characters.";
-    if (password !== confirmPassword) return "Passwords do not match.";
+    if (!email && !phone) return t("auth.emailOrPhone");
+    if (password.length < 8) return t("auth.passwordTooShort");
+    if (password !== confirmPassword) return t("auth.passwordMismatch");
     return null;
   }
 
@@ -47,7 +49,6 @@ export default function RegisterPage() {
       });
       setUserId(data.id);
 
-      // Login to get access token for OTP verification
       const tokenData = await apiPost<{ access_token: string; refresh_token: string }>(
         "/api/v1/auth/login",
         { email_or_phone: email || phone, password }
@@ -56,7 +57,7 @@ export default function RegisterPage() {
       setStep("otp");
     } catch (err) {
       const apiErr = err as ApiError;
-      setError(apiErr.message || "Registration failed. Please try again.");
+      setError(apiErr.message || t("common.error"));
     } finally {
       setIsLoading(false);
     }
@@ -73,14 +74,14 @@ export default function RegisterPage() {
       );
     } catch (err) {
       const apiErr = err as ApiError;
-      setOtpError(apiErr.message || "Invalid OTP. Please try again.");
+      setOtpError(apiErr.message || t("common.error"));
     }
   }
 
   if (step === "otp") {
     return (
       <div className="register-page">
-        <h1>Verify Your Account</h1>
+        <h1>{t("auth.verifyAccount")}</h1>
         {otpError && (
           <div role="alert" className="error-banner">
             {otpError}
@@ -88,9 +89,9 @@ export default function RegisterPage() {
         )}
         {email && (
           <div>
-            <h2>Email OTP</h2>
+            <h2>{t("auth.emailOtpSection")}</h2>
             <label htmlFor="email-otp">
-              Enter the code sent to {email}
+              {t("auth.verifyEmail")}
               <input
                 id="email-otp"
                 type="text"
@@ -99,15 +100,15 @@ export default function RegisterPage() {
               />
             </label>
             <button type="button" onClick={() => handleOtpSubmit("email", emailOtp)}>
-              Verify Email
+              {t("auth.verifyEmailButton")}
             </button>
           </div>
         )}
         {phone && (
           <div>
-            <h2>Phone OTP</h2>
+            <h2>{t("auth.phoneOtpSection")}</h2>
             <label htmlFor="phone-otp">
-              Enter the code sent to {phone}
+              {t("auth.verifyPhone")}
               <input
                 id="phone-otp"
                 type="text"
@@ -116,7 +117,7 @@ export default function RegisterPage() {
               />
             </label>
             <button type="button" onClick={() => handleOtpSubmit("phone", phoneOtp)}>
-              Verify Phone
+              {t("auth.verifyPhoneButton")}
             </button>
           </div>
         )}
@@ -126,7 +127,7 @@ export default function RegisterPage() {
 
   return (
     <div className="register-page">
-      <h1>Create Account</h1>
+      <h1>{t("auth.registerTitle")}</h1>
       {error && (
         <div role="alert" className="error-banner">
           {error}
@@ -134,7 +135,7 @@ export default function RegisterPage() {
       )}
       <form onSubmit={handleRegister}>
         <label htmlFor="first_name">
-          First Name
+          {t("auth.firstName")}
           <input
             id="first_name"
             type="text"
@@ -144,7 +145,7 @@ export default function RegisterPage() {
           />
         </label>
         <label htmlFor="last_name">
-          Last Name
+          {t("auth.lastName")}
           <input
             id="last_name"
             type="text"
@@ -154,7 +155,7 @@ export default function RegisterPage() {
           />
         </label>
         <label htmlFor="email">
-          Email (optional)
+          {t("auth.emailOptional")}
           <input
             id="email"
             type="email"
@@ -163,7 +164,7 @@ export default function RegisterPage() {
           />
         </label>
         <label htmlFor="phone">
-          Phone (optional)
+          {t("auth.phoneOptional")}
           <input
             id="phone"
             type="tel"
@@ -172,7 +173,7 @@ export default function RegisterPage() {
           />
         </label>
         <label htmlFor="password">
-          Password
+          {t("auth.password")}
           <input
             id="password"
             type="password"
@@ -182,7 +183,7 @@ export default function RegisterPage() {
           />
         </label>
         <label htmlFor="confirm_password">
-          Confirm Password
+          {t("auth.confirmPassword")}
           <input
             id="confirm_password"
             type="password"
@@ -192,11 +193,11 @@ export default function RegisterPage() {
           />
         </label>
         <button type="submit" disabled={isLoading}>
-          {isLoading ? "Creating account…" : "Register"}
+          {isLoading ? t("auth.creatingAccount") : t("auth.register")}
         </button>
       </form>
       <p>
-        Already have an account? <Link to="/login">Log In</Link>
+        {t("auth.alreadyHaveAccount")} <Link to="/login">{t("auth.loginTitle")}</Link>
       </p>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import Globe from "globe.gl";
 import {
   useIssPositions,
@@ -27,6 +28,7 @@ function fmtDeg(value: number, posLabel: string, negLabel: string): string {
 export default function IssPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   const [observerLat] = useState<number>(DEFAULT_LAT);
   const [observerLng] = useState<number>(DEFAULT_LNG);
@@ -69,7 +71,6 @@ export default function IssPage() {
       }
     }, 1000);
 
-    // Invalidate 30 s before the 300-entry batch expires
     const invalidateTimeout = setTimeout(
       () => {
         queryClient.invalidateQueries({ queryKey: ["iss", "positions"] });
@@ -91,36 +92,35 @@ export default function IssPage() {
 
   return (
     <div className="iss-page">
-      <h1>ISS Tracker</h1>
+      <h1>{t("iss.title")}</h1>
 
       {locationDenied && (
         <p className="iss-location-denied" role="status">
-          Location access denied — using default observer position (0°N 0°E)
+          {t("iss.locationDenied")}
         </p>
       )}
 
       {quotaWarning && (
         <p className="iss-quota-warning" role="status">
-          N2YO API quota nearly exhausted — showing cached data
+          {t("iss.quotaWarning")}
         </p>
       )}
 
       {quotaExhausted && quotaData && (
         <p className="iss-quota-exhausted" role="alert">
-          N2YO API quota exhausted for this hour. Live updates paused. Resets at{" "}
-          {formatTime(quotaData.resets_at)}.
+          {t("iss.quotaExhausted", { time: formatTime(quotaData.resets_at) })}
         </p>
       )}
 
       {updating && (
         <p className="iss-updating" aria-live="polite">
-          Updating…
+          {t("iss.updating")}
         </p>
       )}
 
       {posError && posErr && (
         <ErrorBanner
-          title="ISS data unavailable"
+          titleKey="iss.unavailable"
           detail={posErr.message}
           variant="section"
         />
@@ -138,40 +138,40 @@ export default function IssPage() {
       {currentPos && (
         <section className="iss-data-panel" aria-label="ISS data">
           <dl>
-            <dt>Latitude</dt>
+            <dt>{t("iss.latitude")}</dt>
             <dd>{fmtDeg(currentPos.satlatitude, "N", "S")}</dd>
-            <dt>Longitude</dt>
+            <dt>{t("iss.longitude")}</dt>
             <dd>{fmtDeg(currentPos.satlongitude, "E", "W")}</dd>
-            <dt>Altitude</dt>
+            <dt>{t("iss.altitude")}</dt>
             <dd>{currentPos.sataltitude.toFixed(1)} km</dd>
-            <dt>Azimuth</dt>
+            <dt>{t("iss.azimuth")}</dt>
             <dd>{currentPos.azimuth.toFixed(1)}°</dd>
-            <dt>Elevation</dt>
+            <dt>{t("iss.elevation")}</dt>
             <dd>{currentPos.elevation.toFixed(1)}°</dd>
-            <dt>In Shadow</dt>
-            <dd>{currentPos.eclipsed ? "Yes" : "No"}</dd>
+            <dt>{t("iss.eclipsed")}</dt>
+            <dd>{currentPos.eclipsed ? t("iss.yes") : t("iss.no")}</dd>
           </dl>
 
           {tleData && (
             <details className="iss-tle">
-              <summary>TLE data</summary>
+              <summary>{t("iss.tleData")}</summary>
               <pre>{[tleData.tle_line0, tleData.tle_line1, tleData.tle_line2].join("\n")}</pre>
             </details>
           )}
 
           {nextVisualPass && (
             <div className="iss-next-pass">
-              <h3>Next Visible Pass</h3>
+              <h3>{t("iss.nextVisiblePass")}</h3>
               <p>{formatDateTime(new Date(nextVisualPass.startUTC * 1000).toISOString())}</p>
-              <p>Duration: {nextVisualPass.duration} s · Max elevation: {nextVisualPass.maxEl}°</p>
+              <p>{t("iss.duration")}: {nextVisualPass.duration} s · {t("iss.maxElevation")}: {nextVisualPass.maxEl}°</p>
             </div>
           )}
 
           {nextRadioPass && (
             <div className="iss-next-radio-pass">
-              <h3>Next Radio Pass</h3>
+              <h3>{t("iss.nextRadioPass")}</h3>
               <p>{formatDateTime(new Date(nextRadioPass.startUTC * 1000).toISOString())}</p>
-              <p>Duration: {nextRadioPass.duration} s</p>
+              <p>{t("iss.duration")}: {nextRadioPass.duration} s</p>
             </div>
           )}
         </section>
@@ -179,7 +179,7 @@ export default function IssPage() {
 
       {quotaData && (
         <p className="iss-quota-info" aria-label="quota-info">
-          API Quota: {quotaData.used} / {quotaData.cap} used this hour
+          {t("iss.quotaUsed", { used: quotaData.used, cap: quotaData.cap })}
         </p>
       )}
     </div>

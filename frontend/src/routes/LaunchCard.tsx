@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { LaunchData } from "@/types/api";
 import { formatDateTime } from "@/lib/dateTime";
 import { SubscribeModal } from "@/components/SubscribeModal";
@@ -38,6 +39,7 @@ interface LaunchCardProps {
 }
 
 export function LaunchCard({ launch }: LaunchCardProps) {
+  const { t } = useTranslation();
   const [countdown, setCountdown] = useState(() =>
     formatCountdown(launch.net, launch.status_abbrev)
   );
@@ -60,7 +62,6 @@ export function LaunchCard({ launch }: LaunchCardProps) {
     return () => clearInterval(interval);
   }, [launch.net, launch.status_abbrev]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -115,7 +116,7 @@ export function LaunchCard({ launch }: LaunchCardProps) {
           </h2>
           <button
             type="button"
-            aria-label={isSubscribed ? "Subscribed — manage notifications" : "Subscribe to launch updates"}
+            aria-label={isSubscribed ? t("subscriptions.subscribedButton") : t("subscriptions.subscribeButton")}
             data-testid="bell-button"
             onClick={() => setModalOpen(true)}
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.25rem" }}
@@ -183,7 +184,7 @@ export function LaunchCard({ launch }: LaunchCardProps) {
               data-testid="description-toggle"
               aria-expanded={expanded}
             >
-              {expanded ? "Show less" : "Show more"}
+              {expanded ? t("launches.showLess") : t("launches.showMore")}
             </button>
           </div>
         )}
@@ -198,7 +199,7 @@ export function LaunchCard({ launch }: LaunchCardProps) {
               data-testid="livestream-button"
               className="launch-card__livestream-btn"
             >
-              Watch Live
+              {t("launches.watchLive")}
             </a>
             {extraStreams.length > 0 && (
               <div className="launch-card__stream-dropdown">
@@ -208,7 +209,7 @@ export function LaunchCard({ launch }: LaunchCardProps) {
                   data-testid="stream-dropdown-toggle"
                   aria-expanded={streamOpen}
                 >
-                  More streams ▾
+                  {t("launches.moreStreams")} ▾
                 </button>
                 {streamOpen && (
                   <ul role="menu" data-testid="stream-dropdown-menu">

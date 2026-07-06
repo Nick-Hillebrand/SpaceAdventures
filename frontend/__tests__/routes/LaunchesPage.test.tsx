@@ -17,6 +17,7 @@ import {
 import { server } from "@/msw/server";
 import { renderWithProviders } from "@/testUtils";
 import type { LaunchData, LaunchesResponse } from "@/types/api";
+import i18n from "@/i18n";
 
 // ---------------------------------------------------------------------------
 // Mock FullCalendar to avoid CSS/DOM issues in jsdom
@@ -123,9 +124,10 @@ function setupDefaultHandler() {
 // ---------------------------------------------------------------------------
 
 describe("LaunchesPage", () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers();
     localStorage.removeItem("space-adventures-launches-view");
+    await act(async () => { await i18n.changeLanguage("en"); });
   });
 
   it("happy path grid view — renders launch cards with name, agency, countdown", async () => {
@@ -400,5 +402,14 @@ describe("LaunchesPage", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("launch-drawer")).not.toBeInTheDocument();
     });
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    setupDefaultHandler();
+    renderWithProviders(<LaunchesPage />);
+    await screen.findAllByTestId("launch-card");
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Bevorstehende Starts");
   });
 });

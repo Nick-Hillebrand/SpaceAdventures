@@ -1,11 +1,16 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import NeoPage from "@/routes/NeoPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
 import type { NeoFeedResponse } from "@/types/api";
+import i18n from "@/i18n";
+
+afterEach(async () => {
+  await act(async () => { await i18n.changeLanguage("en"); });
+});
 
 function makePayload(overrides: Partial<NeoFeedResponse> = {}): NeoFeedResponse {
   return {
@@ -280,5 +285,13 @@ describe("NeoPage", () => {
 
     expect(startInput.value).toBe("2020-01-01");
     expect(endInput.value).toBe("2020-01-05");
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    renderWithProviders(<NeoPage />);
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Erdnahe Objekte");
   });
 });

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import { useLaunches } from "@/hooks/useLaunches";
@@ -25,18 +26,19 @@ function getInitialView(): ViewMode {
 function statusEventColor(abbrev: string): string {
   switch (abbrev) {
     case "Go":
-      return "#22c55e"; // green
+      return "#22c55e";
     case "TBD":
-      return "#f59e0b"; // amber
+      return "#f59e0b";
     case "Hold":
-      return "#ef4444"; // red
+      return "#ef4444";
     default:
-      return "#6366f1"; // indigo
+      return "#6366f1";
   }
 }
 
 export default function LaunchesPage() {
   const { data, isLoading, isError, error } = useLaunches();
+  const { t } = useTranslation();
   const [view, setView] = useState<ViewMode>(getInitialView);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [agencySearch, setAgencySearch] = useState("");
@@ -54,8 +56,8 @@ export default function LaunchesPage() {
   if (isLoading) {
     return (
       <div className="launches-page" data-testid="launches-page">
-        <div className="launches-skeleton" role="status" aria-label="Loading launches">
-          <p>Loading launches…</p>
+        <div className="launches-skeleton" role="status" aria-label={t("launches.loadingLaunches")}>
+          <p>{t("launches.loadingLaunches")}</p>
         </div>
       </div>
     );
@@ -65,7 +67,7 @@ export default function LaunchesPage() {
     return (
       <div className="launches-page" data-testid="launches-page">
         <ErrorBanner
-          title="Failed to load launches"
+          titleKey="launches.failedToLoad"
           detail={error.message}
           variant="page"
         />
@@ -76,7 +78,6 @@ export default function LaunchesPage() {
   const launches = data?.data ?? [];
   const lastSyncedAt = data?.last_synced_at;
 
-  // Client-side filtering
   const filtered = launches.filter((launch) => {
     const statusOk = statusFilter === "All" || launch.status_abbrev === statusFilter;
     const agencyOk =
@@ -85,7 +86,6 @@ export default function LaunchesPage() {
     return statusOk && agencyOk;
   });
 
-  // Calendar events
   const calendarEvents = filtered.map((launch) => ({
     id: launch.ll2_id,
     title: `${launch.agency_name}: ${launch.rocket_name}`,
@@ -100,12 +100,17 @@ export default function LaunchesPage() {
     if (launch) setSelectedLaunch(launch);
   }
 
-  const statusButtons: StatusFilter[] = ["All", "Go", "TBD", "Hold"];
+  const statusButtons: { filter: StatusFilter; labelKey: string; testId: string }[] = [
+    { filter: "All", labelKey: "launches.filterAll", testId: "filter-status-all" },
+    { filter: "Go", labelKey: "launches.filterGo", testId: "filter-status-go" },
+    { filter: "TBD", labelKey: "launches.filterTbd", testId: "filter-status-tbd" },
+    { filter: "Hold", labelKey: "launches.filterHold", testId: "filter-status-hold" },
+  ];
 
   return (
     <div className="launches-page" data-testid="launches-page">
       <div className="launches-header">
-        <h1>Upcoming Launches</h1>
+        <h1>{t("launches.upcomingTitle")}</h1>
 
         <div className="launches-view-toggle">
           <button
@@ -114,7 +119,7 @@ export default function LaunchesPage() {
             aria-pressed={view === "grid"}
             onClick={() => switchView("grid")}
           >
-            Grid
+            {t("launches.grid")}
           </button>
           <button
             type="button"
@@ -122,39 +127,39 @@ export default function LaunchesPage() {
             aria-pressed={view === "calendar"}
             onClick={() => switchView("calendar")}
           >
-            Calendar
+            {t("launches.calendar")}
           </button>
         </div>
       </div>
 
       {lastSyncedAt && (
         <p className="launches-sync-time" data-testid="last-synced">
-          Last updated {formatRelative(lastSyncedAt)}
+          {t("launches.lastUpdated", { time: formatRelative(lastSyncedAt) })}
         </p>
       )}
 
       {/* Filter bar */}
       <div className="launches-filters" data-testid="launches-filters">
         <div className="launches-status-filters">
-          {statusButtons.map((s) => (
+          {statusButtons.map(({ filter, labelKey, testId }) => (
             <button
-              key={s}
+              key={filter}
               type="button"
-              data-testid={`filter-status-${s.toLowerCase()}`}
-              aria-pressed={statusFilter === s}
-              onClick={() => setStatusFilter(s)}
+              data-testid={testId}
+              aria-pressed={statusFilter === filter}
+              onClick={() => setStatusFilter(filter)}
             >
-              {s}
+              {t(labelKey)}
             </button>
           ))}
         </div>
         <input
           type="text"
-          placeholder="Filter by agency…"
+          placeholder={t("launches.searchAgency")}
           value={agencySearch}
           onChange={(e) => setAgencySearch(e.target.value)}
           data-testid="agency-search"
-          aria-label="Filter by agency"
+          aria-label={t("launches.filterByAgency")}
         />
       </div>
 
@@ -163,7 +168,7 @@ export default function LaunchesPage() {
         <>
           {filtered.length === 0 ? (
             <div className="launches-empty" data-testid="launches-empty">
-              <p>No launches found matching your filters.</p>
+              <p>{t("launches.noFiltered")}</p>
             </div>
           ) : (
             <div className="launches-grid" data-testid="launches-grid">
@@ -203,7 +208,7 @@ export default function LaunchesPage() {
               type="button"
               onClick={() => setSelectedLaunch(null)}
               data-testid="drawer-close"
-              aria-label="Close"
+              aria-label={t("common.close")}
             >
               ✕
             </button>

@@ -1,10 +1,15 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import ConfirmUnsubscribePage from "@/routes/ConfirmUnsubscribePage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
+import i18n from "@/i18n";
+
+afterEach(async () => {
+  await act(async () => { await i18n.changeLanguage("en"); });
+});
 
 function renderPage(token = "test-token") {
   return renderWithProviders(<ConfirmUnsubscribePage />, undefined, {
@@ -50,6 +55,14 @@ describe("ConfirmUnsubscribePage", () => {
 
     expect(await screen.findByTestId("unsubscribe-success")).toBeInTheDocument();
     expect(screen.getByText(/You have been unsubscribed successfully/i)).toBeInTheDocument();
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    renderPage();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Confirm Unsubscribe");
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Abmeldung bestätigen");
   });
 
   it("shows error message on POST failure", async () => {

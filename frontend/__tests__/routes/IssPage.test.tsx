@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
+import i18n from "@/i18n";
 import type {
   IssPassesResponse,
   IssPositionsResponse,
@@ -123,8 +124,9 @@ function mockAll(overrides: {
 // These tests don't depend on setInterval firing, so real timers are fine.
 
 describe("IssPage — globe / mount (real timers)", () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.clearAllMocks();
+    await act(async () => { await i18n.changeLanguage("en"); });
   });
 
   it("renders the page heading and globe container", async () => {
@@ -205,9 +207,10 @@ describe("IssPage — position interpolation (fake timers)", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    await i18n.changeLanguage("en");
   });
 
   // Helper: render, flush all pending timers (drains fetch + TanStack Query),
@@ -285,5 +288,21 @@ describe("IssPage — position interpolation (fake timers)", () => {
     await act(async () => { await vi.runAllTimersAsync(); });
     act(() => { vi.advanceTimersByTime(1001); });
     expect(screen.getByText(/Updating…/i)).toBeInTheDocument();
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    server.use(
+      http.get("/api/v1/iss/positions", () => HttpResponse.json(makePositionsResponse())),
+      http.get("/api/v1/iss/tle", () => HttpResponse.json(makeTle())),
+      http.get("/api/v1/iss/passes/visual", () => HttpResponse.json(makePasses())),
+      http.get("/api/v1/iss/passes/radio", () => HttpResponse.json(makePasses())),
+      http.get("/api/v1/iss/quota", () => HttpResponse.json(makeQuota())),
+    );
+    const IssPage = (await import("@/routes/IssPage")).default;
+    renderWithProviders(<IssPage />);
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("ISS-Tracker");
   });
 });

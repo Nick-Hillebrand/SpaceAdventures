@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMarsPhotos, useRovers } from "@/hooks/useMars";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { formatDate, formatDateTime } from "@/lib/dateTime";
@@ -6,18 +7,13 @@ import type { MarsPhotoData } from "@/types/api";
 
 const ROVERS = ["curiosity", "opportunity", "spirit", "perseverance"];
 
-function errorTitle(code: string): string {
+function errorTitleKey(code: string): string {
   switch (code) {
-    case "NO_INTERNET":
-      return "No internet connection";
-    case "NASA_UNAVAILABLE":
-      return "NASA services are currently unavailable";
-    case "NASA_AUTH_ERROR":
-      return "Invalid NASA API Key";
-    case "INVALID_PARAMS":
-      return "Invalid parameters";
-    default:
-      return "Something went wrong";
+    case "NO_INTERNET": return "error.noInternet";
+    case "NASA_UNAVAILABLE": return "error.nasaUnavailable";
+    case "NASA_AUTH_ERROR": return "error.nasaAuthError";
+    case "INVALID_PARAMS": return "error.invalidParams";
+    default: return "common.error";
   }
 }
 
@@ -27,6 +23,7 @@ interface LightboxProps {
 }
 
 function Lightbox({ photo, onClose }: LightboxProps) {
+  const { t } = useTranslation();
   return (
     <div
       className="mars-lightbox-overlay"
@@ -38,10 +35,10 @@ function Lightbox({ photo, onClose }: LightboxProps) {
         <button
           type="button"
           className="mars-lightbox-close"
-          aria-label="Close fullscreen"
+          aria-label={t("mars.closeLightbox")}
           onClick={onClose}
         >
-          Close
+          {t("mars.closeLightbox")}
         </button>
         <img
           src={photo.img_src}
@@ -51,8 +48,8 @@ function Lightbox({ photo, onClose }: LightboxProps) {
         <dl className="mars-lightbox-meta">
           <dt>Rover</dt><dd>{photo.rover_name}</dd>
           <dt>Camera</dt><dd>{photo.camera_name}</dd>
-          <dt>Sol</dt><dd>{photo.sol}</dd>
-          <dt>Earth date</dt><dd>{formatDate(photo.earth_date)}</dd>
+          <dt>{t("mars.sol")}</dt><dd>{photo.sol}</dd>
+          <dt>{t("mars.earthDate")}</dt><dd>{formatDate(photo.earth_date)}</dd>
         </dl>
       </div>
     </div>
@@ -67,6 +64,7 @@ export default function MarsPage() {
   const [camera, setCamera] = useState<string>("");
   const [page, setPage] = useState<number>(1);
   const [lightboxPhoto, setLightboxPhoto] = useState<MarsPhotoData | null>(null);
+  const { t } = useTranslation();
 
   const { data: roversData } = useRovers();
 
@@ -103,11 +101,11 @@ export default function MarsPage() {
 
   return (
     <div className="mars-page">
-      <h1>Mars Explorer</h1>
+      <h1>{t("mars.title")}</h1>
 
       <div className="mars-controls">
         <label htmlFor="mars-rover">
-          Rover
+          {t("mars.selectRover")}
           <select
             id="mars-rover"
             value={rover}
@@ -122,7 +120,7 @@ export default function MarsPage() {
         </label>
 
         <fieldset className="mars-mode-toggle">
-          <legend>Browse by</legend>
+          <legend>{t("mars.browseBy")}</legend>
           <label>
             <input
               type="radio"
@@ -131,7 +129,7 @@ export default function MarsPage() {
               checked={solMode}
               onChange={() => { setSolMode(true); setPage(1); }}
             />
-            Sol
+            {t("mars.sol")}
           </label>
           <label>
             <input
@@ -141,13 +139,13 @@ export default function MarsPage() {
               checked={!solMode}
               onChange={() => { setSolMode(false); setPage(1); }}
             />
-            Earth date
+            {t("mars.earthDate")}
           </label>
         </fieldset>
 
         {solMode ? (
           <label htmlFor="mars-sol">
-            Sol
+            {t("mars.sol")}
             <input
               id="mars-sol"
               type="number"
@@ -158,7 +156,7 @@ export default function MarsPage() {
           </label>
         ) : (
           <label htmlFor="mars-date">
-            Earth date
+            {t("mars.earthDate")}
             <input
               id="mars-date"
               type="date"
@@ -170,13 +168,13 @@ export default function MarsPage() {
 
         {cameras.length > 0 && (
           <label htmlFor="mars-camera">
-            Camera
+            {t("mars.selectCamera")}
             <select
               id="mars-camera"
               value={camera}
               onChange={(e) => handleCameraChange(e.target.value)}
             >
-              <option value="">All cameras</option>
+              <option value="">{t("mars.allCameras")}</option>
               {cameras.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -188,24 +186,24 @@ export default function MarsPage() {
       </div>
 
       {isLoading ? (
-        <p role="status">Loading…</p>
+        <p role="status">{t("common.loading")}</p>
       ) : isError && error ? (
         <ErrorBanner
-          title={errorTitle(error.code)}
+          titleKey={errorTitleKey(error.code)}
           detail={error.message}
           onRetry={() => refetch()}
           variant="section"
         />
       ) : !data || data.data.length === 0 ? (
-        <p className="mars-empty">No photos found.</p>
+        <p className="mars-empty">{t("mars.noPhotos")}</p>
       ) : (
         <>
           <p className="mars-badge" aria-label={data.cached ? "cached" : "live"}>
             {data.stale
-              ? `Showing cached data from ${formatDateTime(data.fetched_at)}`
+              ? t("error.staleData", { date: formatDateTime(data.fetched_at) })
               : data.cached
-                ? `Served from cache · fetched ${formatDateTime(data.fetched_at)}`
-                : `Live · fetched ${formatDateTime(data.fetched_at)}`}
+                ? `${t("common.cached")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`
+                : `${t("common.live")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`}
           </p>
 
           <div className="mars-grid" role="list">
@@ -225,7 +223,7 @@ export default function MarsPage() {
                   />
                 </button>
                 <p className="mars-photo-meta">
-                  {photo.camera_name} · sol {photo.sol} · {formatDate(photo.earth_date)}
+                  {photo.camera_name} · {t("mars.sol")} {photo.sol} · {formatDate(photo.earth_date)}
                 </p>
               </div>
             ))}
@@ -238,16 +236,16 @@ export default function MarsPage() {
               disabled={page === 1}
               aria-label="Previous page"
             >
-              Previous
+              {t("mars.prevPage")}
             </button>
-            <span>Page {page}</span>
+            <span>{t("mars.page", { n: page })}</span>
             <button
               type="button"
               onClick={() => setPage((p) => p + 1)}
               disabled={data.data.length < 25}
               aria-label="Next page"
             >
-              Next
+              {t("mars.nextPage")}
             </button>
           </div>
         </>

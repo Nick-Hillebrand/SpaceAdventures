@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSpaceWeatherEvents } from "@/hooks/useSpaceWeather";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { formatDate, formatDateTime } from "@/lib/dateTime";
@@ -8,16 +9,25 @@ type Tab = SpaceWeatherEventType;
 
 interface TabConfig {
   id: Tab;
-  label: string;
+  labelKey: string;
 }
 
 const TABS: TabConfig[] = [
-  { id: "FLR", label: "Solar Flares" },
-  { id: "GST", label: "Geomagnetic Storms" },
-  { id: "CME", label: "Coronal Mass Ejections" },
-  { id: "SEP", label: "Solar Energetic Particles" },
-  { id: "RBE", label: "Radiation Belt Enhancements" },
+  { id: "FLR", labelKey: "spaceWeather.flares" },
+  { id: "GST", labelKey: "spaceWeather.storms" },
+  { id: "CME", labelKey: "spaceWeather.cme" },
+  { id: "SEP", labelKey: "spaceWeather.sep" },
+  { id: "RBE", labelKey: "spaceWeather.rbe" },
 ];
+
+function errorTitleKey(code: string): string {
+  switch (code) {
+    case "NO_INTERNET": return "error.noInternet";
+    case "NASA_UNAVAILABLE": return "error.nasaUnavailable";
+    case "NASA_AUTH_ERROR": return "error.nasaAuthError";
+    default: return "common.error";
+  }
+}
 
 function todayIso(): string {
   const now = new Date();
@@ -32,19 +42,6 @@ function addDaysIso(iso: string, days: number): string {
   if (Number.isNaN(d.getTime())) return iso;
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
-}
-
-function errorTitle(code: string): string {
-  switch (code) {
-    case "NO_INTERNET":
-      return "No internet connection";
-    case "NASA_UNAVAILABLE":
-      return "NASA services are currently unavailable";
-    case "NASA_AUTH_ERROR":
-      return "Invalid NASA API Key";
-    default:
-      return "Something went wrong";
-  }
 }
 
 function parseRaw(raw: string): Record<string, unknown> {
@@ -115,6 +112,7 @@ interface TabPanelProps {
 }
 
 function TabPanel({ eventType, start, end }: TabPanelProps) {
+  const { t } = useTranslation();
   const { data, isLoading, isError, error, refetch } = useSpaceWeatherEvents(
     eventType,
     start,
@@ -122,13 +120,13 @@ function TabPanel({ eventType, start, end }: TabPanelProps) {
   );
 
   if (isLoading) {
-    return <p role="status">Loading…</p>;
+    return <p role="status">{t("common.loading")}</p>;
   }
 
   if (isError && error) {
     return (
       <ErrorBanner
-        title={errorTitle(error.code)}
+        titleKey={errorTitleKey(error.code)}
         detail={error.message}
         onRetry={() => refetch()}
         variant="section"
@@ -137,17 +135,17 @@ function TabPanel({ eventType, start, end }: TabPanelProps) {
   }
 
   if (!data || data.data.length === 0) {
-    return <p className="sw-empty">No events found in this date range.</p>;
+    return <p className="sw-empty">{t("spaceWeather.noEvents")}</p>;
   }
 
   return (
     <>
       <p className="sw-badge" aria-label={data.cached ? "cached" : "live"}>
         {data.stale
-          ? `Showing cached data from ${formatDateTime(data.fetched_at)}`
+          ? t("error.staleData", { date: formatDateTime(data.fetched_at) })
           : data.cached
-            ? `Served from cache · fetched ${formatDateTime(data.fetched_at)}`
-            : `Live · fetched ${formatDateTime(data.fetched_at)}`}
+            ? `${t("common.cached")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`
+            : `${t("common.live")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`}
       </p>
       <div className="sw-event-list" role="list">
         {data.data.map((event) => (
@@ -166,14 +164,15 @@ export default function SpaceWeatherPage() {
   const [start, setStart] = useState<string>(defaultStart);
   const [end, setEnd] = useState<string>(defaultEnd);
   const [activeTab, setActiveTab] = useState<Tab>("FLR");
+  const { t } = useTranslation();
 
   return (
     <div className="sw-page">
-      <h1>Space Weather</h1>
+      <h1>{t("spaceWeather.title")}</h1>
 
       <div className="sw-filters">
         <label htmlFor="sw-start">
-          Start
+          {t("common.start")}
           <input
             id="sw-start"
             type="date"
@@ -183,7 +182,7 @@ export default function SpaceWeatherPage() {
           />
         </label>
         <label htmlFor="sw-end">
-          End
+          {t("common.end")}
           <input
             id="sw-end"
             type="date"
@@ -194,7 +193,7 @@ export default function SpaceWeatherPage() {
         </label>
       </div>
 
-      <div className="sw-tabs" role="tablist" aria-label="Space weather event types">
+      <div className="sw-tabs" role="tablist" aria-label={t("spaceWeather.title")}>
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -206,7 +205,7 @@ export default function SpaceWeatherPage() {
             onClick={() => setActiveTab(tab.id)}
             className={activeTab === tab.id ? "sw-tab sw-tab--active" : "sw-tab"}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </button>
         ))}
       </div>

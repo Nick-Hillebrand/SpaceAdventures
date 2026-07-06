@@ -1,27 +1,29 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useMe } from "@/hooks/useAuth";
 import { useSubscriptions, useDeleteSubscription } from "@/hooks/useSubscriptions";
 import { apiPost } from "@/lib/api";
+import { formatDate } from "@/lib/dateTime";
 
 type Tab = "profile" | "subscriptions";
 
 export default function AccountPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { data: user, isLoading, isError, error } = useMe();
   const { data: subscriptions, isLoading: subsLoading } = useSubscriptions();
   const deleteSubscription = useDeleteSubscription();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [resendStatus, setResendStatus] = useState<Record<string, string>>({});
 
-  // If 401 (not authenticated), redirect to login
   if (isError && error && error.status === 401) {
     navigate("/login?return=/account");
     return null;
   }
 
   if (isLoading) {
-    return <p role="status">Loading…</p>;
+    return <p role="status">{t("common.loading")}</p>;
   }
 
   if (!user) {
@@ -39,39 +41,39 @@ export default function AccountPage() {
 
   return (
     <div className="account-page">
-      <h1>My Account</h1>
+      <h1>{t("account.title")}</h1>
       <nav>
         <button
           type="button"
           onClick={() => setActiveTab("profile")}
           aria-selected={activeTab === "profile"}
         >
-          Profile
+          {t("account.profileTab")}
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("subscriptions")}
           aria-selected={activeTab === "subscriptions"}
         >
-          Subscriptions
+          {t("account.subscriptionsTab")}
         </button>
       </nav>
 
       {activeTab === "profile" && (
         <div>
           <p>
-            <strong>Name:</strong> {user.first_name} {user.last_name}
+            <strong>{t("account.name")}:</strong> {user.first_name} {user.last_name}
           </p>
           {user.email && (
             <p>
-              <strong>Email:</strong> {user.email}{" "}
+              <strong>{t("account.email")}:</strong> {user.email}{" "}
               {user.email_verified ? (
-                <span aria-label="email verified">✓ Verified</span>
+                <span aria-label="email verified">✓ {t("account.verified")}</span>
               ) : (
                 <>
-                  <span>Not verified</span>
+                  <span>{t("account.unverified")}</span>
                   <button type="button" onClick={() => handleResend("email")}>
-                    Resend OTP
+                    {t("account.resendOtp")}
                   </button>
                   {resendStatus.email && <span>{resendStatus.email}</span>}
                 </>
@@ -80,14 +82,14 @@ export default function AccountPage() {
           )}
           {user.phone && (
             <p>
-              <strong>Phone:</strong> {user.phone}{" "}
+              <strong>{t("account.phone")}:</strong> {user.phone}{" "}
               {user.phone_verified ? (
-                <span aria-label="phone verified">✓ Verified</span>
+                <span aria-label="phone verified">✓ {t("account.verified")}</span>
               ) : (
                 <>
-                  <span>Not verified</span>
+                  <span>{t("account.unverified")}</span>
                   <button type="button" onClick={() => handleResend("phone")}>
-                    Resend OTP
+                    {t("account.resendOtp")}
                   </button>
                   {resendStatus.phone && <span>{resendStatus.phone}</span>}
                 </>
@@ -95,19 +97,19 @@ export default function AccountPage() {
             </p>
           )}
           <p>
-            <strong>Member since:</strong>{" "}
-            {new Date(user.created_at).toLocaleDateString()}
+            <strong>{t("account.memberSince")}:</strong>{" "}
+            {formatDate(user.created_at)}
           </p>
         </div>
       )}
 
       {activeTab === "subscriptions" && (
         <div data-testid="subscriptions-tab">
-          <h2>My Subscriptions</h2>
+          <h2>{t("account.subscriptionsTab")}</h2>
           {subsLoading ? (
-            <p>Loading subscriptions…</p>
+            <p>{t("account.loadingSubscriptions")}</p>
           ) : !subscriptions || subscriptions.length === 0 ? (
-            <p data-testid="no-subscriptions">No subscriptions yet.</p>
+            <p data-testid="no-subscriptions">{t("account.noSubscriptions")}</p>
           ) : (
             <ul data-testid="subscriptions-list">
               {subscriptions.map((sub) => (
@@ -119,8 +121,8 @@ export default function AccountPage() {
                   </strong>{" "}
                   <span>
                     {[
-                      sub.notify_email && "Email",
-                      sub.notify_sms && "SMS",
+                      sub.notify_email && t("account.channelEmail"),
+                      sub.notify_sms && t("account.channelSms"),
                     ]
                       .filter(Boolean)
                       .join(", ") || "No channels"}
@@ -131,7 +133,7 @@ export default function AccountPage() {
                     onClick={() => deleteSubscription.mutate(sub.id)}
                     disabled={deleteSubscription.isPending}
                   >
-                    Delete
+                    {t("account.unsubscribe")}
                   </button>
                 </li>
               ))}

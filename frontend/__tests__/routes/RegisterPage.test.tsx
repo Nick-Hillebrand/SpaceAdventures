@@ -1,10 +1,15 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import RegisterPage from "@/routes/RegisterPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
+import i18n from "@/i18n";
+
+afterEach(async () => {
+  await act(async () => { await i18n.changeLanguage("en"); });
+});
 
 async function fillBaseForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/First Name/i), "Alice");
@@ -138,5 +143,13 @@ describe("RegisterPage", () => {
     await waitFor(() => {
       expect(verifyEndpointCalled).toBe(true);
     });
+  });
+
+  it("locale switching — German title appears after changing language to de", async () => {
+    renderWithProviders(<RegisterPage />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Create Account");
+
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Konto erstellen");
   });
 });
