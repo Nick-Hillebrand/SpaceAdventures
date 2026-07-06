@@ -168,6 +168,26 @@ export interface LaunchesResponse {
   cached: boolean;
 }
 
+export interface SubscriptionData {
+  id: string;
+  type: "launch" | "agency";
+  ll2_id: string | null;
+  agency_name: string | null;
+  notify_email: boolean;
+  notify_sms: boolean;
+  created_at: string;
+}
+
+export type SubscriptionsResponse = SubscriptionData[];
+
+export interface CreateSubscriptionRequest {
+  type: "launch" | "agency";
+  ll2_id?: string;
+  agency_name?: string;
+  notify_email: boolean;
+  notify_sms: boolean;
+}
+
 export interface TokenResponse {
   access_token: string;
   refresh_token: string;

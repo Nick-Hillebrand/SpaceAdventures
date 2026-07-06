@@ -10,6 +10,7 @@ from dateutil.parser import isoparse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings
 from app.models.launches import Launch
 from app.models.notification_log import PendingNotification
 from app.models.subscription import Subscription
@@ -125,7 +126,7 @@ async def _insert_pending_notifications(
         session.add(notification)
 
 
-async def sync_launches(session: AsyncSession, client: LL2Client) -> None:
+async def sync_launches(session: AsyncSession, client: LL2Client, settings: Settings | None = None) -> None:
     """Fetch upcoming launches from LL2 and upsert into the DB."""
     try:
         raw_launches = await client.fetch_upcoming()
@@ -216,12 +217,10 @@ async def sync_launches(session: AsyncSession, client: LL2Client) -> None:
 
     await session.commit()
 
-    # Try to drain notification queue (Step 11 stub)
-    try:
+    # Drain notification queue if settings provided
+    if settings is not None:
         from app.services import notification_service  # noqa: PLC0415
-        await notification_service.drain_queue(session)
-    except (ImportError, AttributeError):
-        pass
+        await notification_service.drain_queue(session, settings)
 
 
 async def get_upcoming_launches(

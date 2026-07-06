@@ -15,6 +15,7 @@ from app.routers import neo as neo_router
 from app.routers import space_weather as space_weather_router
 from app.routers import auth as auth_router
 from app.routers import launches as launches_router
+from app.routers import subscriptions as subscriptions_router
 from app.services import launches_service
 from app.services.ll2_client import LL2Client
 from app.services.n2yo_client import N2YOClient
@@ -32,7 +33,7 @@ async def lifespan(app: FastAPI):
 
     async def _sync_job() -> None:
         async with AsyncSessionLocal() as session:
-            await launches_service.sync_launches(session, app.state.ll2_client)
+            await launches_service.sync_launches(session, app.state.ll2_client, settings)
 
     scheduler.add_job(
         _sync_job,
@@ -44,7 +45,7 @@ async def lifespan(app: FastAPI):
     # Startup: immediate sync if table is empty
     async with AsyncSessionLocal() as session:
         if await launches_service.is_launches_table_empty(session):
-            await launches_service.sync_launches(session, app.state.ll2_client)
+            await launches_service.sync_launches(session, app.state.ll2_client, settings)
 
     try:
         yield
@@ -93,6 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(iss_router.router)
     app.include_router(launches_router.router)
     app.include_router(auth_router.router)
+    app.include_router(subscriptions_router.router)
 
     return app
 

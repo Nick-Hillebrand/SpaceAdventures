@@ -67,6 +67,20 @@ export async function apiGet<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export async function apiDelete<T>(path: string): Promise<T> {
+  const token = getAccessToken();
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(path, { method: "DELETE", headers });
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  // 204 No Content — no body
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
 export async function apiPost<T>(path: string, body: unknown, tokenOverride?: string): Promise<T> {
   const token = tokenOverride ?? getAccessToken();
   const headers: Record<string, string> = {

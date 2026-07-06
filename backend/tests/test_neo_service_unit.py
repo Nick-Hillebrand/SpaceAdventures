@@ -216,7 +216,7 @@ def test_neo_from_object_uses_feed_date_when_missing():
 
 
 def test_range_includes_today_true_for_today():
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     assert neo_service._range_includes_today(today) is True
 
 

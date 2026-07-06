@@ -33,4 +33,27 @@ export const handlers = [
   http.post("/api/v1/auth/verify/email", () => HttpResponse.json({ message: "Email verified" })),
   http.post("/api/v1/auth/verify/phone", () => HttpResponse.json({ message: "Phone verified" })),
   http.post("/api/v1/auth/verify/resend", () => HttpResponse.json({ message: "OTP resent" })),
+
+  http.get("/api/v1/subscriptions", () => HttpResponse.json([])),
+
+  http.post("/api/v1/subscriptions/unsubscribe", () =>
+    HttpResponse.json({ message: "Unsubscribed successfully" }),
+  ),
+
+  http.post("/api/v1/subscriptions", () =>
+    HttpResponse.json(
+      {
+        id: "sub-001",
+        type: "launch",
+        ll2_id: "launch-001",
+        agency_name: null,
+        notify_email: true,
+        notify_sms: false,
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      { status: 201 },
+    ),
+  ),
+
+  http.delete("/api/v1/subscriptions/:id", () => new HttpResponse(null, { status: 204 })),
 ];

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMe } from "@/hooks/useAuth";
+import { useSubscriptions, useDeleteSubscription } from "@/hooks/useSubscriptions";
 import { apiPost } from "@/lib/api";
 
 type Tab = "profile" | "subscriptions";
@@ -8,6 +9,8 @@ type Tab = "profile" | "subscriptions";
 export default function AccountPage() {
   const navigate = useNavigate();
   const { data: user, isLoading, isError, error } = useMe();
+  const { data: subscriptions, isLoading: subsLoading } = useSubscriptions();
+  const deleteSubscription = useDeleteSubscription();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [resendStatus, setResendStatus] = useState<Record<string, string>>({});
 
@@ -99,8 +102,41 @@ export default function AccountPage() {
       )}
 
       {activeTab === "subscriptions" && (
-        <div>
-          <p>Subscriptions coming soon.</p>
+        <div data-testid="subscriptions-tab">
+          <h2>My Subscriptions</h2>
+          {subsLoading ? (
+            <p>Loading subscriptions…</p>
+          ) : !subscriptions || subscriptions.length === 0 ? (
+            <p data-testid="no-subscriptions">No subscriptions yet.</p>
+          ) : (
+            <ul data-testid="subscriptions-list">
+              {subscriptions.map((sub) => (
+                <li key={sub.id} data-testid={`subscription-${sub.id}`}>
+                  <strong>
+                    {sub.type === "launch"
+                      ? `Launch: ${sub.ll2_id ?? "—"}`
+                      : `Agency: ${sub.agency_name ?? "—"}`}
+                  </strong>{" "}
+                  <span>
+                    {[
+                      sub.notify_email && "Email",
+                      sub.notify_sms && "SMS",
+                    ]
+                      .filter(Boolean)
+                      .join(", ") || "No channels"}
+                  </span>{" "}
+                  <button
+                    type="button"
+                    data-testid={`delete-sub-${sub.id}`}
+                    onClick={() => deleteSubscription.mutate(sub.id)}
+                    disabled={deleteSubscription.isPending}
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import LoginPage from "@/routes/LoginPage";
 import RegisterPage from "@/routes/RegisterPage";
 import AccountPage from "@/routes/AccountPage";
+import ConfirmUnsubscribePage from "@/routes/ConfirmUnsubscribePage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/confirm-unsubscribe" element={<ConfirmUnsubscribePage />} />
           <Route
             path="/"
             element={

@@ -72,7 +72,23 @@ describe("AccountPage", () => {
     expect(resendButtons.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("subscriptions tab placeholder", async () => {
+  it("subscriptions tab shows list", async () => {
+    server.use(
+      http.get("/api/v1/subscriptions", () =>
+        HttpResponse.json([
+          {
+            id: "sub-001",
+            type: "launch",
+            ll2_id: "launch-001",
+            agency_name: null,
+            notify_email: true,
+            notify_sms: false,
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ]),
+      ),
+    );
+
     const user = userEvent.setup();
     renderWithProviders(<AccountPage />);
 
@@ -80,6 +96,54 @@ describe("AccountPage", () => {
 
     await user.click(screen.getByRole("button", { name: /Subscriptions/i }));
 
-    expect(screen.getByText(/Subscriptions coming soon/i)).toBeInTheDocument();
+    expect(await screen.findByTestId("subscriptions-list")).toBeInTheDocument();
+    expect(screen.getByText(/launch-001/i)).toBeInTheDocument();
+  });
+
+  it("subscriptions tab shows empty state", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+
+    await screen.findByText(/Alice Liddell/i);
+
+    await user.click(screen.getByRole("button", { name: /Subscriptions/i }));
+
+    expect(await screen.findByTestId("no-subscriptions")).toBeInTheDocument();
+  });
+
+  it("delete button calls DELETE endpoint", async () => {
+    let deleteCalledId: string | null = null;
+    server.use(
+      http.get("/api/v1/subscriptions", () =>
+        HttpResponse.json([
+          {
+            id: "sub-del-001",
+            type: "agency",
+            ll2_id: null,
+            agency_name: "SpaceX",
+            notify_email: false,
+            notify_sms: true,
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ]),
+      ),
+      http.delete("/api/v1/subscriptions/:id", ({ params }) => {
+        deleteCalledId = params.id as string;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+
+    await screen.findByText(/Alice Liddell/i);
+    await user.click(screen.getByRole("button", { name: /Subscriptions/i }));
+
+    const deleteBtn = await screen.findByTestId("delete-sub-sub-del-001");
+    await user.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(deleteCalledId).toBe("sub-del-001");
+    });
   });
 });

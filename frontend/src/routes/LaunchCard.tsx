@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import type { LaunchData } from "@/types/api";
 import { formatDateTime } from "@/lib/dateTime";
+import { SubscribeModal } from "@/components/SubscribeModal";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
 
 function statusColor(abbrev: string): string {
   switch (abbrev) {
@@ -41,7 +43,15 @@ export function LaunchCard({ launch }: LaunchCardProps) {
   );
   const [expanded, setExpanded] = useState(false);
   const [streamOpen, setStreamOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { data: subscriptions } = useSubscriptions();
+
+  const isSubscribed = subscriptions?.some(
+    (s) =>
+      (s.type === "launch" && s.ll2_id === launch.ll2_id) ||
+      (s.type === "agency" && s.agency_name === launch.agency_name)
+  ) ?? false;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -99,9 +109,20 @@ export function LaunchCard({ launch }: LaunchCardProps) {
 
       {/* Content */}
       <div className="launch-card__body">
-        <h2 className="launch-card__name" data-testid="launch-name">
-          {launch.name}
-        </h2>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <h2 className="launch-card__name" data-testid="launch-name">
+            {launch.name}
+          </h2>
+          <button
+            type="button"
+            aria-label={isSubscribed ? "Subscribed — manage notifications" : "Subscribe to launch updates"}
+            data-testid="bell-button"
+            onClick={() => setModalOpen(true)}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.25rem" }}
+          >
+            {isSubscribed ? "🔔" : "🔕"}
+          </button>
+        </div>
 
         {/* Status badge */}
         <span
@@ -209,6 +230,14 @@ export function LaunchCard({ launch }: LaunchCardProps) {
           </div>
         )}
       </div>
+
+      {modalOpen && (
+        <SubscribeModal
+          launch={launch}
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
     </article>
   );
 }

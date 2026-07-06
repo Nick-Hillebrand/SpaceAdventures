@@ -201,6 +201,29 @@ async def test_verify_otp_already_verified_noop(client, db_session, settings):
     assert r.status_code == 200
 
 
+async def test_verify_phone_already_verified_noop(client, db_session, settings):
+    """Verifying an already-verified phone returns 200 without error."""
+    payload_reg = {
+        "first_name": "Dan",
+        "last_name": "Miller",
+        "phone": "+15550001111",
+        "password": "securepassword",
+    }
+    r = await client.post("/api/v1/auth/register", json=payload_reg)
+    user_id = r.json()["id"]
+    r = await client.post("/api/v1/auth/login", json={"email_or_phone": "+15550001111", "password": "securepassword"})
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    user = await db_session.get(User, user_id)
+    user.phone_verified = True
+    await db_session.commit()
+
+    r = await client.post("/api/v1/auth/verify/phone", json={"otp": "000000"}, headers=headers)
+    assert r.status_code == 200
+    assert r.json()["message"] == "Already verified"
+
+
 async def test_verify_otp_wrong_code(client, db_session, settings):
     await _register(client)
     r = await _login(client)
@@ -517,3 +540,229 @@ def jwt_payload(token: str, settings) -> dict:
         algorithms=[settings.jwt_algorithm],
         options={"verify_exp": False},
     )
+
+
+# ---------------------------------------------------------------------------
+# Direct service-level unit tests (bypass HTTP stack for reliable coverage)
+# ---------------------------------------------------------------------------
+
+
+async def _make_svc_user(session: AsyncSession, email: str) -> User:
+    user = User(
+        first_name="Svc",
+        last_name="Test",
+        email=email,
+        password_hash=auth_service.hash_password("testpass"),
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def test_service_register_otp_created(db_session, settings):
+    data = {"first_name": "Svc", "last_name": "Test", "email": "svc_reg@example.com", "password": "testpass"}
+    user = await auth_service.register_user(db_session, data, settings)
+    assert user.id is not None
+    otp = await _get_otp(db_session, user.id, "email")
+    assert otp is not None
+
+
+async def test_service_register_phone_creates_otp(db_session, settings):
+    data = {"first_name": "Svc", "last_name": "Test", "phone": "+15551234567", "password": "testpass"}
+    user = await auth_service.register_user(db_session, data, settings)
+    assert user.id is not None
+    otp = await _get_otp(db_session, user.id, "phone")
+    assert otp is not None
+
+
+async def test_service_register_duplicate_raises(db_session, settings):
+    data = {"first_name": "Svc", "last_name": "Test", "email": "svc_dup@example.com", "password": "testpass"}
+    await auth_service.register_user(db_session, data, settings)
+    with pytest.raises(ValueError, match="REGISTRATION_FAILED"):
+        await auth_service.register_user(db_session, data, settings)
+
+
+async def test_service_verify_otp_not_found_returns_false(db_session, settings):
+    user = await _make_svc_user(db_session, "svc_votp_nf@example.com")
+    result = await auth_service.verify_otp(db_session, user.id, "email", "123456")
+    assert result is False
+
+
+async def test_service_verify_otp_expired_returns_false(db_session, settings):
+    import unittest.mock as mock
+    user = await _make_svc_user(db_session, "svc_votp_exp@example.com")
+    known_code = "111111"
+    with mock.patch("app.services.auth_service.generate_otp", return_value=known_code):
+        await auth_service.resend_otp(db_session, user.id, "email", settings)
+
+    otp_result = await db_session.execute(
+        select(Otp).where(Otp.user_id == user.id, Otp.channel == "email", Otp.used == False)  # noqa: E712
+    )
+    for otp in otp_result.scalars().all():
+        otp.expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    await db_session.commit()
+
+    result = await auth_service.verify_otp(db_session, user.id, "email", known_code)
+    assert result is False
+
+
+async def test_service_verify_otp_wrong_code_increments_failures(db_session, settings):
+    import unittest.mock as mock
+    user = await _make_svc_user(db_session, "svc_votp_wrong@example.com")
+    known_code = "222222"
+    with mock.patch("app.services.auth_service.generate_otp", return_value=known_code):
+        await auth_service.resend_otp(db_session, user.id, "email", settings)
+
+    result = await auth_service.verify_otp(db_session, user.id, "email", "999999")
+    assert result is False
+    otp = await _get_otp(db_session, user.id, "email")
+    assert otp.failed_attempts == 1
+
+
+async def test_service_verify_otp_max_failures_deletes_row(db_session, settings):
+    import unittest.mock as mock
+    user = await _make_svc_user(db_session, "svc_votp_max@example.com")
+    known_code = "333333"
+    with mock.patch("app.services.auth_service.generate_otp", return_value=known_code):
+        await auth_service.resend_otp(db_session, user.id, "email", settings)
+
+    for _ in range(5):
+        await auth_service.verify_otp(db_session, user.id, "email", "999999")
+
+    otp_result = await db_session.execute(
+        select(Otp).where(Otp.user_id == user.id, Otp.channel == "email", Otp.used == False)  # noqa: E712
+    )
+    assert otp_result.scalar_one_or_none() is None
+
+
+async def test_service_verify_otp_success_sets_verified(db_session, settings):
+    import unittest.mock as mock
+    user = await _make_svc_user(db_session, "svc_votp_ok@example.com")
+    known_code = "444444"
+    with mock.patch("app.services.auth_service.generate_otp", return_value=known_code):
+        await auth_service.resend_otp(db_session, user.id, "email", settings)
+
+    result = await auth_service.verify_otp(db_session, user.id, "email", known_code)
+    assert result is True
+    refreshed = await db_session.get(User, user.id)
+    assert refreshed.email_verified is True
+
+
+async def test_service_verify_otp_phone_success_sets_verified(db_session, settings):
+    import unittest.mock as mock
+    data = {"first_name": "Svc", "last_name": "Test", "phone": "+15551234568", "password": "testpass"}
+    user = await auth_service.register_user(db_session, data, settings)
+    known_code = "555555"
+    with mock.patch("app.services.auth_service.generate_otp", return_value=known_code):
+        await auth_service.resend_otp(db_session, user.id, "phone", settings)
+    result = await auth_service.verify_otp(db_session, user.id, "phone", known_code)
+    assert result is True
+    refreshed = await db_session.get(User, user.id)
+    assert refreshed.phone_verified is True
+
+
+async def test_service_resend_otp_rate_limit(db_session, settings):
+    user = await _make_svc_user(db_session, "svc_resend_rl@example.com")
+    for _ in range(6):
+        await auth_service.resend_otp(db_session, user.id, "email", settings)
+    with pytest.raises(ValueError, match="OTP_RATE_LIMIT"):
+        await auth_service.resend_otp(db_session, user.id, "email", settings)
+
+
+async def test_service_login_rate_limit(db_session, settings):
+    await _make_svc_user(db_session, "svc_login_rl@example.com")
+    for _ in range(5):
+        with pytest.raises(ValueError):
+            await auth_service.login(db_session, "svc_login_rl@example.com", "wrongpass", "127.0.0.1", settings)
+    with pytest.raises(ValueError, match="RATE_LIMITED"):
+        await auth_service.login(db_session, "svc_login_rl@example.com", "testpass", "127.0.0.1", settings)
+
+
+async def test_service_login_wrong_password(db_session, settings):
+    await _make_svc_user(db_session, "svc_login_wp@example.com")
+    with pytest.raises(ValueError, match="LOGIN_FAILED"):
+        await auth_service.login(db_session, "svc_login_wp@example.com", "wrongpass", "127.0.0.1", settings)
+
+
+async def test_service_login_user_not_found(db_session, settings):
+    with pytest.raises(ValueError, match="LOGIN_FAILED"):
+        await auth_service.login(db_session, "nobody_svc@example.com", "pass", "127.0.0.1", settings)
+
+
+async def test_service_login_success_and_clears_attempts(db_session, settings):
+    await _make_svc_user(db_session, "svc_login_ok@example.com")
+    with pytest.raises(ValueError):
+        await auth_service.login(db_session, "svc_login_ok@example.com", "wrongpass", "127.0.0.1", settings)
+    access, refresh = await auth_service.login(db_session, "svc_login_ok@example.com", "testpass", "127.0.0.1", settings)
+    assert access
+    assert refresh
+    identifier_hash = auth_service.sha256_identifier("svc_login_ok@example.com")
+    result = await db_session.execute(
+        select(LoginAttempt).where(LoginAttempt.identifier == identifier_hash)
+    )
+    assert result.scalars().all() == []
+
+
+async def test_service_refresh_not_found(db_session, settings):
+    with pytest.raises(ValueError, match="INVALID_REFRESH_TOKEN"):
+        await auth_service.refresh_tokens(db_session, "nonexistenttoken", settings)
+
+
+async def test_service_refresh_revoked(db_session, settings):
+    await _make_svc_user(db_session, "svc_refresh_rev@example.com")
+    _, raw_refresh = await auth_service.login(db_session, "svc_refresh_rev@example.com", "testpass", "127.0.0.1", settings)
+    await auth_service.refresh_tokens(db_session, raw_refresh, settings)
+    with pytest.raises(ValueError, match="REVOKED_REFRESH_TOKEN"):
+        await auth_service.refresh_tokens(db_session, raw_refresh, settings)
+
+
+async def test_service_refresh_expired(db_session, settings):
+    await _make_svc_user(db_session, "svc_refresh_exp@example.com")
+    _, raw_refresh = await auth_service.login(db_session, "svc_refresh_exp@example.com", "testpass", "127.0.0.1", settings)
+    token_hash = auth_service.hash_refresh_token(raw_refresh)
+
+    result = await db_session.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    )
+    token_row = result.scalar_one()
+    token_row.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+    await db_session.commit()
+
+    with pytest.raises(ValueError, match="EXPIRED_REFRESH_TOKEN"):
+        await auth_service.refresh_tokens(db_session, raw_refresh, settings)
+
+
+async def test_service_refresh_success(db_session, settings):
+    await _make_svc_user(db_session, "svc_refresh_ok@example.com")
+    _, raw_refresh = await auth_service.login(db_session, "svc_refresh_ok@example.com", "testpass", "127.0.0.1", settings)
+    new_access, new_refresh = await auth_service.refresh_tokens(db_session, raw_refresh, settings)
+    assert new_access
+    assert new_refresh != raw_refresh
+
+
+async def test_service_logout_not_found(db_session, settings):
+    with pytest.raises(ValueError, match="INVALID_REFRESH_TOKEN"):
+        await auth_service.logout(db_session, "nonexistenttoken")
+
+
+async def test_service_get_current_user_invalid_sub(db_session, settings):
+    from jose import jwt as jose_jwt
+    payload = {"exp": datetime.now(timezone.utc) + timedelta(hours=1)}
+    token = jose_jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    with pytest.raises(ValueError, match="INVALID_TOKEN"):
+        await auth_service.get_current_user(db_session, token, settings)
+
+
+async def test_service_get_current_user_non_integer_sub(db_session, settings):
+    from jose import jwt as jose_jwt
+    payload = {"sub": "not-a-number", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
+    token = jose_jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    with pytest.raises(ValueError, match="INVALID_TOKEN"):
+        await auth_service.get_current_user(db_session, token, settings)
+
+
+async def test_service_get_current_user_not_found(db_session, settings):
+    token = auth_service.create_access_token(99999, settings)
+    with pytest.raises(ValueError, match="USER_NOT_FOUND"):
+        await auth_service.get_current_user(db_session, token, settings)
