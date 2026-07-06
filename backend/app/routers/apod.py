@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,15 +22,37 @@ def _get_nasa_client(request: Request) -> NasaClient:
     return client
 
 
+def _get_translator(request: Request) -> Any:
+    return getattr(request.app.state, "translator", None)
+
+
+def _apply_translations(data: ApodData, translations_json: str | None, lang: str) -> ApodData:
+    if lang == "en" or not translations_json:
+        return data
+    try:
+        t = json.loads(translations_json)
+        lang_data = t.get(lang, {})
+        if not lang_data:
+            return data
+        return data.model_copy(update={
+            "title": lang_data.get("title", data.title),
+            "explanation": lang_data.get("explanation", data.explanation),
+        })
+    except (json.JSONDecodeError, AttributeError):
+        return data
+
+
 @router.get("", response_model=ApodResponse)
 async def get_apod(
     date: str | None = Query(default=None, description="YYYY-MM-DD; defaults to today (UTC)"),
+    lang: str = Query(default="en", description="ISO 639-1 language code"),
     session: AsyncSession = Depends(get_db),
     client: NasaClient = Depends(_get_nasa_client),
+    translator: Any = Depends(_get_translator),
 ) -> ApodResponse:
     target_date = date or datetime.now(timezone.utc).date().isoformat()
     try:
-        result = await apod_service.fetch_apod(session, client, target_date)
+        result = await apod_service.fetch_apod(session, client, target_date, translator=translator)
     except ValueError:
         raise HTTPException(
             status_code=400,
@@ -39,8 +63,10 @@ async def get_apod(
                 }
             },
         )
+    base_data = ApodData.model_validate(result.row)
+    translated_data = _apply_translations(base_data, result.row.translations_json, lang)
     return ApodResponse(
-        data=ApodData.model_validate(result.row),
+        data=translated_data,
         cached=result.cached,
         stale=result.stale,
         fetched_at=result.row.fetched_at,

@@ -12,6 +12,7 @@ aiosmtplib==3.0.2
 twilio==9.3.2
 APScheduler==3.10.4
 python-dateutil==2.9.0.post0
+deep-translator==1.11.4
 
 # Testing
 pytest==8.3.3

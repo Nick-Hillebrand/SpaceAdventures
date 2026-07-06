@@ -1,12 +1,26 @@
 import os
 from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import Settings
+from app.database import AsyncSessionLocal
 from app.routers import apod as apod_router
+from app.routers import iss as iss_router
+from app.routers import mars as mars_router
+from app.routers import neo as neo_router
+from app.routers import space_weather as space_weather_router
+from app.routers import auth as auth_router
+from app.routers import launches as launches_router
+from app.routers import subscriptions as subscriptions_router
+from app.routers import settings as settings_router
+from app.services import launches_service
+from app.services import translation_service
+from app.services.ll2_client import LL2Client
+from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient, NasaClientError
 
 
@@ -14,10 +28,41 @@ from app.services.nasa_client import NasaClient, NasaClientError
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
     app.state.nasa_client = NasaClient(settings)
+    app.state.n2yo_client = N2YOClient(settings)
+    app.state.ll2_client = LL2Client(settings)
+    app.state.translator = translation_service.translate_fields
+
+    scheduler = AsyncIOScheduler()
+
+    async def _sync_job() -> None:
+        async with AsyncSessionLocal() as session:
+            await launches_service.sync_launches(
+                session, app.state.ll2_client, settings,
+                translator=app.state.translator,
+            )
+
+    scheduler.add_job(
+        _sync_job,
+        trigger="interval",
+        minutes=settings.ll2_sync_interval_minutes,
+    )
+    scheduler.start()
+
+    # Startup: immediate sync if table is empty
+    async with AsyncSessionLocal() as session:
+        if await launches_service.is_launches_table_empty(session):
+            await launches_service.sync_launches(
+                session, app.state.ll2_client, settings,
+                translator=app.state.translator,
+            )
+
     try:
         yield
     finally:
+        scheduler.shutdown(wait=False)
         await app.state.nasa_client.close()
+        await app.state.n2yo_client.close()
+        await app.state.ll2_client.close()
 
 
 def _default_settings() -> Settings:
@@ -52,6 +97,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(apod_router.router)
+    app.include_router(neo_router.router)
+    app.include_router(space_weather_router.router)
+    app.include_router(mars_router.router)
+    app.include_router(iss_router.router)
+    app.include_router(launches_router.router)
+    app.include_router(auth_router.router)
+    app.include_router(subscriptions_router.router)
+    app.include_router(settings_router.router)
 
     return app
 
