@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNeoFeed } from "@/hooks/useNeo";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { NeoOrbitSimulation } from "@/components/NeoOrbitSimulation";
 import { formatDate, formatDateTime } from "@/lib/dateTime";
 import type { NeoData } from "@/types/api";
 
@@ -159,6 +160,13 @@ export default function NeoPage() {
                 : `${t("common.live")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`}
           </p>
 
+          {/* Orbital Simulation */}
+          <NeoOrbitSimulation
+            neos={rows}
+            selectedId={selectedId}
+            onSelect={(id) => setSelectedId((prev) => (prev === id ? null : id))}
+          />
+
           <table className="neo-table" aria-label={t("neo.title")}>
             <thead>
               <tr>
@@ -196,7 +204,7 @@ export default function NeoPage() {
                   key={row.id}
                   className={row.is_potentially_hazardous ? "neo-row neo-row--hazardous" : "neo-row"}
                   data-hazardous={row.is_potentially_hazardous ? "true" : "false"}
-                  onClick={() => setSelectedId(row.id)}
+                  onClick={() => setSelectedId((prev) => (prev === row.id ? null : row.id))}
                 >
                   <td>
                     <button
@@ -204,7 +212,7 @@ export default function NeoPage() {
                       className="neo-row-button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedId(row.id);
+                        setSelectedId((prev) => (prev === row.id ? null : row.id));
                       }}
                     >
                       {row.name}

@@ -80,7 +80,7 @@ function EventCard({ event }: { event: SpaceWeatherEventData }) {
   );
 
   return (
-    <article className="sw-event-card" aria-label={`${event.event_type} event ${event.id}`}>
+    <article className="sw-event-card" data-type={event.event_type} aria-label={`${event.event_type} event ${event.id}`}>
       <header className="sw-event-header">
         <span className="sw-event-type-badge">{event.event_type}</span>
         <time dateTime={event.start_date}>{formatDate(event.start_date)}</time>

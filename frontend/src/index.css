@@ -13,21 +13,35 @@
   --color-skeleton-shine: #f9fafb;
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --color-solar: #d97706;
+  --color-nebula: #7c3aed;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #0f1117;
-    --color-surface: #1a1d23;
-    --color-border: #2d3240;
-    --color-text: #e8eaf0;
-    --color-text-muted: #9ca3af;
-    --color-primary: #3b82f6;
-    --color-primary-hover: #60a5fa;
+    --color-bg: #06090f;
+    --color-surface: #0c1524;
+    --color-border: #172a45;
+    --color-text: #dde6f8;
+    --color-text-muted: #7b93c7;
+    --color-primary: #4f9cf9;
+    --color-primary-hover: #7eb5fc;
     --color-danger: #f87171;
-    --color-success: #4ade80;
-    --color-skeleton-base: #2d3240;
-    --color-skeleton-shine: #3a3f52;
+    --color-success: #34d399;
+    --color-skeleton-base: #172a45;
+    --color-skeleton-shine: #1e3655;
+    --color-solar: #fbbf24;
+    --color-nebula: #a78bfa;
+    --shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-image:
+      radial-gradient(ellipse at 15% 40%, rgba(30, 50, 110, 0.18) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 15%, rgba(55, 25, 95, 0.12) 0%, transparent 45%),
+      radial-gradient(ellipse at 60% 85%, rgba(10, 30, 70, 0.15) 0%, transparent 40%);
   }
 }
 
@@ -293,6 +307,51 @@ input::placeholder {
   gap: 1.5rem;
 }
 
+@media (prefers-color-scheme: dark) {
+  .auth-layout {
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgba(30, 50, 110, 0.25) 0%, transparent 60%);
+  }
+  .login-page,
+  .register-page {
+    background: linear-gradient(160deg, rgba(12, 21, 36, 0.98) 0%, rgba(6, 9, 15, 0.98) 100%);
+    border-color: rgba(23, 42, 69, 0.9);
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(79, 156, 249, 0.06);
+  }
+}
+
+/* ── Password input wrapper ─────────────────────────────────── */
+.password-wrapper {
+  position: relative;
+}
+
+.password-wrapper input {
+  padding-right: 2.75rem !important;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.625rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 0.25rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.password-toggle-btn:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
 .login-page h1,
 .register-page h1 {
   font-size: 1.625rem;
@@ -438,6 +497,20 @@ input::placeholder {
   font-size: 1.875rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+@media (prefers-color-scheme: dark) {
+  .apod-page h1,
+  .iss-page h1,
+  .launches-page h1,
+  .mars-page h1,
+  .neo-page h1,
+  .sw-page h1 {
+    background: linear-gradient(135deg, #dde6f8 0%, #7eb5fc 55%, #a78bfa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
 
 /* ── Shared toggle / pill button ────────────────────────────── */
@@ -870,11 +943,23 @@ input::placeholder {
   border-radius: calc(var(--radius) * 1.5);
   overflow: hidden;
   box-shadow: var(--shadow);
-  transition: box-shadow 0.2s, transform 0.2s;
+  transition: box-shadow 0.25s, transform 0.25s, border-color 0.25s;
 }
 .launch-card:hover {
-  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.14);
+  transform: translateY(-3px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .launch-card {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.02);
+  }
+  .launch-card:hover {
+    border-color: rgba(79, 156, 249, 0.28);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 24px rgba(79, 156, 249, 0.07), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
 }
 
 .launch-card__image {
@@ -1678,4 +1763,248 @@ input::placeholder {
 
 .error-boundary button:hover {
   background-color: var(--color-primary-hover);
+}
+
+/* ── NEO Simulation ─────────────────────────────────────────── */
+.neo-sim-wrapper {
+  width: 100%;
+  border-radius: calc(var(--radius) * 2);
+  overflow: hidden;
+  border: 1px solid rgba(100, 160, 255, 0.12);
+  background: #010409;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(79, 156, 249, 0.06);
+}
+
+.neo-sim-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: crosshair;
+  aspect-ratio: 800 / 440;
+}
+
+.neo-sim-legend {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: 0.625rem 1rem;
+  background: rgba(1, 4, 9, 0.95);
+  border-top: 1px solid rgba(100, 160, 255, 0.1);
+}
+
+.neo-sim-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: rgba(221, 230, 248, 0.65);
+}
+
+.neo-sim-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.neo-sim-legend-dot--hazard {
+  box-shadow: 0 0 4px rgba(248, 113, 113, 0.6);
+}
+
+.neo-sim-legend-hint {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: rgba(123, 147, 199, 0.55);
+  font-style: italic;
+}
+
+/* ── Space Weather event type colors ────────────────────────── */
+.sw-event-card[data-type="FLR"] {
+  border-left: 3px solid #f59e0b;
+}
+.sw-event-card[data-type="FLR"] .sw-event-type-badge {
+  background: #b45309;
+}
+.sw-event-card[data-type="GST"] {
+  border-left: 3px solid #8b5cf6;
+}
+.sw-event-card[data-type="GST"] .sw-event-type-badge {
+  background: #6d28d9;
+}
+.sw-event-card[data-type="CME"] {
+  border-left: 3px solid #3b82f6;
+}
+.sw-event-card[data-type="CME"] .sw-event-type-badge {
+  background: #1d4ed8;
+}
+.sw-event-card[data-type="SEP"] {
+  border-left: 3px solid #10b981;
+}
+.sw-event-card[data-type="SEP"] .sw-event-type-badge {
+  background: #065f46;
+}
+.sw-event-card[data-type="RBE"] {
+  border-left: 3px solid #f87171;
+}
+.sw-event-card[data-type="RBE"] .sw-event-type-badge {
+  background: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sw-event-card {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .sw-event-header {
+    background: rgba(6, 9, 15, 0.7);
+  }
+
+  /* ISS data panel */
+  .iss-data-panel dl {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .iss-next-pass,
+  .iss-next-radio-pass {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .iss-tle {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+
+  /* Mars */
+  .mars-controls {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .mars-photo-card:hover .mars-photo-thumb {
+    opacity: 0.8;
+    transform: scale(1.03);
+  }
+  .mars-photo-thumb {
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .mars-lightbox-inner {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+
+  /* NEO */
+  .neo-filters {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .neo-table {
+    border-color: #172a45;
+  }
+  .neo-table thead {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+  }
+  .neo-table td {
+    border-color: #172a45;
+  }
+  .neo-drawer {
+    background: linear-gradient(180deg, #0c1524 0%, #06090f 100%);
+    border-color: #172a45;
+  }
+
+  /* Launches */
+  .launches-filters {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .launches-calendar {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .launches-drawer__panel {
+    background: linear-gradient(180deg, #0c1524 0%, #06090f 100%);
+    border-color: #172a45;
+  }
+
+  /* APOD */
+  .apod-hero {
+    background: #06090f;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5) inset;
+  }
+  .apod-hero img {
+    filter: brightness(0.95) contrast(1.05);
+  }
+
+  /* SW filters */
+  .sw-filters {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+
+  /* Navbar */
+  .navbar {
+    background: rgba(6, 9, 15, 0.92);
+    backdrop-filter: blur(12px);
+    border-color: #172a45;
+    box-shadow: 0 1px 16px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Filter rows */
+  .filter-row {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+
+  /* Shared badges */
+  .apod-badge,
+  .mars-badge,
+  .neo-badge,
+  .sw-badge {
+    background: rgba(12, 21, 36, 0.8);
+    border-color: #172a45;
+  }
+
+  /* Primary button glow */
+  .login-page form button[type="submit"],
+  .register-page form button[type="submit"] {
+    background: linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%);
+    box-shadow: 0 4px 16px rgba(79, 156, 249, 0.25);
+  }
+  .login-page form button[type="submit"]:hover,
+  .register-page form button[type="submit"]:hover {
+    background: linear-gradient(135deg, #60a5fa 0%, #6366f1 100%);
+    box-shadow: 0 4px 20px rgba(79, 156, 249, 0.4);
+  }
+}
+
+/* ── APOD page enhancements ─────────────────────────────────── */
+.apod-hero {
+  position: relative;
+}
+.apod-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(0,0,0,0.05) 0%, transparent 40%);
+}
+
+/* ── ISS globe glow ─────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .iss-globe {
+    box-shadow: 0 0 48px rgba(59, 130, 246, 0.12), 0 4px 24px rgba(0,0,0,0.5);
+    border: 1px solid rgba(23, 42, 69, 0.8);
+  }
+}
+
+/* ── Account page dark ──────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .account-page p {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
+  .account-page li {
+    background: linear-gradient(145deg, #0c1524 0%, #08101d 100%);
+    border-color: #172a45;
+  }
 }
