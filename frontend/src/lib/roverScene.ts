@@ -11,8 +11,8 @@ export interface RoverScene {
   dispose(): void;
 }
 
-// `three` has no bundled types here (P36), so THREE.* is `any`. These local
-// structural types cover only what disposeObject3D touches.
+// Structural view of the mesh members disposeObject3D touches — not every
+// Object3D in a glTF scene graph is a mesh.
 interface Disposable {
   dispose(): void;
 }
@@ -20,12 +20,10 @@ interface MeshLike {
   geometry?: Disposable;
   material?: Disposable | Disposable[];
 }
-interface Object3DLike {
-  traverse(callback: (child: MeshLike) => void): void;
-}
 
-function disposeObject3D(object: Object3DLike): void {
-  object.traverse((child) => {
+function disposeObject3D(object: THREE.Object3D): void {
+  object.traverse((node) => {
+    const child = node as unknown as MeshLike;
     if (!child.geometry && !child.material) return;
     child.geometry?.dispose();
     const material = child.material;
@@ -83,7 +81,7 @@ export function createRoverScene(container: HTMLElement): RoverScene {
   window.addEventListener("resize", handleResize);
 
   const loader = new GLTFLoader();
-  let currentModel: (Object3DLike & MeshLike) | null = null;
+  let currentModel: THREE.Object3D | null = null;
 
   function loadModel(url: string): Promise<void> {
     return new Promise((resolve, reject) => {

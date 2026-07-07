@@ -13,6 +13,7 @@ import LaunchesPage from "@/routes/LaunchesPage";
 import MarsPage from "@/routes/MarsPage";
 import NeoPage from "@/routes/NeoPage";
 import SpaceWeatherPage from "@/routes/SpaceWeatherPage";
+import SolarSystemPage from "@/routes/SolarSystemPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/mars" element={<MarsPage />} />
           <Route path="/neo" element={<NeoPage />} />
           <Route path="/space-weather" element={<SpaceWeatherPage />} />
+          <Route path="/solar-system" element={<SolarSystemPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/account" element={<AccountPage />} />
