@@ -9,28 +9,46 @@ from sqlalchemy import select
 
 from app.models import MarsPhoto
 
-_NASA_PHOTOS_BASE = "https://api.nasa.example/mars-photos/api/v1/rovers"
+MSL_BASE = "https://mars.nasa.gov/api/v1/raw_image_items/"
+M20_BASE = "https://mars.nasa.gov/rss/api/"
 
 
-def _photo(
-    photo_id: int,
-    rover: str = "curiosity",
+def _msl_item(
+    item_id: int,
     sol: int = 1000,
-    earth_date: str = "2020-01-01",
-    camera: str = "FHAZ",
+    date_taken: str = "2020-01-01T00:00:00Z",
+    instrument: str = "FHAZ_LEFT_A",
 ) -> dict:
     return {
-        "id": photo_id,
+        "id": item_id,
         "sol": sol,
-        "earth_date": earth_date,
-        "img_src": f"https://mars.example/{photo_id}.jpg",
-        "camera": {"name": camera, "full_name": camera},
-        "rover": {"name": rover.capitalize(), "landing_date": "2012-08-06"},
+        "date_taken": date_taken,
+        "instrument": instrument,
+        "https_url": f"https://mars.nasa.gov/{item_id}.jpg",
     }
 
 
-def _photos_response(*photos: dict) -> dict:
-    return {"photos": list(photos)}
+def _msl_payload(*items: dict, more: bool = False) -> dict:
+    return {"items": list(items), "more": more, "total": len(items)}
+
+
+def _m20_image(
+    image_id: str,
+    sol: int = 9999,
+    date_taken: str = "2021-03-01T00:00:00Z",
+    instrument: str = "NAVCAM_LEFT",
+) -> dict:
+    return {
+        "imageid": image_id,
+        "sol": sol,
+        "date_taken_utc": date_taken,
+        "camera": {"instrument": instrument},
+        "image_files": {"full_res": f"https://mars.nasa.gov/{image_id}.jpg"},
+    }
+
+
+def _m20_payload(*images: dict) -> dict:
+    return {"images": list(images), "num_images": len(images)}
 
 
 # ── /rovers ───────────────────────────────────────────────────────────────────
@@ -48,6 +66,8 @@ async def test_get_rovers(client):
     # Cameras list populated for curiosity
     curiosity = next(r for r in body["data"] if r["name"] == "curiosity")
     assert "FHAZ" in curiosity["cameras"]
+    perseverance = next(r for r in body["data"] if r["name"] == "perseverance")
+    assert "SUPERCAM_RMI" in perseverance["cameras"]
 
 
 # ── cache miss (sol) ──────────────────────────────────────────────────────────
@@ -55,10 +75,8 @@ async def test_get_rovers(client):
 
 @respx.mock
 async def test_get_photos_by_sol_cache_miss(client, db_session):
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
-        return_value=httpx.Response(
-            200, json=_photos_response(_photo(1, sol=1000, earth_date="2020-01-01"))
-        )
+    respx.get(MSL_BASE).mock(
+        return_value=httpx.Response(200, json=_msl_payload(_msl_item(1, sol=1000)))
     )
 
     response = await client.get(
@@ -82,9 +100,9 @@ async def test_get_photos_by_sol_cache_miss(client, db_session):
 
 @respx.mock
 async def test_get_photos_by_earth_date_cache_miss(client, db_session):
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
+    respx.get(MSL_BASE).mock(
         return_value=httpx.Response(
-            200, json=_photos_response(_photo(2, earth_date="2020-03-15"))
+            200, json=_msl_payload(_msl_item(2, date_taken="2020-03-15T00:00:00Z"))
         )
     )
 
@@ -114,7 +132,7 @@ async def test_cache_hit_historical(client, db_session):
     )
     await db_session.commit()
 
-    route = respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos")
+    route = respx.get(MSL_BASE)
 
     response = await client.get(
         "/api/v1/mars/photos",
@@ -157,7 +175,7 @@ async def test_camera_filter(client, db_session):
     )
     await db_session.commit()
 
-    route = respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos")
+    route = respx.get(MSL_BASE)
 
     response = await client.get(
         "/api/v1/mars/photos",
@@ -191,7 +209,7 @@ async def test_pagination(client, db_session):
         )
     await db_session.commit()
 
-    route = respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos")
+    route = respx.get(MSL_BASE)
 
     response = await client.get(
         "/api/v1/mars/photos",
@@ -224,12 +242,12 @@ async def test_today_refetches(client, db_session):
     )
     await db_session.commit()
 
-    respx.get(f"{_NASA_PHOTOS_BASE}/perseverance/photos").mock(
+    respx.get(M20_BASE).mock(
         return_value=httpx.Response(
             200,
-            json=_photos_response(
-                _photo(50, rover="perseverance", sol=9999, earth_date=today, camera="NAVCAM_LEFT"),
-                _photo(51, rover="perseverance", sol=9999, earth_date=today, camera="NAVCAM_LEFT"),
+            json=_m20_payload(
+                _m20_image("IMG50", sol=9999, date_taken=f"{today}T00:00:00Z"),
+                _m20_image("IMG51", sol=9999, date_taken=f"{today}T00:00:00Z"),
             ),
         )
     )
@@ -263,9 +281,7 @@ async def test_stale_fallback(client, db_session):
     )
     await db_session.commit()
 
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
-        return_value=httpx.Response(503)
-    )
+    respx.get(MSL_BASE).mock(return_value=httpx.Response(503))
 
     response = await client.get(
         "/api/v1/mars/photos",
@@ -278,21 +294,70 @@ async def test_stale_fallback(client, db_session):
     assert body["is_today"] is True
 
 
-# ── all four rovers ───────────────────────────────────────────────────────────
+# ── live rovers (curiosity, perseverance) ─────────────────────────────────────
 
 
-@pytest.mark.parametrize("rover", ["curiosity", "opportunity", "spirit", "perseverance"])
-@respx.mock
-async def test_all_rovers(rover, client):
-    respx.get(f"{_NASA_PHOTOS_BASE}/{rover}/photos").mock(
-        return_value=httpx.Response(200, json=_photos_response(_photo(999, rover=rover, sol=1)))
-    )
-    response = await client.get(
-        "/api/v1/mars/photos",
-        params={"rover": rover, "sol": 1},
-    )
+async def test_curiosity_live_fetch(client):
+    with respx.mock:
+        respx.get(MSL_BASE).mock(
+            return_value=httpx.Response(200, json=_msl_payload(_msl_item(900, sol=1)))
+        )
+        response = await client.get(
+            "/api/v1/mars/photos", params={"rover": "curiosity", "sol": 1}
+        )
     assert response.status_code == 200
-    assert response.json()["data"][0]["rover_name"] == rover
+    assert response.json()["data"][0]["rover_name"] == "curiosity"
+
+
+async def test_perseverance_live_fetch(client):
+    with respx.mock:
+        respx.get(M20_BASE).mock(
+            return_value=httpx.Response(200, json=_m20_payload(_m20_image("IMGP1", sol=1)))
+        )
+        response = await client.get(
+            "/api/v1/mars/photos", params={"rover": "perseverance", "sol": 1}
+        )
+    assert response.status_code == 200
+    assert response.json()["data"][0]["rover_name"] == "perseverance"
+
+
+# ── no-live-source rovers (opportunity, spirit) ───────────────────────────────
+
+
+@pytest.mark.parametrize("rover", ["opportunity", "spirit"])
+async def test_no_live_source_rovers_without_cache_return_distinct_error(client, rover):
+    with respx.mock:
+        response = await client.get(
+            "/api/v1/mars/photos", params={"rover": rover, "sol": 1}
+        )
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "MARS_NO_LIVE_SOURCE"
+
+
+@pytest.mark.parametrize("rover", ["opportunity", "spirit"])
+async def test_no_live_source_rovers_serve_cache_when_present(client, db_session, rover):
+    db_session.add(
+        MarsPhoto(
+            id=999,
+            sol=1,
+            earth_date="2004-01-01",
+            rover_name=rover,
+            camera_name="PANCAM",
+            img_src="https://mars.example/999.jpg",
+            fetched_at=datetime(2004, 1, 1, 0, 0, 0),
+        )
+    )
+    await db_session.commit()
+
+    with respx.mock:
+        response = await client.get(
+            "/api/v1/mars/photos", params={"rover": rover, "sol": 1}
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["cached"] is True
+    assert body["stale"] is False
+    assert len(body["data"]) == 1
 
 
 # ── error cases ───────────────────────────────────────────────────────────────
@@ -300,72 +365,46 @@ async def test_all_rovers(rover, client):
 
 @respx.mock
 async def test_error_no_cache(client):
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
-        return_value=httpx.Response(503)
-    )
+    respx.get(MSL_BASE).mock(return_value=httpx.Response(503))
     response = await client.get(
         "/api/v1/mars/photos",
         params={"rover": "curiosity", "sol": 1234},
     )
     assert response.status_code == 502
-    assert response.json()["error"]["code"] == "NASA_UNAVAILABLE"
+    assert response.json()["error"]["code"] == "MARS_ARCHIVE_UNAVAILABLE"
 
 
 @respx.mock
 async def test_upstream_404_is_reported_as_unavailable(client):
-    # The mars-photos backend returning 404 (e.g. its Heroku app being gone)
-    # is not a legitimate "not found" — the rover is validated before this
-    # call, so any 404 here means the endpoint itself is broken.
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
-        return_value=httpx.Response(404)
-    )
+    respx.get(MSL_BASE).mock(return_value=httpx.Response(404))
     response = await client.get(
         "/api/v1/mars/photos",
         params={"rover": "curiosity", "sol": 1237},
     )
     assert response.status_code == 502
-    assert response.json()["error"]["code"] == "NASA_UNAVAILABLE"
+    assert response.json()["error"]["code"] == "MARS_ARCHIVE_UNAVAILABLE"
 
 
 @respx.mock
-async def test_auth_error(client):
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
-        return_value=httpx.Response(403)
-    )
+async def test_invalid_json_is_reported_as_unavailable(client):
+    respx.get(MSL_BASE).mock(return_value=httpx.Response(200, content=b"not json"))
     response = await client.get(
         "/api/v1/mars/photos",
-        params={"rover": "curiosity", "sol": 1235},
+        params={"rover": "curiosity", "sol": 1238},
     )
     assert response.status_code == 502
-    assert response.json()["error"]["code"] == "NASA_AUTH_ERROR"
+    assert response.json()["error"]["code"] == "MARS_ARCHIVE_UNAVAILABLE"
 
 
 @respx.mock
-async def test_nasa_error_400(client):
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
-        return_value=httpx.Response(400)
-    )
+async def test_connect_error_is_reported_as_unavailable(client):
+    respx.get(MSL_BASE).mock(side_effect=httpx.ConnectError("nope"))
     response = await client.get(
         "/api/v1/mars/photos",
-        params={"rover": "curiosity", "sol": 1236},
+        params={"rover": "curiosity", "sol": 1239},
     )
     assert response.status_code == 502
-    assert response.json()["error"]["code"] == "NASA_ERROR"
-
-
-@respx.mock
-async def test_no_internet(client):
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
-        side_effect=httpx.ConnectError("nope")
-    )
-    respx.head("https://www.google.com").mock(side_effect=httpx.ConnectError("nope"))
-
-    response = await client.get(
-        "/api/v1/mars/photos",
-        params={"rover": "curiosity", "sol": 1237},
-    )
-    assert response.status_code == 502
-    assert response.json()["error"]["code"] == "NO_INTERNET"
+    assert response.json()["error"]["code"] == "MARS_ARCHIVE_UNAVAILABLE"
 
 
 async def test_invalid_rover(client):
@@ -386,14 +425,12 @@ async def test_missing_sol_and_earth_date(client):
     assert response.json()["detail"]["error"]["code"] == "INVALID_PARAMS"
 
 
-# ── empty photos list from NASA ───────────────────────────────────────────────
+# ── empty photos list from upstream ───────────────────────────────────────────
 
 
 @respx.mock
 async def test_empty_photos_list(client):
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
-        return_value=httpx.Response(200, json={"photos": []})
-    )
+    respx.get(MSL_BASE).mock(return_value=httpx.Response(200, json=_msl_payload()))
     response = await client.get(
         "/api/v1/mars/photos",
         params={"rover": "curiosity", "sol": 9990},
@@ -409,10 +446,9 @@ async def test_empty_photos_list(client):
 @respx.mock
 async def test_earth_date_today_flag(client):
     today = datetime.now(timezone.utc).date().isoformat()
-    respx.get(f"{_NASA_PHOTOS_BASE}/curiosity/photos").mock(
+    respx.get(MSL_BASE).mock(
         return_value=httpx.Response(
-            200,
-            json=_photos_response(_photo(70, earth_date=today)),
+            200, json=_msl_payload(_msl_item(70, date_taken=f"{today}T00:00:00Z"))
         )
     )
     response = await client.get(

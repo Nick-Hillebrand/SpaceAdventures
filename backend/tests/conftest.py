@@ -15,6 +15,7 @@ from app.config import Settings
 from app.database import Base, get_db
 from app.main import create_app
 from app.services.ll2_client import LL2Client
+from app.services.mars_raw_images_client import MarsRawImagesClient
 from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient
 
@@ -65,6 +66,7 @@ async def client(db_engine, settings) -> AsyncIterator[AsyncClient]:
     app.state.nasa_client = NasaClient(settings)
     app.state.n2yo_client = N2YOClient(settings)
     app.state.ll2_client = LL2Client(settings)
+    app.state.mars_raw_images_client = MarsRawImagesClient(settings)
     app.dependency_overrides[get_db] = _override_get_db
 
     transport = ASGITransport(app=app)
@@ -75,3 +77,4 @@ async def client(db_engine, settings) -> AsyncIterator[AsyncClient]:
         await app.state.nasa_client.close()
         await app.state.n2yo_client.close()
         await app.state.ll2_client.close()
+        await app.state.mars_raw_images_client.close()

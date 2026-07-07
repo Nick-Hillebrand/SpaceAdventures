@@ -13,8 +13,19 @@ function errorTitleKey(code: string): string {
     case "NO_INTERNET": return "error.noInternet";
     case "NASA_UNAVAILABLE": return "error.nasaUnavailable";
     case "NASA_AUTH_ERROR": return "error.nasaAuthError";
+    case "MARS_ARCHIVE_UNAVAILABLE": return "error.marsArchiveUnavailable";
+    case "MARS_NO_LIVE_SOURCE": return "error.marsNoLiveSource";
     case "INVALID_PARAMS": return "error.invalidParams";
     default: return "common.error";
+  }
+}
+
+function errorDetailKey(code: string): string | undefined {
+  switch (code) {
+    case "NASA_UNAVAILABLE": return "error.nasaUnavailableDetail";
+    case "MARS_ARCHIVE_UNAVAILABLE": return "error.marsArchiveUnavailableDetail";
+    case "MARS_NO_LIVE_SOURCE": return "error.marsNoLiveSourceDetail";
+    default: return undefined;
   }
 }
 
@@ -200,7 +211,7 @@ export default function MarsPage() {
       ) : isError && error ? (
         <ErrorBanner
           titleKey={errorTitleKey(error.code)}
-          detailKey={error.code === "NASA_UNAVAILABLE" ? "error.nasaUnavailableDetail" : undefined}
+          detailKey={errorDetailKey(error.code)}
           detail={error.message}
           onRetry={() => refetch()}
           variant="section"

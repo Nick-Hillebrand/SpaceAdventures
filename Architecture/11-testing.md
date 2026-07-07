@@ -50,7 +50,7 @@ Run: `vitest run --coverage`
 2. **Real in-memory SQLite DB** for every test (create tables in fixture, drop after). Do not mock the ORM.
 3. **Use `httpx.AsyncClient` with `ASGITransport`** for route tests — never `TestClient` in async test functions (causes event loop conflicts).
 4. **Test every caching branch:** cache hit, cache miss, today re-fetch, stale fallback.
-5. **Test every error code:** `NO_INTERNET`, `NASA_UNAVAILABLE`, `NASA_ERROR`, `NASA_AUTH_ERROR`, `N2YO_QUOTA_EXHAUSTED`, `INTERNAL_ERROR`.
+5. **Test every error code:** `NO_INTERNET`, `NASA_UNAVAILABLE`, `NASA_ERROR`, `NASA_AUTH_ERROR`, `N2YO_QUOTA_EXHAUSTED`, `INTERNAL_ERROR`, `MARS_ARCHIVE_UNAVAILABLE`, `MARS_NO_LIVE_SOURCE`.
 6. **Auth tests must cover:**
    - Successful registration
    - Duplicate email/phone returns same generic error (enumeration prevention)
@@ -116,7 +116,7 @@ vi.mock('globe.gl', () => ({ default: vi.fn(() => mockInstance) }));
 
 ---
 
-## Known Pitfalls (P1–P36)
+## Known Pitfalls (P1–P37)
 
 Read the relevant pitfall before implementing each area. All pitfalls have an exact failure mode, cause, and fix.
 
@@ -173,3 +173,4 @@ Read the relevant pitfall before implementing each area. All pitfalls have an ex
 - **P34** jsdom Intl: only use well-known IANA timezone names in tests
 - **P35** bcrypt C extension: add `libffi-dev python3-dev gcc` to Dockerfile before `pip install`
 - **P36** three.js: no bundled types — add `src/types/three-jsm.d.ts` with loose `declare module` stubs for `'three'`, `'three/examples/jsm/loaders/GLTFLoader.js'`, and `'.../controls/OrbitControls.js'` (same convention as P13). Because `THREE` is then typed `any`, define local structural interfaces for anything that needs a shape (see `Disposable`/`MeshLike`/`Object3DLike` in `roverScene.ts`) instead of referencing `THREE.Object3D` as a type. In tests, mock `three`/`GLTFLoader`/`OrbitControls` at the module level — jsdom has no WebGL context and `THREE.WebGLRenderer`'s constructor throws (unlike 2D canvas, which returns `null` gracefully). Every scene instance registers a real `window` resize listener; track and `dispose()` each one in `afterEach`, or listeners leak across tests in the same file and a later `dispatchEvent(new Event("resize"))` fires all of them at once.
+- **P37** NASA's `api.nasa.gov/mars-photos` backend (the `corincerami/mars-photo-api` Heroku app) is permanently dead — every route 404s regardless of rover or params. Replaced with `mars.nasa.gov`'s own public raw-image galleries (`mars_raw_images_client.py`), which need no API key. Only Curiosity (`/api/v1/raw_image_items/`) and Perseverance (`/rss/api/?feed=raw_images`) have a live source there; Opportunity/Spirit have none anywhere on NASA's current infrastructure (`mars_service.LIVE_ROVERS` excludes them — they serve cache-only and raise `MARS_NO_LIVE_SOURCE` otherwise). Neither live endpoint supports server-side `earth_date` filtering reliably, so `earth_date` queries approximate a sol from each rover's landing date + Mars sol length (`88775.244`s), fetch sol±1 as candidates, and filter the accurate per-item date client-side. Perseverance's raw-image items have no numeric id (`imageid` is a string) — synthesize one via `sha256(imageid)[:8]` masked to 63 bits (rejected 32-bit CRC32: ~116 expected collisions across ~1M images at that scale). Curiosity's instrument codes are more granular than the UI's camera list (`FHAZ_LEFT_A`/`_B`, `NAV_RIGHT_A`/`_B`, etc.) and must be normalized back down (`MSL_CAMERA_MAP`) rather than exposed raw. See `Architecture/14-mars-raw-images-migration.md`.

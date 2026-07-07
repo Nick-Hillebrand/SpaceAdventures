@@ -20,6 +20,7 @@ from app.routers import settings as settings_router
 from app.services import launches_service
 from app.services import translation_service
 from app.services.ll2_client import LL2Client
+from app.services.mars_raw_images_client import MarsRawImagesClient
 from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient, NasaClientError
 
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
     app.state.nasa_client = NasaClient(settings)
     app.state.n2yo_client = N2YOClient(settings)
     app.state.ll2_client = LL2Client(settings)
+    app.state.mars_raw_images_client = MarsRawImagesClient(settings)
     app.state.translator = translation_service.translate_fields
 
     scheduler = AsyncIOScheduler()
@@ -63,6 +65,7 @@ async def lifespan(app: FastAPI):
         await app.state.nasa_client.close()
         await app.state.n2yo_client.close()
         await app.state.ll2_client.close()
+        await app.state.mars_raw_images_client.close()
 
 
 def _default_settings() -> Settings:

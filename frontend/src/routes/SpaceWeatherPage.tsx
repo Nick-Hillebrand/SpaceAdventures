@@ -165,45 +165,45 @@ function FlareDashboard({ events }: { events: SpaceWeatherEventData[] }) {
   const peakColor = FLR_CLASS_COLORS[peak[0]?.toUpperCase()] ?? "#9ca3af";
 
   return (
-    <div className="sw-flare-dashboard">
-      <div className="sw-flare-stats">
-        <div className="sw-flare-stat">
-          <span className="sw-flare-stat__value" data-testid="flare-total">{flares.length}</span>
-          <span className="sw-flare-stat__label">Total flares</span>
+    <div className="sw-dashboard">
+      <div className="sw-stats-row">
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value" data-testid="flare-total">{flares.length}</span>
+          <span className="sw-stat-tile__label">Total flares</span>
         </div>
-        <div className="sw-flare-stat">
-          <span className="sw-flare-stat__value" style={{ color: peakColor }} data-testid="flare-peak">
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value" style={{ color: peakColor }} data-testid="flare-peak">
             {peak}
           </span>
-          <span className="sw-flare-stat__label">Peak class</span>
+          <span className="sw-stat-tile__label">Peak class</span>
         </div>
-        <div className="sw-flare-stat">
-          <span className="sw-flare-stat__value">{activeDays}</span>
-          <span className="sw-flare-stat__label">Active days</span>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{activeDays}</span>
+          <span className="sw-stat-tile__label">Active days</span>
         </div>
       </div>
 
-      <div className="sw-class-dist">
+      <div className="sw-dist">
         {FLR_CLASS_ORDER.map((letter) => {
           const count = classCounts[letter];
           return (
-            <div key={letter} className="sw-class-dist__row">
-              <span className="sw-class-dist__letter" style={{ color: FLR_CLASS_COLORS[letter] }}>
+            <div key={letter} className="sw-dist__row">
+              <span className="sw-dist__label" style={{ color: FLR_CLASS_COLORS[letter] }}>
                 {letter}
               </span>
-              <div className="sw-class-dist__track" role="presentation">
+              <div className="sw-dist__track" role="presentation">
                 <div
-                  className="sw-class-dist__fill"
+                  className="sw-dist__fill"
                   style={{ width: `${(count / maxCount) * 100}%`, background: FLR_CLASS_COLORS[letter] }}
                 />
               </div>
-              <span className="sw-class-dist__count">{count}</span>
+              <span className="sw-dist__count">{count}</span>
             </div>
           );
         })}
       </div>
 
-      <div className="sw-flare-list" role="list">
+      <div className="sw-event-list" role="list">
         {sorted.map((flare) => {
           const letter = flare.classType[0]?.toUpperCase() ?? "";
           const color = FLR_CLASS_COLORS[letter] ?? "#9ca3af";
@@ -213,16 +213,16 @@ function FlareDashboard({ events }: { events: SpaceWeatherEventData[] }) {
           return (
             <div
               key={flare.id}
-              className="sw-flare-row"
+              className="sw-event-row"
               role="listitem"
               aria-label={`FLR event ${flare.id}`}
             >
               <span className="sw-flare-row__class" style={{ color }}>
                 {flare.classType || "—"}
               </span>
-              <span className="sw-flare-row__time">{timeLabel}</span>
+              <span className="sw-event-row__time">{timeLabel}</span>
               {flare.sourceLocation && (
-                <span className="sw-flare-row__loc">{flare.sourceLocation}</span>
+                <span className="sw-event-row__loc">{flare.sourceLocation}</span>
               )}
             </div>
           );
@@ -232,59 +232,7 @@ function FlareDashboard({ events }: { events: SpaceWeatherEventData[] }) {
   );
 }
 
-// ── Storm / CME highlights (used inside EventCard for GST / CME) ───────────────
-
-function StormHighlight({ data }: { data: Record<string, unknown> }) {
-  const allKp = Array.isArray(data.allKpIndex) ? data.allKpIndex : [];
-  const kpValues = allKp
-    .map((k: unknown) => (k && typeof k === "object" ? (k as Record<string, unknown>).kpIndex : null))
-    .filter((v): v is number => typeof v === "number");
-  if (kpValues.length === 0) return null;
-
-  const maxKp = Math.max(...kpValues);
-  const kpColor = maxKp >= 8 ? "#ef4444" : maxKp >= 6 ? "#f97316" : maxKp >= 4 ? "#eab308" : "#22c55e";
-  const label = maxKp >= 8 ? "Extreme" : maxKp >= 6 ? "Severe" : maxKp >= 5 ? "Strong" : maxKp >= 4 ? "Moderate" : "Minor";
-
-  return (
-    <div className="sw-kp-gauge">
-      <div className="sw-kp-header">
-        <span className="sw-kp-label">Kp</span>
-        <span className="sw-kp-value" style={{ color: kpColor }}>{maxKp}</span>
-      </div>
-      <span className="sw-kp-class" style={{ color: kpColor }}>{label}</span>
-      <div className="sw-kp-bar">
-        {Array.from({ length: 9 }, (_, i) => (
-          <div
-            key={i}
-            className="sw-kp-segment"
-            style={{ background: i < maxKp ? kpColor : undefined, opacity: i < maxKp ? 1 : 0.15 }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CmeHighlight({ data }: { data: Record<string, unknown> }) {
-  const analyses = Array.isArray(data.cmeAnalyses) ? data.cmeAnalyses : [];
-  const first = analyses[0] as Record<string, unknown> | undefined;
-  const speed = first && typeof first.speed === "number" ? first.speed : null;
-  const type = first && typeof first.type === "string" ? first.type : null;
-  if (!speed && !type) return null;
-
-  return (
-    <div className="sw-cme-highlight">
-      {speed !== null && (
-        <div className="sw-cme-speed">
-          {Math.round(speed)}<small>km/s</small>
-        </div>
-      )}
-      {type && <span className="sw-cme-type-badge">{type}</span>}
-    </div>
-  );
-}
-
-// ── Activity Timeline (used for non-FLR tabs) ──────────────────────────────────
+// ── Activity Timeline (used by the RBE dashboard) ───────────────────────────────
 
 function ActivityTimeline({ events, start, end, color }: {
   events: SpaceWeatherEventData[];
@@ -342,67 +290,344 @@ function ActivityTimeline({ events, start, end, color }: {
   );
 }
 
-// ── EventCard (used for GST / CME / SEP / RBE) ────────────────────────────────
+// ── Storm dashboard (GST) ───────────────────────────────────────────────────────
 
-const TIME_FIELDS = ["beginTime", "startTime", "eventTime", "peakTime", "endTime"] as const;
-const TIME_SET = new Set<string>(TIME_FIELDS);
-const HIGHLIGHT_KEYS: Record<Tab, Set<string>> = {
-  FLR: new Set(),
-  GST: new Set(["allKpIndex"]),
-  CME: new Set(["cmeAnalyses"]),
-  SEP: new Set(),
-  RBE: new Set(),
-};
+const KP_LEVELS = [
+  { key: "G5", label: "Extreme", min: 9, color: "#ef4444" },
+  { key: "G4", label: "Severe", min: 8, color: "#f97316" },
+  { key: "G3", label: "Strong", min: 7, color: "#f59e0b" },
+  { key: "G2", label: "Moderate", min: 6, color: "#eab308" },
+  { key: "G1", label: "Minor", min: 5, color: "#84cc16" },
+] as const;
 
-function EventCard({ event }: { event: SpaceWeatherEventData }) {
-  const data = parseRaw(event.raw_json);
-  const hKeys = HIGHLIGHT_KEYS[event.event_type];
+function kpLevel(kp: number): { key: string; label: string; color: string } {
+  return KP_LEVELS.find((l) => kp >= l.min) ?? { key: "—", label: "Below G1", color: "#6b7280" };
+}
 
-  const timeFields = TIME_FIELDS.filter(
-    (k) => typeof data[k] === "string" && (data[k] as string).length >= 10,
+interface StormRow {
+  id: string;
+  date: string;
+  maxKp: number;
+}
+
+function StormDashboard({ events }: { events: SpaceWeatherEventData[] }) {
+  const storms: StormRow[] = useMemo(() => events.map((e) => {
+    const d = parseRaw(e.raw_json);
+    const allKp = Array.isArray(d.allKpIndex) ? d.allKpIndex : [];
+    const kpValues = allKp
+      .map((k: unknown) => (k && typeof k === "object" ? (k as Record<string, unknown>).kpIndex : null))
+      .filter((v): v is number => typeof v === "number");
+    return { id: e.id, date: e.start_date.slice(0, 10), maxKp: kpValues.length ? Math.max(...kpValues) : 0 };
+  }), [events]);
+
+  const sorted = useMemo(
+    () => [...storms].sort((a, b) => b.maxKp - a.maxKp || b.date.localeCompare(a.date)),
+    [storms],
   );
-  const noteFields = Object.entries(data).filter(
-    ([k]) => !TIME_SET.has(k) && !k.endsWith("ID") && k !== "activityID" && !hKeys.has(k),
-  );
 
-  const renderHighlight = () => {
-    switch (event.event_type) {
-      case "GST": return <StormHighlight data={data} />;
-      case "CME": return <CmeHighlight data={data} />;
-      default: return null;
+  const levelCounts = useMemo(() => {
+    const c: Record<string, number> = { G1: 0, G2: 0, G3: 0, G4: 0, G5: 0 };
+    for (const s of storms) {
+      const lvl = kpLevel(s.maxKp).key;
+      if (lvl in c) c[lvl]++;
     }
-  };
+    return c;
+  }, [storms]);
+
+  const maxCount = Math.max(...Object.values(levelCounts), 1);
+  const activeDays = new Set(storms.map((s) => s.date)).size;
+  const maxKpOverall = Math.max(...storms.map((s) => s.maxKp), 0);
+  const peakColor = kpLevel(maxKpOverall).color;
 
   return (
-    <article
-      className={`sw-card sw-card--${event.event_type}`}
-      data-type={event.event_type}
-      aria-label={`${event.event_type} event ${event.id}`}
-    >
-      <header className="sw-card-header">
-        <div className="sw-card-meta">
-          <span className="sw-card-badge">{event.event_type}</span>
-          <time className="sw-card-date" dateTime={event.start_date}>{formatDate(event.start_date)}</time>
+    <div className="sw-dashboard">
+      <div className="sw-stats-row">
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{storms.length}</span>
+          <span className="sw-stat-tile__label">Total storms</span>
         </div>
-        {renderHighlight()}
-      </header>
-      <dl className="sw-card-fields">
-        {timeFields.map((field) => (
-          <div key={field} className="sw-card-row sw-card-row--time">
-            <dt>{field}</dt>
-            <dd>{renderTimestamp(data[field])}</dd>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value" style={{ color: peakColor }}>{maxKpOverall || "—"}</span>
+          <span className="sw-stat-tile__label">Peak Kp</span>
+        </div>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{activeDays}</span>
+          <span className="sw-stat-tile__label">Active days</span>
+        </div>
+      </div>
+
+      <div className="sw-dist">
+        {KP_LEVELS.map((lvl) => (
+          <div key={lvl.key} className="sw-dist__row">
+            <span className="sw-dist__label" style={{ color: lvl.color }}>{lvl.key}</span>
+            <div className="sw-dist__track" role="presentation">
+              <div
+                className="sw-dist__fill"
+                style={{ width: `${(levelCounts[lvl.key] / maxCount) * 100}%`, background: lvl.color }}
+              />
+            </div>
+            <span className="sw-dist__count">{levelCounts[lvl.key]}</span>
           </div>
         ))}
-        {noteFields.slice(0, 4).map(([key, val]) => (
-          <div key={key} className="sw-card-row">
-            <dt>{key}</dt>
-            <dd className="sw-card-value">
-              {typeof val === "object" ? JSON.stringify(val) : String(val ?? "—")}
-            </dd>
+      </div>
+
+      <div className="sw-event-list" role="list">
+        {sorted.map((storm) => {
+          const lvl = kpLevel(storm.maxKp);
+          return (
+            <div key={storm.id} className="sw-event-row" role="listitem" aria-label={`GST event ${storm.id}`}>
+              <span className="sw-event-row__badge" style={{ color: lvl.color, borderColor: lvl.color }}>
+                Kp {storm.maxKp || "—"}
+              </span>
+              <span className="sw-event-row__time">{formatDate(storm.date)}</span>
+              <span className="sw-event-row__loc">{lvl.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── CME dashboard ────────────────────────────────────────────────────────────────
+
+const CME_SPEED_BUCKETS = [
+  { key: "<500", label: "<500", test: (s: number) => s < 500 },
+  { key: "500-999", label: "500–999", test: (s: number) => s >= 500 && s < 1000 },
+  { key: "1000-1499", label: "1000–1499", test: (s: number) => s >= 1000 && s < 1500 },
+  { key: "1500-1999", label: "1500–1999", test: (s: number) => s >= 1500 && s < 2000 },
+  { key: "2000+", label: "2000+", test: (s: number) => s >= 2000 },
+] as const;
+
+function cmeSpeedColor(speed: number): string {
+  if (speed >= 2000) return "#ef4444";
+  if (speed >= 1000) return "#f97316";
+  if (speed >= 500) return "#facc15";
+  return "#22c55e";
+}
+
+interface CmeRow {
+  id: string;
+  date: string;
+  speed: number | null;
+  type: string;
+}
+
+function CmeDashboard({ events }: { events: SpaceWeatherEventData[] }) {
+  const cmes: CmeRow[] = useMemo(() => events.map((e) => {
+    const d = parseRaw(e.raw_json);
+    const analyses = Array.isArray(d.cmeAnalyses) ? d.cmeAnalyses : [];
+    const first = analyses[0] as Record<string, unknown> | undefined;
+    return {
+      id: e.id,
+      date: e.start_date.slice(0, 10),
+      speed: first && typeof first.speed === "number" ? first.speed : null,
+      type: first && typeof first.type === "string" ? first.type : "",
+    };
+  }), [events]);
+
+  const sorted = useMemo(
+    () => [...cmes].sort((a, b) => (b.speed ?? -1) - (a.speed ?? -1) || b.date.localeCompare(a.date)),
+    [cmes],
+  );
+
+  const speeds = cmes.map((c) => c.speed).filter((s): s is number => s !== null);
+  const maxSpeed = speeds.length ? Math.max(...speeds) : 0;
+  const avgSpeed = speeds.length ? Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length) : 0;
+
+  const bucketCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const b of CME_SPEED_BUCKETS) c[b.key] = 0;
+    for (const s of speeds) {
+      const b = CME_SPEED_BUCKETS.find((bucket) => bucket.test(s));
+      if (b) c[b.key]++;
+    }
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cmes]);
+
+  const maxBucket = Math.max(...Object.values(bucketCounts), 1);
+
+  return (
+    <div className="sw-dashboard">
+      <div className="sw-stats-row">
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{cmes.length}</span>
+          <span className="sw-stat-tile__label">Total CMEs</span>
+        </div>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value" style={{ color: cmeSpeedColor(maxSpeed) }}>{maxSpeed || "—"}</span>
+          <span className="sw-stat-tile__label">Max speed (km/s)</span>
+        </div>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{avgSpeed || "—"}</span>
+          <span className="sw-stat-tile__label">Avg speed (km/s)</span>
+        </div>
+      </div>
+
+      <div className="sw-dist">
+        {CME_SPEED_BUCKETS.map((b) => (
+          <div key={b.key} className="sw-dist__row">
+            <span className="sw-dist__label">{b.label}</span>
+            <div className="sw-dist__track" role="presentation">
+              <div
+                className="sw-dist__fill"
+                style={{ width: `${(bucketCounts[b.key] / maxBucket) * 100}%`, background: "#facc15" }}
+              />
+            </div>
+            <span className="sw-dist__count">{bucketCounts[b.key]}</span>
           </div>
         ))}
-      </dl>
-    </article>
+      </div>
+
+      <div className="sw-event-list" role="list">
+        {sorted.map((cme) => {
+          const color = cmeSpeedColor(cme.speed ?? 0);
+          return (
+            <div key={cme.id} className="sw-event-row" role="listitem" aria-label={`CME event ${cme.id}`}>
+              <span className="sw-event-row__badge" style={{ color, borderColor: color }}>
+                {cme.speed !== null ? `${Math.round(cme.speed)} km/s` : "—"}
+              </span>
+              <span className="sw-event-row__time">{formatDate(cme.date)}</span>
+              {cme.type && <span className="sw-event-row__loc">{cme.type}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── SEP dashboard ────────────────────────────────────────────────────────────────
+
+function instrumentNames(data: Record<string, unknown>): string[] {
+  const instruments = Array.isArray(data.instruments) ? data.instruments : [];
+  return instruments
+    .map((i: unknown) => (i && typeof i === "object" ? (i as Record<string, unknown>).displayName : null))
+    .filter((v): v is string => typeof v === "string");
+}
+
+interface SepRow {
+  id: string;
+  date: string;
+  instruments: string[];
+}
+
+function SepDashboard({ events }: { events: SpaceWeatherEventData[] }) {
+  const seps: SepRow[] = useMemo(() => events.map((e) => {
+    const d = parseRaw(e.raw_json);
+    return { id: e.id, date: e.start_date.slice(0, 10), instruments: instrumentNames(d) };
+  }), [events]);
+
+  const sorted = useMemo(() => [...seps].sort((a, b) => b.date.localeCompare(a.date)), [seps]);
+  const activeDays = new Set(seps.map((s) => s.date)).size;
+
+  const instrumentCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const s of seps) for (const inst of s.instruments) c[inst] = (c[inst] ?? 0) + 1;
+    return c;
+  }, [seps]);
+
+  const topInstruments = useMemo(
+    () => Object.entries(instrumentCounts).sort((a, b) => b[1] - a[1]).slice(0, 5),
+    [instrumentCounts],
+  );
+  const maxInstrCount = Math.max(...topInstruments.map(([, count]) => count), 1);
+
+  return (
+    <div className="sw-dashboard">
+      <div className="sw-stats-row">
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{seps.length}</span>
+          <span className="sw-stat-tile__label">Total events</span>
+        </div>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{Object.keys(instrumentCounts).length}</span>
+          <span className="sw-stat-tile__label">Instruments</span>
+        </div>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{activeDays}</span>
+          <span className="sw-stat-tile__label">Active days</span>
+        </div>
+      </div>
+
+      {topInstruments.length > 0 && (
+        <div className="sw-dist">
+          {topInstruments.map(([name, count]) => (
+            <div key={name} className="sw-dist__row sw-dist__row--wide">
+              <span className="sw-dist__label sw-dist__label--text" title={name}>{name}</span>
+              <div className="sw-dist__track" role="presentation">
+                <div
+                  className="sw-dist__fill"
+                  style={{ width: `${(count / maxInstrCount) * 100}%`, background: "#34d399" }}
+                />
+              </div>
+              <span className="sw-dist__count">{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="sw-event-list" role="list">
+        {sorted.map((sep) => (
+          <div key={sep.id} className="sw-event-row" role="listitem" aria-label={`SEP event ${sep.id}`}>
+            <span className="sw-event-row__time">{formatDate(sep.date)}</span>
+            <span className="sw-event-row__loc">
+              {sep.instruments[0] ?? "—"}
+              {sep.instruments.length > 1 ? ` +${sep.instruments.length - 1}` : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── RBE dashboard ────────────────────────────────────────────────────────────────
+
+interface RbeRow {
+  id: string;
+  date: string;
+  rbId: string;
+}
+
+function RbeDashboard({ events, start, end }: { events: SpaceWeatherEventData[]; start: string; end: string }) {
+  const rbes: RbeRow[] = useMemo(() => events.map((e) => {
+    const d = parseRaw(e.raw_json);
+    return { id: e.id, date: e.start_date.slice(0, 10), rbId: typeof d.rbID === "string" ? d.rbID : "" };
+  }), [events]);
+
+  const sorted = useMemo(() => [...rbes].sort((a, b) => b.date.localeCompare(a.date)), [rbes]);
+  const activeDays = new Set(rbes.map((r) => r.date)).size;
+
+  return (
+    <div className="sw-dashboard">
+      <div className="sw-stats-row">
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{rbes.length}</span>
+          <span className="sw-stat-tile__label">Total events</span>
+        </div>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{activeDays}</span>
+          <span className="sw-stat-tile__label">Active days</span>
+        </div>
+        <div className="sw-stat-tile">
+          <span className="sw-stat-tile__value">{sorted[0] ? formatDate(sorted[0].date) : "—"}</span>
+          <span className="sw-stat-tile__label">Most recent</span>
+        </div>
+      </div>
+
+      <ActivityTimeline events={events} start={start} end={end} color={TAB_COLORS.RBE} />
+
+      <div className="sw-event-list" role="list">
+        {sorted.map((rbe) => (
+          <div key={rbe.id} className="sw-event-row" role="listitem" aria-label={`RBE event ${rbe.id}`}>
+            <span className="sw-event-row__time">{formatDate(rbe.date)}</span>
+            {rbe.rbId && <span className="sw-event-row__loc">{rbe.rbId}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -431,8 +656,6 @@ function TabPanel({ eventType, start, end }: { eventType: Tab; start: string; en
     return <p className="sw-empty">{t("spaceWeather.noEvents")}</p>;
   }
 
-  const color = TAB_COLORS[eventType];
-
   return (
     <>
       <p className="sw-status-badge" aria-label={data.cached ? "cached" : "live"}>
@@ -444,20 +667,11 @@ function TabPanel({ eventType, start, end }: { eventType: Tab; start: string; en
             : `${t("common.live")} · ${t("common.fetchedAt")} ${formatDateTime(data.fetched_at)}`}
       </p>
 
-      {eventType === "FLR" ? (
-        <FlareDashboard events={data.data} />
-      ) : (
-        <>
-          <ActivityTimeline events={data.data} start={start} end={end} color={color} />
-          <div className="sw-card-grid" role="list">
-            {data.data.map((event) => (
-              <div key={event.id} role="listitem">
-                <EventCard event={event} />
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {eventType === "FLR" && <FlareDashboard events={data.data} />}
+      {eventType === "GST" && <StormDashboard events={data.data} />}
+      {eventType === "CME" && <CmeDashboard events={data.data} />}
+      {eventType === "SEP" && <SepDashboard events={data.data} />}
+      {eventType === "RBE" && <RbeDashboard events={data.data} start={start} end={end} />}
     </>
   );
 }

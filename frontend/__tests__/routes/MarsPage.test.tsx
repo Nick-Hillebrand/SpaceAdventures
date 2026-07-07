@@ -206,6 +206,38 @@ describe("MarsPage", () => {
     expect(screen.queryByText(/NASA returned 404/i)).not.toBeInTheDocument();
   });
 
+  it("renders MARS_ARCHIVE_UNAVAILABLE banner with a friendly detail instead of the raw backend message", async () => {
+    server.use(
+      http.get("/api/v1/mars/rovers", () => HttpResponse.json(ROVERS_PAYLOAD)),
+      http.get("/api/v1/mars/photos", () =>
+        HttpResponse.json(
+          { error: { code: "MARS_ARCHIVE_UNAVAILABLE", message: "mars.nasa.gov returned 503" } },
+          { status: 502 },
+        ),
+      ),
+    );
+    renderWithProviders(<MarsPage />);
+    expect(await screen.findByText(/Mars photo archive is currently unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Live data could not be retrieved from NASA's Mars raw-image archive/i)).toBeInTheDocument();
+    expect(screen.queryByText(/mars.nasa.gov returned 503/i)).not.toBeInTheDocument();
+  });
+
+  it("renders MARS_NO_LIVE_SOURCE banner for rovers with no replacement archive", async () => {
+    server.use(
+      http.get("/api/v1/mars/rovers", () => HttpResponse.json(ROVERS_PAYLOAD)),
+      http.get("/api/v1/mars/photos", () =>
+        HttpResponse.json(
+          { error: { code: "MARS_NO_LIVE_SOURCE", message: "No live photo source is available for opportunity" } },
+          { status: 502 },
+        ),
+      ),
+    );
+    renderWithProviders(<MarsPage />);
+    expect(await screen.findByText(/No live photos available for this rover/i)).toBeInTheDocument();
+    expect(screen.getByText(/NASA no longer provides a live photo feed for this rover/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No live photo source is available for opportunity/i)).not.toBeInTheDocument();
+  });
+
   it("renders NO_INTERNET error banner", async () => {
     server.use(
       http.get("/api/v1/mars/rovers", () => HttpResponse.json(ROVERS_PAYLOAD)),

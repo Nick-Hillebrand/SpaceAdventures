@@ -368,7 +368,7 @@ describe("SpaceWeatherPage", () => {
     expect(screen.getByTestId("flare-peak")).toHaveTextContent("—");
   });
 
-  it("GST event card renders time fields from raw_json", async () => {
+  it("GST dashboard shows peak Kp and severity level for a storm", async () => {
     const raw = JSON.stringify({
       gstID: "GST-TEST-1",
       startTime: "2020-01-05T00:00Z",
@@ -400,8 +400,9 @@ describe("SpaceWeatherPage", () => {
     renderWithProviders(<SpaceWeatherPage />);
 
     await user.click(screen.getByRole("tab", { name: /Geomagnetic Storms/i }));
-    const card = await screen.findByLabelText(/GST event/i);
-    expect(within(card).getByText("startTime")).toBeInTheDocument();
+    const row = await screen.findByLabelText(/GST event/i);
+    expect(within(row).getByText(/Kp 5/i)).toBeInTheDocument();
+    expect(within(row).getByText(/Minor/i)).toBeInTheDocument();
   });
 
   it("date range inputs update correctly", async () => {
@@ -537,8 +538,8 @@ describe("SpaceWeatherPage", () => {
     renderWithProviders(<SpaceWeatherPage />);
 
     await user.click(screen.getByRole("tab", { name: /Coronal Mass Ejections/i }));
-    expect(await screen.findByText(/850/)).toBeInTheDocument();
-    expect(screen.getByText(/km\/s/i)).toBeInTheDocument();
+    const row = await screen.findByLabelText(/CME event/i);
+    expect(within(row).getByText(/850 km\/s/i)).toBeInTheDocument();
   });
 
   it("locale switching — German title appears after changing language to de", async () => {

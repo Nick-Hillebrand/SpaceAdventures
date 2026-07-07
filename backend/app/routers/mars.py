@@ -6,15 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas.mars import MarsPhotoData, MarsPhotosResponse, RoverInfo, RoversResponse
 from app.services import mars_service
-from app.services.nasa_client import NasaClient
+from app.services.mars_raw_images_client import MarsRawImagesClient
 
 router = APIRouter(prefix="/api/v1/mars", tags=["mars"])
 
 
-def _get_nasa_client(request: Request) -> NasaClient:
-    client = getattr(request.app.state, "nasa_client", None)
+def _get_mars_client(request: Request) -> MarsRawImagesClient:
+    client = getattr(request.app.state, "mars_raw_images_client", None)
     if client is None:
-        raise HTTPException(status_code=503, detail="NASA client not initialised")
+        raise HTTPException(status_code=503, detail="Mars raw images client not initialised")
     return client
 
 
@@ -36,7 +36,7 @@ async def get_photos(
     camera: str | None = Query(default=None, description="Camera abbreviation"),
     page: int = Query(default=1, ge=1, description="Page number (25 photos per page)"),
     session: AsyncSession = Depends(get_db),
-    client: NasaClient = Depends(_get_nasa_client),
+    client: MarsRawImagesClient = Depends(_get_mars_client),
 ) -> MarsPhotosResponse:
     try:
         result = await mars_service.fetch_photos(
