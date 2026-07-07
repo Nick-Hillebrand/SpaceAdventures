@@ -5,6 +5,11 @@
 This document lists what must change before real (and especially paying) users
 touch this app, in priority order. Findings reference actual code locations.
 
+> **Implementation specs exist:** every item here is specified precisely in
+> `Architecture/15`–`25` and sequenced in `CLAUDE.md` (Milestones P/B/L/G/T).
+> This document remains the *why*; the Architecture specs are the *how* —
+> implement from those.
+
 Legend: 🔴 blocker (do before any public users) · 🟡 required for launch ·
 🟢 required for scale/paid product.
 

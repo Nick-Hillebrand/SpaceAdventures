@@ -1,134 +1,149 @@
-# Space Adventures — Claude Code Manifest
+# Space Adventures — Claude Code Manifest (v2)
 
-Space Adventures is a multilingual web app that fetches, caches, and visualises NASA data and live space events. Frontend: React 18 + TypeScript + Vite. Backend: Python 3.12 + FastAPI + SQLAlchemy async + SQLite.
+Space Adventures is a multilingual web app that fetches, caches, and visualises
+NASA data and live space events, monetised via Pro alerting subscriptions and a
+B2B kiosk/education track. Frontend: React 18 + TypeScript + Vite. Backend:
+Python 3.12 + FastAPI + SQLAlchemy async. Database: **PostgreSQL in production
+and CI, SQLite for local dev**.
 
-All detailed specs live in `Architecture/`. Read only the files listed for each step — do not load the entire Architecture folder into context at once.
+All detailed specs live in `Architecture/`. Read only the files listed for the
+step you are implementing — do not load the entire folder into context.
+Business context (why features exist, tier gating): `BusinessPlan/`,
+`FeatureIdeas/feature-roadmap.md`, `ProductionReadiness/production-readiness.md`.
+
+**v1 (Steps 1–15) is complete** — the app described in `00`–`14` is built, with
+all tests green. v2 hardens it for production and implements the feature
+roadmap. The v1 specs remain authoritative for everything they cover unless a
+v2 spec explicitly supersedes them (each supersession is called out in the v2
+spec).
 
 ---
 
 ## Non-Negotiable Rules (always apply, every step)
 
-1. **Tests ship with the feature.** Every step ends with ≥ 80 % branch coverage and all tests green. Never defer tests. See `Architecture/11-testing.md`.
-2. **Security rules are absolute.** Read `Architecture/10-security.md` before writing any auth, subscription, or notification code. Never skip a security constraint.
-3. **No hardcoded English strings in JSX.** Every user-visible string uses an i18n key via `t()`. See `Architecture/09-frontend-shared.md`.
-4. **All dates/times in the UI use `src/lib/dateTime.ts`.** Never call `.toLocaleString()` or hardcode a timezone. See `Architecture/09-frontend-shared.md`.
-5. **Read `Architecture/11-testing.md` §Pitfalls (P1–P35) before implementing each feature area.** These are known failure modes — do not reproduce them.
-6. **The backend is always behind Caddy in production.** Never expose Uvicorn directly. See `Architecture/12-deployment.md`.
-7. **`--workers 1` always.** APScheduler requires a single Uvicorn process. See `Architecture/06-launches.md`.
+1. **Tests ship with the feature — per-module gate.** Every step ends with
+   **≥ 80 % branch coverage in every module it touches** (not just globally)
+   and all tests green. Enforcement:
+   - Backend: `pytest --cov=app --cov-branch --cov-report=json` +
+     `python scripts/check_module_coverage.py` (fails if any `app/**/*.py`
+     file with ≥ 1 branch is below 80 %; zero-branch files pass). Add this
+     script in Step P1 and wire it into CI.
+   - Frontend: vitest `coverage.thresholds: { perFile: true, branches: 80 }`.
+2. **Security rules are absolute.** `Architecture/10-security.md` before any
+   auth/subscription/notification code; **`Architecture/25-security-testing.md`
+   before every step** — every new route lands in the route-authorization
+   matrix in the same PR, every new external data source lands in the
+   injection fixture matrix. Security tests are part of definition-of-done.
+3. **No hardcoded English strings in JSX.** Every user-visible string uses an
+   i18n key via `t()`, added to all six locales. See `09-frontend-shared.md`.
+4. **All dates/times in the UI use `src/lib/dateTime.ts`.** Never
+   `.toLocaleString()`, never a hardcoded timezone. (Backend notification
+   templates may format with the user's stored `location_tz` — that is the
+   only exception, see `20-…`.)
+5. **Read `11-testing.md` §Pitfalls (P1–P37) before each feature area.**
+   P4/P9/P10 are superseded by DB-level locking once Step P3 lands (see
+   `17-worker-and-scheduling.md` P3.3).
+6. **The backend is always behind Caddy in production.** Never expose Uvicorn.
+   See `12-deployment.md` (+ deltas in `17-…` and `23-…`).
+7. **All background/scheduled work runs in the worker process** (`app/worker.py`),
+   never in the web tier. Every job takes a Postgres advisory lock. Web
+   processes are stateless: no process-local locks, no mutable module/app
+   state, no in-process schedulers (dev-only exception: `SCHEDULER_IN_APP=1`).
+   *(Replaces v1 rule 7 "`--workers 1` always" from Step P3 onward; until P3
+   is complete, v1 rule 7 still holds.)*
+8. **CPU-bound computation (SGP4, transits, grid scans) runs only in worker
+   jobs** — request handlers read precomputed rows. See `20-…`/`21-…`.
+9. **Upstream data is untrusted input.** Everything from LL2, NASA, N2YO,
+   NOAA, CelesTrak, Horizons, Open-Meteo is sanitised/size-capped/schema-
+   validated before storage, and escaped per output context (HTML, ICS, meta,
+   JSON-LD, SMS, social). See `10-…` + `25-…` §2.3.
+10. **Migrations are explicit deploy steps** (`alembic upgrade head` via
+    `compose run`), never implicit at startup. CI runs the suite on SQLite
+    **and** Postgres; concurrency tests are `postgres_only`.
+11. **Pro gating happens server-side** (`users.is_pro` dependency), never by
+    hiding UI. Free tier must remain genuinely useful (business plan §4).
 
 ---
 
 ## Implementation Order
 
-Implement in this exact sequence. Do not start a step until the previous step's tests pass and coverage is ≥ 80 %.
+Do not start a step until the previous step's tests pass and per-module
+coverage is met. Steps within a milestone are ordered; milestones are strictly
+sequential (P → B → L → G → T).
 
-### Step 1 — Scaffold & test harness
-**Read:** `Architecture/00-stack-and-structure.md`, `Architecture/11-testing.md`
+### Milestone P — Production readiness (blocks everything; no public users before P4)
 
-- Initialise Vite + React + TypeScript frontend
-- Initialise FastAPI backend with a hello-world route
-- Add `docker-compose.yml` (dev only)
-- Configure pytest: `--cov-branch --cov-fail-under=80`
-- Configure Vitest: `coverage.branches: 80`, `build.sourcemap: false`
-- Add MSW: run `npx msw init public/`, commit `public/mockServiceWorker.js`, write `src/msw/setup.ts`
-- Add `conftest.py` with async DB session fixture and `httpx.AsyncClient` test client
-- Verify both apps start and both test runners execute
+**Step P1 — Hardening.**
+Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`
+- Remove settings key-mutation endpoints; secrets enforcement; PyJWT migration;
+  refresh-token → httpOnly cookie; CORS tightening; IP rate limiting; DeepL
+  translation swap; List-Unsubscribe; consent recording; account
+  deletion/export. Add `scripts/check_module_coverage.py` + `tests/security/`
+  skeleton with the route-authorization matrix.
 
-### Step 2 — Database + Migrations
-**Read:** `Architecture/01-database-schemas.md`, `Architecture/11-testing.md` §P23–P25
+**Step P2 — PostgreSQL.**
+Read: `16-postgres-migration.md`, `01-database-schemas.md`
+- Engine factory (fixes ignored `DATABASE_URL`), dialect audit, squashed
+  initial migration, CI on Postgres, pool config, backup runbook.
 
-- Implement all SQLAlchemy ORM models
-- Add Alembic; run first migration (use sync URL — see P5)
-- Add SQLite foreign key pragma (P25)
-- Verify DB creates on startup
-- Write shared DB fixtures used by all subsequent backend tests
+**Step P3 — Worker & scale.**
+Read: `17-worker-and-scheduling.md`, `12-deployment.md`
+- `app/worker.py`, job registry, advisory locks, delete process-local locks,
+  multi-worker web tier, prod compose (caddy/backend/worker/db), heartbeat +
+  health, structlog + Sentry. CI/CD pipeline per `16-…` P2.5 + `25-…` §4.
+  After this step, delete v1 rule 7 references from docs.
 
-### Step 3 — NASA Client & config
-**Read:** `Architecture/03-caching-strategy.md`, `Architecture/02-api-routes.md`, `Architecture/10-security.md`, `Architecture/11-testing.md` §P1, P6
+**Step P4 — Slip-history recording.**
+Read: `18-slip-history-and-reliability.md` (Stage 1 only)
+- `launch_net_changes` table + append-only writes in sync. Ships with first
+  prod deploy — the dataset's value is elapsed time.
 
-- Implement `config.py` with pydantic-settings and startup validation
-- Implement `nasa_client.py`: shared `httpx.AsyncClient` (lifespan-scoped, P6), connectivity probe, structured error codes
-- Write tests for all error branches using `respx` (P27)
+### Milestone B — Beta (50–100 users; the test is notification correctness)
 
-### Step 4 — APOD feature
-**Read:** `Architecture/04-nasa-apis.md` §APOD, `Architecture/02-api-routes.md`, `Architecture/03-caching-strategy.md`, `Architecture/09-frontend-shared.md`, `Architecture/11-testing.md`
+**Step B1 — Outbox hardening + Web Push.**
+Read: `19-notification-channels-v2.md` (B1 sections), `08-subscriptions.md`
+**Step B2 — SEO launch pages + sitemap.**
+Read: `23-seo-widgets-and-growth.md` (B2), `06-launches.md`
+**Step B3 — Live spacecraft in simulator.**
+Read: `22-ephemeris-and-mission-replay.md` (foundation + B3)
 
-- Backend: `apod_service.py`, `routers/apod.py`, `schemas/apod.py`
-- Frontend: `useApod` hook, `ApodPage.tsx` with date picker, hero display, cached/live badge
-- Tests: `test_apod.py` (cache hit, miss, today re-fetch, stale fallback, all error codes), `ApodPage.test.tsx` (happy, loading, error, empty)
+### Milestone L — Public launch (time to a major launch event)
 
-### Step 5 — NEO feature
-**Read:** `Architecture/04-nasa-apis.md` §NEO, same shared files as Step 4
+**Step L1 — Location + ISS visual pass alerts (Pro flagship).**
+Read: `20-location-and-sky-alerts.md` (foundation + L1), `05-iss-tracker.md`
+**Step L2 — iCal feeds.**
+Read: `19-notification-channels-v2.md` (L2)
+**Step L3 — Embeddable widgets.**
+Read: `23-seo-widgets-and-growth.md` (L3)
+- Pre-launch gates: k6 load test (`16-…` P2.7), ZAP baseline + ASVS L1 pass
+  (`25-…` §6), deployed-headers smoke test green, backup restore rehearsed.
 
-- Backend: `neo_service.py`, router, schema
-- Frontend: `NeoPage.tsx` with date-range picker, sortable table, detail drawer
-- Tests: same pattern as Step 4
+### Milestone G — Growth (months 2–6; order may follow beta feedback)
 
-### Step 6 — Space Weather feature
-**Read:** `Architecture/04-nasa-apis.md` §Space Weather, same shared files
+**Step G1 — Aurora nowcasting.** Read: `20-…` (G1)
+**Step G2 — Starlink-train alerts.** Read: `21-tle-pipeline.md` (foundation + G2)
+**Step G3 — Mission replay mode (Artemis-timed).** Read: `22-…` (G3)
+**Step G4 — Reliability scores + slip-risk (needs ≥ 3 months of P4 data).**
+Read: `18-…` (Stage 2)
+**Step G5 — Daily digest.** Read: `19-…` (G5)
+**Step G6 — Social bot.** Read: `23-…` (G6)
+**Step G7 — Kiosk pilot slice.** Read: `24-kiosk-mode.md` (pilot only — stop at
+the marked line until 5 institutions have seen it)
 
-- Backend: `space_weather_service.py`, router, schema (five DONKI event types)
-- Frontend: `SpaceWeatherPage.tsx` with tabbed sub-sections
-- Tests: cover all five event types
+### Milestone T — After traction
 
-### Step 7 — Mars feature
-**Read:** `Architecture/04-nasa-apis.md` §Mars, same shared files
+**Step T1 — ISS transit finder.** Read: `21-…` (T1)
+Later, spec-before-build: reentry alerts, AMSAT, retention pack
+(streaks/follows), community features, education tier, post-pilot kiosk —
+per `FeatureIdeas/feature-roadmap.md` sequencing.
 
-- Backend: `mars_service.py`, router, schema
-- Frontend: `MarsPage.tsx` with rover selector, sol/date picker, camera filter, paginated photo grid
-- Tests: rover selector, camera filter, pagination branches
+---
 
-### Step 8 — ISS feature
-**Read:** `Architecture/05-iss-tracker.md`, `Architecture/01-database-schemas.md` §N2YO, `Architecture/02-api-routes.md`, `Architecture/10-security.md`, `Architecture/11-testing.md` §P4, P11–P13, P174
+## Scale & capacity contract
 
-- Backend: `n2yo_quota` model, quota-guard with asyncio.Lock (P4), `n2yo_client.py` (P12), `iss_service.py`, ISS router
-- Frontend: Globe.gl `IssPage.tsx` (P13, P17), position interpolation, data panel, quota badge
-- Tests: `test_n2yo_quota.py` (concurrent boundary, window reset), `test_iss.py`, `IssPage.test.tsx` (mock globe.gl entirely — P28)
-
-### Step 9 — Launches feature
-**Read:** `Architecture/06-launches.md`, `Architecture/01-database-schemas.md` §Launches, `Architecture/02-api-routes.md`, `Architecture/09-frontend-shared.md`, `Architecture/11-testing.md` §P3, P14–P16, P18
-
-- Backend: `ll2_client.py` (P14–P16), `launches` model, APScheduler sync in lifespan (P3), change detection, launches router
-- Frontend: `LaunchesPage.tsx` — grid view, calendar toggle (P18), countdown, filter bar, livestream button
-- Tests: `test_launches.py` (upsert, change detection, NET slip threshold, Gone marking), `LaunchesPage.test.tsx`
-
-### Step 10 — Auth feature
-**Read:** `Architecture/07-auth.md`, `Architecture/01-database-schemas.md` §Auth, `Architecture/02-api-routes.md`, `Architecture/10-security.md`, `Architecture/11-testing.md` §P7–P10
-
-- Backend: `users`, `otps`, `refresh_tokens`, `login_attempts` models; `auth_service.py`; auth router
-- Frontend: `LoginPage.tsx`, `RegisterPage.tsx` with inline OTP step, Navbar user widget
-- Tests: all branches in `Architecture/11-testing.md` §Auth tests
-
-### Step 11 — Subscriptions & Notifications
-**Read:** `Architecture/08-subscriptions.md`, `Architecture/01-database-schemas.md` §Subscriptions, `Architecture/02-api-routes.md`, `Architecture/10-security.md`, `Architecture/11-testing.md` §P2, P32, P33
-
-- Backend: `subscription_service.py`, `notification_service.py` (P32, P33), change-detection wiring in `launches_service.py`
-- Frontend: `<SubscribeModal>`, bell icons on launch cards, `AccountPage.tsx`, `/confirm-unsubscribe` route
-- Tests: `test_subscriptions.py`, `test_notifications.py` (mock SMTP + Twilio), `SubscribeModal.test.tsx`, `AccountPage.test.tsx`
-
-### Step 12 — i18n
-**Read:** `Architecture/09-frontend-shared.md` §i18n, `Architecture/11-testing.md` §P19
-
-- Install i18next; set `load: 'languageOnly'` (P19)
-- Create all six locale files (`en`, `de`, `fr`, `ja`, `ru`, `es`) with all keys
-- Wrap every JSX string in `t()`
-- Add locale-switching assertion to each existing page test
-
-### Step 13 — Settings Page
-**Read:** `Architecture/09-frontend-shared.md` §Settings, `Architecture/02-api-routes.md`, `Architecture/10-security.md`
-
-- `SettingsPage.tsx`: language switcher, NASA key input, N2YO key input
-- Backend: `GET /api/v1/settings`, `POST /api/v1/settings/nasa-api-key`, `POST /api/v1/settings/n2yo-api-key`
-- Tests: settings endpoints, frontend form
-
-### Step 14 — Polish
-**Read:** `Architecture/09-frontend-shared.md` §Error Handling
-
-- Loading skeletons, error boundaries, empty-state illustrations
-- Responsive layout, dark mode (Tailwind `dark:` classes)
-- Add/update tests for skeleton and empty-state branches
-
-### Step 15 — Final coverage audit
-- Run `pytest --cov-report=html` — fix any module below 80 % branch coverage
-- Run `vitest run --coverage` — fix any module below 80 % branch coverage
-- All tests must be green before done
+Design target: 100k MAU with 5× headroom, 2 000 concurrent peak, p95 < 300 ms
+on cached reads, 50k-notification fan-out in 15 min — on one 8 vCPU/16 GB host.
+The load-test suite in `backend/loadtest/` is the executable form of this
+contract (`16-…` P2.7). Do not add Redis, queues, or extra services
+preemptively; the DB-backed cache + outbox + worker is the architecture until
+measurements say otherwise.

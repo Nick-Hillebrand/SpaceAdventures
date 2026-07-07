@@ -14,6 +14,11 @@ freemium model (see `BusinessPlan/business-plan-and-strategy.md` §4).
 brand/education engine, and the slip-history dataset is the thing no competitor
 can catch up on. A feature earns a slot here by feeding one of those three.
 
+> **Implementation specs exist** for everything through the "After traction"
+> phase: `Architecture/15`–`25`, sequenced as steps P1–T1 in `CLAUDE.md`.
+> Spec mapping: Tier 0 + #7/#8 → `18`; #1/#2/#9/#12 → `19`; #3/#6 → `20`;
+> #4/#5 → `21`; #10/#11 → `22`; #16–#24 growth surfaces → `23`; #28 → `24`.
+
 ---
 
 ## Free API inventory (what powers what)
