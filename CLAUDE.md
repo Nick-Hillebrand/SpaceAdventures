@@ -62,6 +62,12 @@ spec).
     **and** Postgres; concurrency tests are `postgres_only`.
 11. **Pro gating happens server-side** (`users.is_pro` dependency), never by
     hiding UI. Free tier must remain genuinely useful (business plan §4).
+12. **Performance budgets are CI gates** — `Architecture/26-performance.md`.
+    Every request handler: ≤ 5 SQL statements, row-count-independent (the N+1
+    guard test); every list endpoint paginated and registered in
+    `tests/perf/`; initial JS bundle ≤ 250 KB gzipped with three.js
+    lazy-only; Lighthouse budgets (LCP ≤ 2.5 s, CLS ≤ 0.1) on the audited
+    pages. A budget breach is a failing test, not a follow-up.
 
 ---
 
@@ -74,12 +80,14 @@ sequential (P → B → L → G → T).
 ### Milestone P — Production readiness (blocks everything; no public users before P4)
 
 **Step P1 — Hardening.**
-Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`
+Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
+`26-performance.md` §1.2, §4
 - Remove settings key-mutation endpoints; secrets enforcement; PyJWT migration;
   refresh-token → httpOnly cookie; CORS tightening; IP rate limiting; DeepL
   translation swap; List-Unsubscribe; consent recording; account
-  deletion/export. Add `scripts/check_module_coverage.py` + `tests/security/`
-  skeleton with the route-authorization matrix.
+  deletion/export. Add `scripts/check_module_coverage.py`, `tests/security/`
+  skeleton with the route-authorization matrix, and `tests/perf/` skeleton
+  with the query-count/N+1 guard over existing list endpoints.
 
 **Step P2 — PostgreSQL.**
 Read: `16-postgres-migration.md`, `01-database-schemas.md`
@@ -87,11 +95,13 @@ Read: `16-postgres-migration.md`, `01-database-schemas.md`
   initial migration, CI on Postgres, pool config, backup runbook.
 
 **Step P3 — Worker & scale.**
-Read: `17-worker-and-scheduling.md`, `12-deployment.md`
+Read: `17-worker-and-scheduling.md`, `12-deployment.md`, `26-performance.md`
 - `app/worker.py`, job registry, advisory locks, delete process-local locks,
-  multi-worker web tier, prod compose (caddy/backend/worker/db), heartbeat +
-  health, structlog + Sentry. CI/CD pipeline per `16-…` P2.5 + `25-…` §4.
-  After this step, delete v1 rule 7 references from docs.
+  multi-worker web tier, prod compose (caddy/backend/worker/db + `encode zstd
+  gzip`), heartbeat + health, structlog + Sentry (incl. job-duration fields).
+  CI/CD pipeline per `16-…` P2.5 + `25-…` §4 + `26-…` §4 (bundle-budget
+  script, Lighthouse CI, route-chunk splitting with three.js lazy-only, lazy
+  locale loading). After this step, delete v1 rule 7 references from docs.
 
 **Step P4 — Slip-history recording.**
 Read: `18-slip-history-and-reliability.md` (Stage 1 only)
@@ -117,6 +127,11 @@ Read: `19-notification-channels-v2.md` (L2)
 Read: `23-seo-widgets-and-growth.md` (L3)
 - Pre-launch gates: k6 load test (`16-…` P2.7), ZAP baseline + ASVS L1 pass
   (`25-…` §6), deployed-headers smoke test green, backup restore rehearsed.
+
+All B/L/G/T steps that add endpoints, pages, jobs, or scenes inherit the
+matching budget tables from `26-performance.md` (query counts + pagination for
+endpoints, chunk budgets + vitals for pages, duration budgets for jobs, the 3D
+rules for scenes) — read the relevant section with each step.
 
 ### Milestone G — Growth (months 2–6; order may follow beta feedback)
 
