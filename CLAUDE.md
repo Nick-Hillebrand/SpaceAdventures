@@ -77,7 +77,29 @@ Do not start a step until the previous step's tests pass and per-module
 coverage is met. Steps within a milestone are ordered; milestones are strictly
 sequential (P → B → L → G → T).
 
-### Milestone P — Production readiness (blocks everything; no public users before P4)
+### Milestone S — Mission simulations ⭐ current focus (pulled forward 2026-07-09)
+
+Frontend-only + offline dev tooling — no new routes, DB tables, or worker
+jobs, so it does not collide with Milestone P hardening. **Milestone P still
+blocks public users** (no public users before P4); S ships to the existing
+private deployment only.
+
+**Step S1 — Mission replay engine (static-content scope).**
+Read: `22-ephemeris-and-mission-replay.md` (G3 section only),
+`26-performance.md` (3D/scene + page-chunk rules)
+- Replay route, scrubber, milestone cards, mission JSON from static files in
+  `frontend/public/missions/`. **No Horizons cache/API/DB** — that backend
+  foundation stays in B3. Apollo 11 trajectory from curated keyframes
+  (`build_mission.py --from-yaml`, see `27-…`); Pathfinder via a one-off
+  offline Horizons pull in the dev script (courtesy rules apply to the
+  script; nothing runtime).
+
+**Step S2 — 3D vignette layer.**
+Read: `27-mission-simulations-3d.md`, `13-mars-rover-3d-model.md`
+- Content order: Apollo 11 first (lowest asset risk), then
+  Pathfinder/Sojourner (validates the VRML→glb conversion pipeline).
+
+### Milestone P — Production readiness (blocks public users; resume here after S)
 
 **Step P1 — Hardening.**
 Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
@@ -137,7 +159,9 @@ rules for scenes) — read the relevant section with each step.
 
 **Step G1 — Aurora nowcasting.** Read: `20-…` (G1)
 **Step G2 — Starlink-train alerts.** Read: `21-tle-pipeline.md` (foundation + G2)
-**Step G3 — Mission replay mode (Artemis-timed).** Read: `22-…` (G3)
+**Step G3 — Mission replay: Artemis content + Horizons-backed generator
+(engine already built in S1/S2; this is content + `build_mission.py`
+Horizons path, Artemis-timed).** Read: `22-…` (G3)
 **Step G4 — Reliability scores + slip-risk (needs ≥ 3 months of P4 data).**
 Read: `18-…` (Stage 2)
 **Step G5 — Daily digest.** Read: `19-…` (G5)

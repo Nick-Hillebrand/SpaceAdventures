@@ -1,6 +1,6 @@
 # Space Adventures — Feature Roadmap & Ideas
 
-*Last updated: 2026-07-06 (v2 — restructured around moat-building; see changelog at bottom)*
+*Last updated: 2026-07-09 (v2.2 — mission simulations pulled forward as the next feature; see changelog at bottom)*
 
 Features that would enrich the business and make the app more desirable to the
 space community. Organized by leverage: **data-moat foundations first** (they
@@ -17,7 +17,8 @@ can catch up on. A feature earns a slot here by feeding one of those three.
 > **Implementation specs exist** for everything through the "After traction"
 > phase: `Architecture/15`–`25`, sequenced as steps P1–T1 in `CLAUDE.md`.
 > Spec mapping: Tier 0 + #7/#8 → `18`; #1/#2/#9/#12 → `19`; #3/#6 → `20`;
-> #4/#5 → `21`; #10/#11 → `22`; #16–#24 growth surfaces → `23`; #28 → `24`.
+> #4/#5 → `21`; #10/#11 → `22` (+ `27` for the #11 3D simulation layer);
+> #16–#24 growth surfaces → `23`; #28 → `24`.
 
 ---
 
@@ -142,6 +143,18 @@ classroom-ready (→ #26). Timed right, an Artemis replay is a press moment.
   landing-site close-ups.
 - **Tier:** current + historical replays Free (growth); replay embeds
   white-label via B2B track.
+
+**v2.1 — mission simulations layer (3D models):** replays graduate from a
+marker on a trajectory to full simulations — at key milestones (landing,
+surface ops, splashdown) the replay transitions into a close-up scene with the
+*real spacecraft 3D model*. The asset situation is unusually good: NASA 3D
+models are public domain (commercial use fine, no-endorsement caveat) and the
+Smithsonian's Apollo 11 *Columbia* scan is explicit **CC0** — Apollo 11 is the
+best-licensed spacecraft in history. Start with **Apollo 11** (first crewed
+Moon landing) and **Mars Pathfinder/Sojourner** (first rover on Mars); the
+mission format makes every further mission data + assets only, so the
+long-term shape is a **mission library** of every meaningful mission — the
+education-tier (#29) and kiosk (#28) content engine. Spec: `Architecture/27`.
 
 ### 12. Personalized "Today in Space" daily digest
 One opt-in email/push per day: APOD, tonight's ISS pass, launches in 48 h, NEO
@@ -308,12 +321,37 @@ but adds nothing alone.
 
 | Phase (aligned with rollout plan) | Features |
 |---|---|
+| **Next up (pulled forward 2026-07-09)** | **#11 mission replay engine + 3D simulation layer** (Steps S1/S2, specs `22` G3 + `27`) — Apollo 11, then Pathfinder/Sojourner. Frontend-only, so it precedes production hardening without colliding with it |
 | **Phase 0 (with production hardening)** | **Tier 0 slip-history recording** — every month of delay is lost data |
 | Beta | #1 slip alerts polished, #9 web push, #22 launch pages, #10 live spacecraft |
 | Public launch | #3 ISS pass alerts, #2 iCal, #21 widgets, #7 reliability scores (press angle) |
 | Months 2–6 | #6 aurora nowcast, #4 Starlink trains, #11 mission replay (time to Artemis window), #12 digest, #20 social bot, #28 kiosk pilot (5 institutions) |
 | After traction | #8 slip-risk scores, #5 transit finder, #13–15 retention pack, #24 interactives, #29 education tier |
 | Only with demand | #25–27 community, #30–31, Tier 5 |
+
+---
+
+## Changelog v2.1 → v2.2 (2026-07-09)
+
+- **Mission simulations pulled forward to "next up"** (owner decision):
+  replay engine + 3D layer are now Steps S1/S2, implemented before
+  Milestone P. Feasible because the scope is frontend-only + offline dev
+  tooling (static mission JSON, committed assets) — no new routes, DB
+  tables, or worker jobs, so nothing collides with production hardening;
+  P still gates public users. The Horizons cache/API foundation stays in
+  B3; Step G3 shrinks to Artemis content + the Horizons generator path.
+  Supersedes v2.1's "after traction as Step T2" placement.
+
+---
+
+## Changelog v2 → v2.1 (2026-07-09)
+
+- **#11 mission replay gained a 3D simulation layer** (spec `Architecture/27`):
+  close-up milestone scenes with real spacecraft glTF models, starting with
+  Apollo 11 and Mars Pathfinder/Sojourner. Motivated by the licensing find
+  that all required models are free for commercial use (NASA public domain +
+  Smithsonian CC0) — the asset moat concern that kept this out of v2 is gone.
+- Sequenced "after traction" as Step T2 (requires G3's replay engine first).
 
 ---
 

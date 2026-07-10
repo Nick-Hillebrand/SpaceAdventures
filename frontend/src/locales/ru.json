@@ -191,11 +191,9 @@
     "language": "Язык",
     "apiKey": "API-ключ NASA",
     "n2yoApiKey": "API-ключ N2YO",
-    "save": "Сохранить",
-    "saved": "Сохранено",
     "keyConfigured": "Ключ настроен",
     "keyNotConfigured": "Не настроено",
-    "saveError": "Ошибка сохранения"
+    "serverManaged": "API-ключи настраиваются администратором на сервере."
   },
   "common": {
     "loading": "Загрузка…",

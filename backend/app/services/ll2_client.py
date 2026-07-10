@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -94,6 +95,26 @@ class LL2Client:
                 )
 
             launches.extend(data.get("results") or [])
-            url = data.get("next")
+            url = self._validate_next_url(data.get("next"))
 
         return launches
+
+    def _validate_next_url(self, next_url: Any) -> str | None:
+        """Only follow pagination URLs on the configured LL2 host.
+
+        The 'next' field is untrusted response data; following an arbitrary
+        URL would let a compromised upstream redirect this client (and its
+        Authorization header) to any host.
+        """
+        if next_url is None:
+            return None
+        if not isinstance(next_url, str):
+            raise LL2ClientError("LL2_INVALID_NEXT_URL", "LL2 'next' is not a string")
+        base = urlparse(self._settings.ll2_base_url)
+        parsed = urlparse(next_url)
+        if parsed.scheme != base.scheme or parsed.netloc != base.netloc:
+            raise LL2ClientError(
+                "LL2_INVALID_NEXT_URL",
+                "LL2 'next' URL points off the configured LL2 host",
+            )
+        return next_url

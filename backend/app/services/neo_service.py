@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Neo
 from app.services.nasa_client import NasaClient, NasaClientError
+from app.services.url_utils import sanitise_url
 
 NEO_PATH = "/neo/rest/v1/feed"
 MAX_RANGE_DAYS = 7
@@ -76,7 +77,7 @@ def _neo_from_object(obj: dict, feed_date: str) -> Neo:
         relative_velocity_kph=_coerce_float(velocity_map.get("kilometers_per_hour")),
         miss_distance_km=_coerce_float(miss_map.get("kilometers")),
         orbiting_body=approach.get("orbiting_body"),
-        nasa_jpl_url=obj.get("nasa_jpl_url"),
+        nasa_jpl_url=sanitise_url(obj.get("nasa_jpl_url")),
         fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 

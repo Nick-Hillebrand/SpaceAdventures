@@ -191,11 +191,9 @@
     "language": "Language",
     "apiKey": "NASA API Key",
     "n2yoApiKey": "N2YO API Key",
-    "save": "Save",
-    "saved": "Saved",
     "keyConfigured": "Key configured",
     "keyNotConfigured": "Not configured",
-    "saveError": "Failed to save"
+    "serverManaged": "API keys are configured on the server by an administrator."
   },
   "common": {
     "loading": "Loading…",

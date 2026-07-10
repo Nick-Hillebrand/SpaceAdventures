@@ -6,6 +6,18 @@ simulator: `frontend/src/solar/orbits.ts` already solves Kepler's equation from
 J2000 elements; this spec adds real ephemerides for objects Kepler elements
 can't represent (powered flight, spacecraft).
 
+> **Sequencing update (2026-07-09):** the G3 replay *engine* is pulled forward
+> as **Step S1** (before Milestone P) in static-content scope: everything in
+> the G3 section below **except** any dependency on the Horizons cache/API —
+> the foundation section of this doc stays in B3 untouched. In S1,
+> `build_mission.py` is the only Horizons consumer (offline, dev-run, courtesy
+> rules apply) and gains a `--from-yaml` keyframe path for pre-Horizons
+> missions (Apollo 11) — see `27-mission-simulations-3d.md`. Also deferred
+> out of S1: the OG-meta/prerender line below (needs `23-…`, lands with B2)
+> — the plain embed route itself ships in S1. Step G3 then shrinks to
+> Artemis content + the Horizons-backed generator path + the deferred OG
+> meta. The 3D vignette layer on top is Step S2 (`27-…`).
+
 ---
 
 ## Foundation — JPL Horizons cache

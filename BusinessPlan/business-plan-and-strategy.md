@@ -1,6 +1,8 @@
 # Space Adventures — Business Plan & Strategy
 
-*Last updated: 2026-07-06*
+*Last updated: 2026-07-09 — mission-simulation library folded into the
+education engine (§3.4, §4, §7); content-treadmill risk and cadence rule
+added (§9); reflects the S1/S2 pull-forward in `CLAUDE.md` / roadmap v2.2.*
 
 ---
 
@@ -100,12 +102,39 @@ users' daily tools — the user's own history lives in the app. Sighting reports
 double as validation data for prediction accuracy (community-generated data
 moat, the only content moat available to an indie product).
 
-### 3.4 Education & B2B distribution
+### 3.4 Education & B2B distribution — the mission-simulation library
 
 The simulator (real Keplerian mechanics already implemented) becomes the
-brand/education engine: live spacecraft positions and **mission replay mode**
-(real JPL Horizons trajectories — true, not animated; Artemis-timed press
-moments). It feeds two B2B surfaces where institutions, not consumers, pay:
+brand/education engine: live spacecraft positions, **mission replay mode**
+(real trajectories — true, not animated; Artemis-timed press moments), and on
+top of it the **mission-simulation library**: replays with real spacecraft 3D
+models at close-up phases (landing, surface ops) plus structured technical
+facts, starting with Apollo 11 and Mars Pathfinder/Sojourner (specs
+`Architecture/22` + `27`).
+
+Why this compounds like a moat asset:
+
+- **The inputs are free; the curation is the moat.** NASA 3D models are
+  public domain and the Smithsonian's Apollo 11 scans are CC0 — but a
+  fast-follower still has to redo asset conversion, trajectory research
+  (Apollo-era missions require hand-curated as-flown data), milestone
+  editorial, and six-locale translation, mission by mission.
+- **Marginal cost falls to data + assets** once the engine ships — no code
+  per new mission — and every mission added makes both B2B products below
+  more valuable simultaneously.
+- **Evergreen multilingual SEO**: "Apollo 11 simulation" in German or
+  Japanese has effectively no competition, and mission pages don't expire
+  the way launch pages do.
+
+**Cadence rule (guards against the treadmill — see §9):** after the first
+two missions, a new mission is built only on a trigger: (a) a press window
+(Artemis, Starship milestones), (b) a paying kiosk/education customer asks
+for it, or (c) assets + trajectory are nearly free to acquire. Technical
+information ships as **structured fact panels** (mass, delta-v, durations,
+crew — cheap to translate, doesn't rot), never long-form prose. "All
+meaningful missions" is the eventual shape, not an upfront commitment.
+
+It feeds two B2B surfaces where institutions, not consumers, pay:
 **museum/planetarium kiosk mode** and a **classroom education tier** in six
 languages. B2B contracts renew annually and don't churn like consumers —
 distribution embedded in institutions is itself a moat.
@@ -143,13 +172,20 @@ space app" experience that is the actual differentiator. Do not add them.
 ### B2B revenue streams (second engine — see roadmap "B2B Track")
 
 1. **Museum / planetarium / science-center kiosk mode** — full-screen live
-   displays (ISS globe, launch countdowns, mission replays), multilingual and
-   auto-updating. Institutions pay ~$250–500/screen/year for exactly this and
-   the product is ~90 % built. **Validate with 5 pilot institutions before
-   building beyond a full-screen toggle.** Annual contracts; near-zero churn.
-2. **Education tier** — classroom mode over the simulator + mission replays +
-   quiz layers, in six languages (Spanish/French classroom markets are
-   underserved). Teacher plans first; school-board pricing later.
+   displays (ISS globe, launch countdowns, **mission simulations**),
+   multilingual and auto-updating. Institutions pay ~$250–500/screen/year for
+   exactly this and the product is ~90 % built. The mission-simulation
+   library (§3.4) is the strongest asset in the pilot pitch — an auto-cycling
+   Apollo 11 landing in six languages is a product a science center
+   understands instantly, in a way a countdown widget is not. **Validate with
+   5 pilot institutions before building beyond a full-screen toggle.** Annual
+   contracts; near-zero churn.
+2. **Education tier** — classroom mode over the simulator + guided mission
+   simulations with structured technical fact panels + quiz layers, in six
+   languages (Spanish/French classroom markets are underserved). Teacher
+   plans first; school-board pricing later. Mission demand from teachers and
+   pilot institutions is trigger (b) in the §3.4 cadence rule — the library
+   grows toward what classrooms ask for, not toward completionism.
 3. **Media & data licensing** — translated event feeds, embeddable mission
    visualizations for non-English outlets during big missions, reliability-score
    datasets. Inbound-driven: publish the data, let media come.
@@ -233,7 +269,11 @@ annual plans). The v2 roadmap (moat features + B2B track) raises both conversion
 assumptions (more Pro-only alert types: aurora nowcast, Starlink trains, transit
 finder, slip-risk scores) and adds an institutional revenue line. **B2B figures
 are speculative until the 5-institution kiosk pilot validates pricing** — treat
-them as the swing variable between scenarios.
+them as the swing variable between scenarios. The mission-simulation library
+(§3.4) strengthens the kiosk/education *pitch* but changes no number here
+until the pilot converts — it is pitch material, not validated revenue.
+Mission simulations themselves stay free (brand/funnel); they monetize only
+through the B2B lines.
 
 | Scenario | MAU | Conv. | Subs | Subscriptions | B2B (kiosk + edu)* | Side channels** | Total / year |
 |---|---|---|---|---|---|---|---|
@@ -296,6 +336,24 @@ growth).
 ---
 
 ## 7. Roll-Out Plan
+
+### Current (pre-Phase 0) — Mission simulations S1/S2 (owner decision 2026-07-09)
+
+The mission-replay engine and 3D simulation layer (Steps S1/S2, specs
+`Architecture/22` G3 + `27`) are being built *before* production hardening.
+This is workable because the scope is frontend-only + offline tooling — no
+new routes, tables, or worker jobs — so nothing in Phase 0 is blocked or
+complicated by it. Two constraints keep it honest:
+
+- **Timebox: two missions** (Apollo 11, Pathfinder/Sojourner), then move to
+  Phase 0. The library grows later only via the §3.4 cadence rule.
+- **The opportunity cost is the slip dataset**: §3.1's clock starts only when
+  production launches. Every week S runs long is unrecoverable dataset time —
+  the strongest argument against letting this phase expand.
+
+Upside of the ordering: the kiosk pilot (Phase 3) can be pitched with real
+mission simulations from day one, and the public launch (Phase 2) lands with
+the app's most shareable content already live.
 
 ### Phase 0 — Production hardening (1–2 weeks)
 
@@ -361,10 +419,14 @@ worldwide, so three regimes apply:
   alerts** (see `FeatureIdeas/feature-roadmap.md` sequencing).
 - Publish **provider reliability scores** as the first slip-dataset product —
   it doubles as a press/SEO asset.
-- Release the embeddable countdown widget (growth loop); time **mission replay
-  mode** to the Artemis window for a press moment.
+- Release the embeddable countdown widget (growth loop); the replay engine
+  and first two missions already exist (pre-Phase-0 step S) — time the
+  **Artemis mission content** to the Artemis window for a press moment
+  (trigger (a) of the §3.4 cadence rule).
 - Run the **museum kiosk pilot**: pitch 5 science centers with a full-screen
-  toggle prototype before building anything more (validates the B2B line in §6).
+  toggle prototype **featuring the mission simulations** before building
+  anything more (validates the B2B line in §6). Pilot feedback decides which
+  missions get built next (trigger (b)).
 - Measure: free→Pro conversion (healthy niche benchmark: 2–5%), monthly churn,
   notification engagement (open/click), pilot conversion.
 
@@ -389,7 +451,13 @@ With 6 months of data, pick a lane:
    (schema.org Event markup) — this requires the SSR/prerender work noted in the
    production doc. Six languages multiplies this: we can rank for launch queries
    in German, French, Spanish, Japanese, and Russian with far less competition.
-2. **Embeddable widgets** put the brand on other people's sites with backlinks.
+   **Mission-simulation pages are the evergreen complement**: launch pages
+   capture recurring event spikes, mission pages ("Apollo 11 simulation",
+   "Mars Pathfinder landing") accumulate rank permanently — same multilingual
+   edge, no expiry.
+2. **Embeddable widgets** put the brand on other people's sites with backlinks —
+   mission-simulation embeds are the most shareable of these (the vignette
+   moments are built to be the shareable unit).
 3. **Event-driven social content**: automated "launch in 1 hour" posts
    (Mastodon/Bluesky/X) with a link to the tracking page.
 4. **Community reciprocity**: be genuinely useful in space communities rather than
@@ -408,6 +476,7 @@ With 6 months of data, pick a lane:
 | SMS cost abuse | Medium | Pro-only, per-user monthly SMS caps, phone verification (already have OTP) |
 | Privacy/anti-spam complaint (CASL, PIPEDA, GDPR) | Low, high impact | Express-consent records (OTP flow), unsubscribe on every message, minimal data collection, deletion endpoint, no third-party trackers |
 | Solo-founder burnout | High | Keep infra boring (one VPS, docker-compose); automate backups/monitoring; scope features ruthlessly |
+| Mission-library content treadmill (editorial + 6-language cost per mission; no natural stopping point) | Medium | §3.4 cadence rule: new missions only on triggers (press window / paying institution / near-free assets); structured fact panels instead of long-form prose; two-mission timebox before Phase 0 |
 | Monetization ceiling too low | Medium | Accept it — cost base is tiny; treat as audience-building with optionality |
 
 ---
@@ -425,3 +494,7 @@ With 6 months of data, pick a lane:
   metric; it should only ever grow.
 - **Institutional customers** (kiosk screens + education seats) and their
   annual renewal rate — the B2B engine's health.
+- **Mission-simulation engagement** (replay sessions, completion rate,
+  embed loads, organic sessions on mission pages) — the education engine's
+  leading indicator, and the evidence base for cadence-rule decisions on
+  which mission to build next.

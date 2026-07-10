@@ -38,6 +38,18 @@ _OTP_TTL_SECONDS = 600  # 10 minutes
 _MAX_OTP_FAILURES = 5
 
 
+def _log_otp_stub(user_id: int, channel: str, code: str, settings: Settings) -> None:
+    """Stub OTP 'delivery' via log line.
+
+    The plaintext code is only written to the log in dev/test
+    (require_secrets=False); production logs must never contain OTPs.
+    """
+    if settings.require_secrets:
+        logger.info("OTP generated for user %s channel=%s (stub — not sent)", user_id, channel)
+    else:
+        logger.info("OTP for user %s %s: %s (stub — not sent)", user_id, channel, code)
+
+
 # ---------------------------------------------------------------------------
 # Password helpers
 # ---------------------------------------------------------------------------
@@ -146,7 +158,7 @@ async def register_user(session: AsyncSession, data: dict, settings: Settings) -
             expires_at=expires,
         )
         session.add(otp)
-        logger.info("OTP for user %s email: %s (stub — not sent)", user.id, code)
+        _log_otp_stub(user.id, "email", code, settings)
 
     if data.get("phone"):
         code = generate_otp()
@@ -157,7 +169,7 @@ async def register_user(session: AsyncSession, data: dict, settings: Settings) -
             expires_at=expires,
         )
         session.add(otp)
-        logger.info("OTP for user %s phone: %s (stub — not sent)", user.id, code)
+        _log_otp_stub(user.id, "phone", code, settings)
 
     await session.commit()
     await session.refresh(user)
@@ -247,7 +259,7 @@ async def resend_otp(
         )
         session.add(otp)
         await session.commit()
-        logger.info("Resent OTP for user %s channel=%s: %s (stub)", user_id, channel, code)
+        _log_otp_stub(user_id, channel, code, settings)
 
 
 async def login(

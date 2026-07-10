@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import re
 import unicodedata  # noqa: F401
@@ -107,15 +108,17 @@ def _build_email_content(
         f"Unsubscribe: {unsubscribe_url}\n"
     )
 
+    # Launch fields come from the untrusted LL2 feed — escape for the HTML
+    # context on top of the control-character strip in sanitise().
     body_html = f"""<html><body>
 <h2>Launch Update</h2>
-<p><strong>Launch:</strong> {name}</p>
-<p><strong>Agency:</strong> {agency}</p>
-<p><strong>Rocket:</strong> {rocket}</p>
-<p><strong>NET:</strong> {net_str}</p>
-<p>{change_detail}</p>
+<p><strong>Launch:</strong> {html.escape(name)}</p>
+<p><strong>Agency:</strong> {html.escape(agency)}</p>
+<p><strong>Rocket:</strong> {html.escape(rocket)}</p>
+<p><strong>NET:</strong> {html.escape(net_str)}</p>
+<p>{html.escape(change_detail)}</p>
 <hr>
-<p style="font-size:small"><a href="{unsubscribe_url}">Unsubscribe</a></p>
+<p style="font-size:small"><a href="{html.escape(unsubscribe_url, quote=True)}">Unsubscribe</a></p>
 </body></html>"""
 
     return subject, body_text, body_html

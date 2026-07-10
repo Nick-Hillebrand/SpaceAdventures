@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Apod
 from app.services.nasa_client import NasaClient, NasaClientError
+from app.services.url_utils import sanitise_url
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,11 @@ def _apod_from_payload(payload: dict, target_date: str) -> Apod:
         date=payload.get("date", target_date),
         title=payload.get("title", ""),
         explanation=payload.get("explanation", ""),
-        url=payload.get("url", ""),
-        hdurl=payload.get("hdurl"),
+        url=sanitise_url(payload.get("url")) or "",
+        hdurl=sanitise_url(payload.get("hdurl")),
         media_type=payload.get("media_type", "image"),
         copyright=payload.get("copyright"),
-        thumbnail_url=payload.get("thumbnail_url"),
+        thumbnail_url=sanitise_url(payload.get("thumbnail_url")),
         fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 

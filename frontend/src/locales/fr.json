@@ -191,11 +191,9 @@
     "language": "Langue",
     "apiKey": "Clé API NASA",
     "n2yoApiKey": "Clé API N2YO",
-    "save": "Enregistrer",
-    "saved": "Enregistré",
     "keyConfigured": "Clé configurée",
     "keyNotConfigured": "Non configuré",
-    "saveError": "Échec de la sauvegarde"
+    "serverManaged": "Les clés API sont configurées sur le serveur par un administrateur."
   },
   "common": {
     "loading": "Chargement…",

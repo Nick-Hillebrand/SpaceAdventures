@@ -16,6 +16,7 @@ from app.models.launches import Launch
 from app.models.notification_log import PendingNotification
 from app.models.subscription import Subscription
 from app.services.ll2_client import LL2Client, LL2ClientError
+from app.services.url_utils import sanitise_url
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +67,11 @@ def _parse_raw(raw: dict) -> dict:
     livestream_urls = [
         {
             "title": v.get("title") or "",
-            "url": v.get("url") or "",
-            "feature_image": v.get("feature_image") or "",
+            "url": sanitise_url(v.get("url")) or "",
+            "feature_image": sanitise_url(v.get("feature_image")) or "",
         }
         for v in vidurls
-        if v.get("url")
+        if sanitise_url(v.get("url"))
     ]
 
     return {
@@ -88,7 +89,7 @@ def _parse_raw(raw: dict) -> dict:
         "mission_type": _trunc(mission.get("type"), 500),
         "pad_name": _trunc_required(pad.get("name") or "", 500),
         "pad_location": _trunc_required(location.get("name") or "", 500),
-        "image_url": _trunc(_extract_image_url(raw.get("image")), 500),
+        "image_url": _trunc(sanitise_url(_extract_image_url(raw.get("image"))), 500),
         "livestream_urls": json.dumps(livestream_urls),
     }
 

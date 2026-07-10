@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import MarsPhoto
 from app.services.mars_raw_images_client import MarsRawImagesClient
+from app.services.url_utils import sanitise_url
 from app.services.nasa_client import NasaClientError
 
 ROVERS = ("curiosity", "opportunity", "spirit", "perseverance")
@@ -67,7 +68,7 @@ def _row_from_photo(obj: dict) -> MarsPhoto | None:
         earth_date=str(obj.get("earth_date", "")),
         rover_name=str(rover.get("name", "")).lower(),
         camera_name=str(camera.get("name", "")),
-        img_src=str(obj.get("img_src", "")),
+        img_src=sanitise_url(obj.get("img_src")) or "",
         fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 

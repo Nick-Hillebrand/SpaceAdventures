@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -37,7 +38,8 @@ def _require_admin(
         raise HTTPException(status_code=503, detail="Admin API key not configured")
     expected = f"Bearer {settings.admin_api_key}"
     auth_header = request.headers.get("Authorization", "")
-    if auth_header != expected:
+    # Constant-time comparison — a plain != leaks key prefixes via timing.
+    if not secrets.compare_digest(auth_header.encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
