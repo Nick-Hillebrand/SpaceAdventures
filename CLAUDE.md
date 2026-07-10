@@ -85,9 +85,13 @@ blocks public users** (no public users before P4); S ships to the existing
 private deployment only.
 
 **Step S1 — Mission replay engine (static-content scope).**
-Read: `22-ephemeris-and-mission-replay.md` (G3 section only),
-`26-performance.md` (3D/scene + page-chunk rules)
-- Replay route, scrubber, milestone cards, mission JSON from static files in
+Read: `22-ephemeris-and-mission-replay.md` (Engine integration + G3
+sections), `26-performance.md` (3D/scene + page-chunk rules)
+- Mission mode as a mode of the shared solar-scene engine
+  (`mission.load()`/`mission.clear()` on `SolarSceneHandle` — one engine,
+  two entry points): canonical `/missions/:slug` routes **and** the
+  solar-tab Missions panel, `MissionPanel` UI shared by both, scrubber,
+  milestone cards, mission JSON from static files in
   `frontend/public/missions/`. **No Horizons cache/API/DB** — that backend
   foundation stays in B3. Apollo 11 trajectory from curated keyframes
   (`build_mission.py --from-yaml`, see `27-…`); Pathfinder via a one-off

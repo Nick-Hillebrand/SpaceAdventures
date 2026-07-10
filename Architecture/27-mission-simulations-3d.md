@@ -128,9 +128,12 @@ in all six locales.
   `roverScene.ts` — **extract that into `src/lib/gltfNormalize.ts`** and use
   it from both (refactor called out to `13-…`; behavior unchanged, its tests
   move).
-- Replay page: when the scrubber enters a milestone with a vignette, the
-  milestone card offers `t("missions.enterVignette")`; entering crossfades
-  the trajectory scene out (paused), mounts the vignette, and back on exit.
+- Replay UI: vignettes attach to `MissionPanel`, so they work identically
+  from both entry points — the `/missions/:slug` route and the solar-tab
+  Missions panel (see "Engine integration" in `22-…`). When the scrubber
+  enters a milestone with a vignette, the milestone card offers
+  `t("missions.enterVignette")`; entering crossfades the trajectory scene
+  out (paused), mounts the vignette, and back on exit.
   No auto-entry — scrubbing stays uninterrupted; keyboard/screen-reader
   accessible (button, not hover).
 - Models load **only on vignette entry** (never with the route chunk),
@@ -175,9 +178,10 @@ Per P36: never instantiate a real `WebGLRenderer` in jsdom — mock `three`,
   `roverScene` tests it was extracted from.
 - `solar/missionVignette.test.ts` — model URL loading, environment selection,
   load-error path, full dispose teardown, credit-line lookup.
-- Replay page tests — vignette button appears only for milestones that
+- Replay UI tests — vignette button appears only for milestones that
   declare one; enter mounts / exit unmounts and disposes (mocked module);
-  scrubbing while a vignette is open pauses trajectory time; locale
+  scrubbing while a vignette is open pauses trajectory time; vignette entry
+  works from the solar-tab panel, not only the dedicated route; locale
   switching on narration cards.
 - Build-time validator — schema extension: missing model file, unknown
   environment, missing locale keys, size-budget breach each fail the check.

@@ -117,7 +117,10 @@ missions/<slug>.json
     {"t": ..., "key": "missions.artemis2.tli", "lat": null, "lng": null},
     ...
   ],
-  "bodies": ["earth","moon"]          -- which bodies the scene must show
+  "bodies": ["earth","moon"],         -- which bodies the scene must show
+  "bodyCalibration": {                -- optional; see Engine integration
+    "moon": { "phaseDeg": 213.7 }
+  }
 }
 ```
 
@@ -127,15 +130,55 @@ milestones curated by hand in a YAML source per mission. Initial set:
 Artemis 1 (historical), Apollo 11 (historical), Artemis 2 (add when Horizons
 publishes it / from published state vectors).
 
+### Engine integration — one engine, two entry points (decided 2026-07-09)
+
+"Reuses the simulator engine" means a **shared module, not copied patterns**:
+mission replay is a *mode* of the solar-system scene engine
+(`solar/scene.ts`), never a second scene implementation.
+
+- `SolarSceneHandle` gains a mission sub-API: `mission.load(spec)` adds the
+  trajectory polyline, craft marker, and milestone ticks; clamps the sim
+  clock to `[t0, t1]`; tweens the camera to the mission's frame (e.g. the
+  Earth–Moon system). `mission.clear()` removes the layer and restores the
+  prior clock, camera, and scale mode.
+- **Scale-mode lock:** mission mode always renders true-scale geometry — a
+  real trajectory cannot terminate at the visible-mode Moon, which sits at a
+  decorative display distance. Entering from visible mode tweens to true
+  scale; the scale toggle is disabled with a `t("missions.scaleLocked")`
+  tooltip while a mission is loaded.
+- **Moon calibration:** the scene's moons start at arbitrary display phases
+  (137.5° spread) — fatal for Apollo 11, whose trajectory must end where the
+  Moon actually was on 1969-07-20. Mission JSON gains optional
+  `"bodyCalibration": { "moon": { "phaseDeg": … } }`, computed by
+  `build_mission.py` from real ephemeris at the mission's anchor epoch
+  (mean-period drift across a mission-length window is negligible). If a
+  future mission needs better accuracy, a body may instead ship a trajectory
+  array in the same shape as the craft's — the format allows it; don't build
+  it until needed.
+- Mission UI (mission picker, timeline scrubber with milestone ticks,
+  milestone cards) lives in a standalone `MissionPanel` component shared by
+  both entry points — this keeps `SolarSystemPage` from becoming a
+  god-component.
+
+Two entry points, one canonical:
+
+1. **`/missions` (index) + `/missions/:slug` (+ `/embed`) — canonical.** The
+   SEO, widget/kiosk, and deep-link surface (per `23-…` and the business
+   plan's growth strategy). Mounts the engine directly in mission mode. Nav
+   entry `t("nav.missions")`.
+2. **Solar-system tab — in-context entry.** A "Missions" panel (list from a
+   static `missions/index.json`) calls `mission.load()` on the already-
+   mounted scene: the clock jumps to the mission window, the trajectory
+   appears, the camera tweens over. The panel links to the canonical URL
+   for sharing. This is the discovery surface for the education audience.
+
 ### Frontend
 
-- Route `/missions` (index) and `/missions/:slug` (replay). Nav entry
-  `t("nav.missions")`.
-- Replay scene: reuses simulator engine; geocentric frame support (Earth
-  center, Moon via existing `moonPosition`); trajectory polyline; craft marker
-  animated along it; **timeline scrubber** with play/pause/speed (1×–10000×),
-  milestone ticks — click jumps to milestone, shows localized description
-  card.
+- Replay behavior (both entry points, via `MissionPanel`): trajectory
+  polyline; craft marker animated along it; **timeline scrubber** with
+  play/pause/speed (1×–10000×), milestone ticks — click jumps to milestone,
+  shows localized description card. Geocentric frame support: Earth center,
+  Moon via `moonPosition` with the calibrated phase above.
 - All milestone/mission text via i18n keys in all six locales — mission
   content is translated content, a real differentiator.
 - Embeddable variant: `/missions/:slug/embed` — chrome-less scene + attribution
@@ -145,7 +188,11 @@ publishes it / from published state vectors).
 **Tests:** JSON schema validation in a build-time check (script validates all
 mission files; wired into CI); scrubber logic (time↔position mapping,
 milestone jump); geocentric frame math (Moon position sanity vs. `orbits.ts`
-values); locale switching on milestone cards; embed route renders without nav.
+values, calibrated phase places the Moon at the trajectory terminus); mission
+mode load/clear (clock clamped to window, scale-mode lock + restore, layer
+objects removed and disposed on `clear()`); solar-tab entry (panel `load()`s
+into the mounted scene, canonical-URL link present); locale switching on
+milestone cards; embed route renders without nav.
 
 **Performance:** trajectory files ≤ 500 KB (decimate to what the scrubber can
 visually resolve — ~5k points max); lazy-load the mission route chunk

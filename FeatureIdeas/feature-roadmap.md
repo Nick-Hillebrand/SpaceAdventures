@@ -1,6 +1,6 @@
 # Space Adventures — Feature Roadmap & Ideas
 
-*Last updated: 2026-07-09 (v2.2 — mission simulations pulled forward as the next feature; see changelog at bottom)*
+*Last updated: 2026-07-09 (v2.3 — mission replay embedded in the solar-system tab via a shared engine; see changelog at bottom)*
 
 Features that would enrich the business and make the app more desirable to the
 space community. Organized by leverage: **data-moat foundations first** (they
@@ -155,6 +155,14 @@ Moon landing) and **Mars Pathfinder/Sojourner** (first rover on Mars); the
 mission format makes every further mission data + assets only, so the
 long-term shape is a **mission library** of every meaningful mission — the
 education-tier (#29) and kiosk (#28) content engine. Spec: `Architecture/27`.
+
+**v2.3 — architecture: one engine, two entry points.** Replays are a *mode*
+of the solar-system scene engine (shared module, not a second scene).
+Canonical surface stays `/missions/:slug` (SEO, embeds, kiosk deep links);
+the solar-system tab additionally gets an in-context "Missions" panel that
+loads a mission into the already-mounted scene — discovery for the education
+audience without duplicating engine code. See "Engine integration" in
+`Architecture/22`.
 
 ### 12. Personalized "Today in Space" daily digest
 One opt-in email/push per day: APOD, tonight's ISS pass, launches in 48 h, NEO
@@ -328,6 +336,20 @@ but adds nothing alone.
 | Months 2–6 | #6 aurora nowcast, #4 Starlink trains, #11 mission replay (time to Artemis window), #12 digest, #20 social bot, #28 kiosk pilot (5 institutions) |
 | After traction | #8 slip-risk scores, #5 transit finder, #13–15 retention pack, #24 interactives, #29 education tier |
 | Only with demand | #25–27 community, #30–31, Tier 5 |
+
+---
+
+## Changelog v2.2 → v2.3 (2026-07-09)
+
+- **Mission replay architecture decided: one engine, two entry points.**
+  Replay is a mode of the solar-system scene engine (`mission.load()` /
+  `mission.clear()` on the scene handle), surfaced both at the canonical
+  `/missions/:slug` URLs (SEO/embeds/kiosk) and via an in-context "Missions"
+  panel in the solar-system tab. Resolves the ambiguity in spec `22`'s
+  "reuses simulator engine" (shared module, not copied patterns). Includes
+  two correctness fixes the embedding surfaced: mission mode locks the scene
+  to true-scale geometry, and the Moon's display phase is calibrated per
+  mission so trajectories terminate at the real Moon position (Apollo 11).
 
 ---
 
