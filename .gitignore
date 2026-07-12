@@ -7,12 +7,14 @@ __pycache__/
 .coverage
 htmlcov/
 coverage.xml
+coverage.json
 
 # Node
 node_modules/
 dist/
 coverage/
 .vite/
+*.tsbuildinfo
 
 # Env
 .env
