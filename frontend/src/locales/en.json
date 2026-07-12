@@ -10,7 +10,8 @@
     "login": "Log In",
     "myAccount": "My Account",
     "logout": "Log Out",
-    "solarSystem": "Solar System"
+    "solarSystem": "Solar System",
+    "missions": "Missions"
   },
   "apod": {
     "title": "Astronomy Picture of the Day",
@@ -303,6 +304,45 @@
       "saturn": "Famous for its spectacular rings of ice and rock. With 274 known moons it leads the solar system.",
       "uranus": "An ice giant tipped on its side — its axis is tilted almost 98°, so it rolls along its orbit.",
       "neptune": "The most distant planet: a deep-blue ice giant with the fastest winds in the solar system — over 2,000 km/h."
+    }
+  },
+  "missions": {
+    "toggle": "Missions",
+    "indexTitle": "Mission Replays",
+    "indexSubtitle": "Relive historic spaceflight missions in 3D, computed from real trajectory data.",
+    "backToMissions": "← Back to missions",
+    "loading": "Loading missions…",
+    "loadError": "This mission could not be loaded. Please try again later.",
+    "noMissions": "No missions available yet.",
+    "pickerTitle": "Missions",
+    "exit": "Exit mission",
+    "viewFull": "Open full page",
+    "play": "Play",
+    "pause": "Pause",
+    "speed": "Speed",
+    "speedValue": "{{n}}×",
+    "scrubberLabel": "Mission timeline",
+    "canvasLabel": "3D mission replay simulation",
+    "controlsLocked": "Playback is controlled by the mission panel",
+    "scaleLocked": "Scale is locked to true scale during mission replay",
+    "embedAttribution": "Space Adventures — Mission Replay",
+    "apollo11": {
+      "name": "Apollo 11",
+      "launch": "Launch — the Saturn V lifts off from Kennedy Space Center, July 16, 1969.",
+      "tli": "Trans-Lunar Injection — the S-IVB stage fires again to send the spacecraft toward the Moon.",
+      "loi": "Lunar Orbit Insertion — Apollo 11 fires its engine to brake into orbit around the Moon.",
+      "landing": "Landing — Eagle touches down in the Sea of Tranquility. \"The Eagle has landed.\"",
+      "liftoff": "Lunar liftoff — the ascent stage leaves the Moon's surface to rendezvous with Columbia.",
+      "docking": "Docking — the ascent stage redocks with the command module in lunar orbit.",
+      "tei": "Trans-Earth Injection — the engine fires once more to begin the journey home.",
+      "splashdown": "Splashdown — Columbia returns to Earth in the Pacific Ocean, July 24, 1969."
+    },
+    "marsPathfinder": {
+      "name": "Mars Pathfinder",
+      "cruiseStart": "Cruise phase begins — Pathfinder departs Earth on its journey to Mars.",
+      "edl": "Entry, Descent, and Landing — Pathfinder plunges through the Martian atmosphere, cushioned by airbags.",
+      "landing": "Landing — Pathfinder touches down in Ares Vallis, July 4, 1997.",
+      "roverDeploy": "Rover deployment — the Sojourner rover rolls onto the surface of Mars."
     }
   }
 }

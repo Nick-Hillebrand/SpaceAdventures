@@ -10,7 +10,8 @@
     "login": "Se connecter",
     "myAccount": "Mon compte",
     "logout": "Se déconnecter",
-    "solarSystem": "Système solaire"
+    "solarSystem": "Système solaire",
+    "missions": "Missions"
   },
   "apod": {
     "title": "Image astronomique du jour",
@@ -303,6 +304,45 @@
       "saturn": "Célèbre pour ses anneaux spectaculaires de glace et de roche. Avec 274 lunes connues, elle domine le système solaire.",
       "uranus": "Une géante de glace basculée sur le côté — son axe est incliné de près de 98°, elle roule donc le long de son orbite.",
       "neptune": "La planète la plus lointaine : une géante de glace bleu profond aux vents les plus rapides du système solaire — plus de 2 000 km/h."
+    }
+  },
+  "missions": {
+    "toggle": "Missions",
+    "indexTitle": "Rejeu de missions",
+    "indexSubtitle": "Revivez les missions historiques de vol spatial en 3D, calculées à partir de véritables données de trajectoire.",
+    "backToMissions": "← Retour aux missions",
+    "loading": "Chargement des missions…",
+    "loadError": "Cette mission n'a pas pu être chargée. Veuillez réessayer plus tard.",
+    "noMissions": "Aucune mission disponible pour le moment.",
+    "pickerTitle": "Missions",
+    "exit": "Quitter la mission",
+    "viewFull": "Ouvrir la page complète",
+    "play": "Lecture",
+    "pause": "Pause",
+    "speed": "Vitesse",
+    "speedValue": "{{n}}×",
+    "scrubberLabel": "Chronologie de la mission",
+    "canvasLabel": "Simulation de rejeu de mission 3D",
+    "controlsLocked": "La lecture est contrôlée par le panneau de la mission",
+    "scaleLocked": "L'échelle est verrouillée à l'échelle réelle pendant le rejeu de mission",
+    "embedAttribution": "Space Adventures — Rejeu de mission",
+    "apollo11": {
+      "name": "Apollo 11",
+      "launch": "Lancement — la Saturn V décole du Centre spatial Kennedy, 16 juillet 1969.",
+      "tli": "Injection trans-lunaire — l'étage S-IVB se rallume pour envoyer le vaisseau vers la Lune.",
+      "loi": "Insertion en orbite lunaire — Apollo 11 tire son moteur pour freiner et entrer en orbite autour de la Lune.",
+      "landing": "Atterrissage — l'Eagle se pose dans la Mer de la Tranquillité. \"The Eagle has landed.\"",
+      "liftoff": "Décollage lunaire — l'étage d'ascension quitte la surface lunaire pour rejoindre Columbia.",
+      "docking": "Amarrage — l'étage d'ascension s'amarre de nouveau avec le module de commande en orbite lunaire.",
+      "tei": "Injection trans-terrestre — le moteur se rallume une dernière fois pour commencer le voyage de retour.",
+      "splashdown": "Amerrissage — Columbia revient sur Terre dans l'océan Pacifique, 24 juillet 1969."
+    },
+    "marsPathfinder": {
+      "name": "Mars Pathfinder",
+      "cruiseStart": "La phase de croisière commence — Pathfinder quitte la Terre vers Mars.",
+      "edl": "Entrée, descente et atterrissage — Pathfinder plonge dans l'atmosphère martienne, amortie par des airbags.",
+      "landing": "Atterrissage — Pathfinder se pose à Valles Marineris, 4 juillet 1997.",
+      "roverDeploy": "Déploiement du rover — le rover Sojourner se lance sur la surface de Mars."
     }
   }
 }

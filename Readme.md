@@ -10,6 +10,10 @@ A multilingual web application that fetches, caches, and visualises NASA data an
 - **Mars Explorer** — Curiosity, Opportunity, Spirit and Perseverance rover photos with lightbox and camera/sol filters
 - **Near-Earth Objects** — Sortable asteroid table with close-approach data and hazard flags
 - **Space Weather** — Solar flares, geomagnetic storms, CMEs, SEP and radiation belt events
+- **Solar System Explorer** — 3D true-scale/didactic-scale simulator of the Sun, planets and major moons
+- **Mission Replay** — 3D playback of historic spaceflight trajectories (Apollo 11, Mars Pathfinder) with a
+  timeline scrubber and milestone cards, at `/missions`, `/missions/:slug` and a chrome-less `/missions/:slug/embed`,
+  and as an in-context panel on the Solar System page
 - **User accounts** — JWT auth with email/SMS OTP verification and launch notification subscriptions
 
 ---
@@ -42,16 +46,22 @@ SpaceAdventures/
 │   ├── alembic/            # Database migrations
 │   ├── tests/              # pytest test suite
 │   ├── create_dev_user.py  # Dev helper — seeds a verified test user
+│   ├── scripts/
+│   │   └── build_mission.py # Dev-only generator for public/missions/*.json (not deployed, not imported by app/)
 │   ├── Dockerfile          # Production image
 │   └── requirements.txt
 └── frontend/
     ├── src/
-    │   ├── components/     # Shared UI components (Navbar, ErrorBanner, etc.)
+    │   ├── components/     # Shared UI components (Navbar, ErrorBanner, MissionPanel, etc.)
     │   ├── hooks/          # React Query data hooks
     │   ├── routes/         # Page components
+    │   ├── solar/          # Solar-system 3D scene engine, orbit math, mission data model
     │   ├── lib/            # API client, date helpers
-    │   ├── locales/        # i18n translation files (en, de)
+    │   ├── locales/        # i18n translation files (en, de, es, fr, ja, ru)
     │   └── msw/            # Mock Service Worker handlers for tests
+    ├── public/missions/    # Static mission JSON (index.json + one file per mission slug)
+    ├── scripts/
+    │   └── validate-missions.mjs # Validates public/missions/*.json against the mission schema
     ├── __tests__/          # Vitest test suite
     ├── Dockerfile.dev      # Dev image (Vite HMR)
     └── vite.config.ts
@@ -214,6 +224,38 @@ yourdomain.com {
     # SPA fallback — non-asset routes serve index.html
     try_files {path} /index.html
 }
+```
+
+---
+
+## Mission Replay Content Tooling
+
+Mission Replay data (`frontend/public/missions/*.json`) is static content generated
+offline — nothing in this section runs in production or is imported by the app.
+
+```bash
+cd backend
+source .venv/bin/activate
+
+# Curated keyframes (crewed missions with no Horizons ephemeris, e.g. Apollo 11)
+python scripts/build_mission.py from-yaml scripts/data/apollo11-keyframes.yaml \
+  --sample-step-seconds 900
+
+# Real JPL Horizons trajectory (e.g. Mars Pathfinder)
+python scripts/build_mission.py horizons \
+  --spk -530 --frame heliocentric --bodies earth,mars \
+  --start 1996-12-04 --stop 1997-07-04 --step 1d \
+  --slug mars-pathfinder --name-key missions.marsPathfinder.name \
+  --milestones scripts/data/mars-pathfinder-milestones.yaml
+```
+
+Both paths write `frontend/public/missions/<slug>.json` and update
+`frontend/public/missions/index.json`. Validate the output against the mission
+schema (also run in CI) before committing:
+
+```bash
+cd frontend
+npm run validate:missions
 ```
 
 ---

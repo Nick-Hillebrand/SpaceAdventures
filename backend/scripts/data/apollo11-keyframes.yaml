@@ -1,0 +1,76 @@
+# Apollo 11 curated trajectory keyframes — Horizons has no ephemeris for
+# crewed Apollo spacecraft, so this feeds build_mission.py's --from-yaml
+# path instead (see Architecture/27-mission-simulations-3d.md).
+#
+# Event timestamps: NASA Apollo 11 Mission Report / Apollo Flight Journal
+# (https://history.nasa.gov/afj/ap11fj/index.html) mission timeline.
+#
+# Positions: geocentric ecliptic J2000, km, planar (z=0) to match the
+# scene's simplified circular/planar Moon model
+# (frontend/src/solar/orbits.ts's moonPosition — "approximated as the
+# ecliptic plane"). Near-Earth points (launch/TLI, splashdown) use the
+# parking-orbit/reentry-interface radius at an illustrative angle — at this
+# trajectory's map scale (out to ~390,000 km) a few thousand km near Earth
+# is a rounding error, so the angle there carries no claim of precision.
+# Near-Moon points (loi through tei) are the Moon's *real* geocentric
+# position at that instant, pulled from JPL Horizons (301 relative to 399,
+# ecliptic J2000, z dropped for the same planar reason) — the spacecraft
+# was within lunar-orbit altitude (~1,850 km) of that point, invisible at
+# this scale. The two transfer legs (tli->loi, tei->splashdown) are
+# two-body Keplerian ellipses fit to the real apsides (perigee at the
+# near-Earth point, apogee at the real Moon direction) and sampled at ~9 h
+# intervals, mean anomaly linear in elapsed time — the same fixed-mean-
+# motion simplification `orbits.ts` already uses for the planets.
+slug: apollo-11
+name_key: missions.apollo11.name
+frame: geocentric
+bodies: [earth, moon]
+calibration_epoch: "1969-07-20T20:17:40Z" # landing — anchors bodyCalibration.moon.phaseDeg
+milestones:
+  - t: "1969-07-16T13:32:00Z"
+    key: missions.apollo11.launch
+  - t: "1969-07-16T16:22:13Z"
+    key: missions.apollo11.tli
+  - t: "1969-07-19T17:21:50Z"
+    key: missions.apollo11.loi
+  - t: "1969-07-20T20:17:40Z"
+    key: missions.apollo11.landing
+  - t: "1969-07-21T17:54:00Z"
+    key: missions.apollo11.liftoff
+  - t: "1969-07-21T21:35:00Z"
+    key: missions.apollo11.docking
+  - t: "1969-07-22T04:55:42Z"
+    key: missions.apollo11.tei
+  - t: "1969-07-24T16:50:35Z"
+    key: missions.apollo11.splashdown
+keyframes:
+  # Launch (parking orbit, illustrative angle — see header note).
+  - { t: "1969-07-16T13:32:00Z", x: 5319.0, y: -3836.2, z: 0 }
+  # TLI complete = start of the outbound Kepler transfer ellipse.
+  - { t: "1969-07-16T16:22:13Z", x: 6524.4, y: -663.1, z: 0 }
+  - { t: "1969-07-17T01:29:40.125000Z", x: -140917.8, y: 64004.0, z: 0 }
+  - { t: "1969-07-17T10:37:07.250000Z", x: -221297.9, y: 72893.6, z: 0 }
+  - { t: "1969-07-17T19:44:34.375000Z", x: -278688.6, y: 73909.4, z: 0 }
+  - { t: "1969-07-18T04:52:01.500000Z", x: -321311.8, y: 70942.7, z: 0 }
+  - { t: "1969-07-18T13:59:28.625000Z", x: -352599.8, y: 65449.2, z: 0 }
+  - { t: "1969-07-18T23:06:55.750000Z", x: -374321.0, y: 58169.1, z: 0 }
+  - { t: "1969-07-19T08:14:22.875000Z", x: -387442.8, y: 49547.5, z: 0 }
+  # LOI — real Moon position (Horizons 301@399).
+  - { t: "1969-07-19T17:21:50Z", x: -392453.1, y: 39886.3, z: 0 }
+  # Landing — real Moon position.
+  - { t: "1969-07-20T20:17:40Z", x: -385283.4, y: -56196.4, z: 0 }
+  # Lunar liftoff — real Moon position.
+  - { t: "1969-07-21T17:54:00Z", x: -361665.3, y: -130848.1, z: 0 }
+  # Docking with Columbia — real Moon position.
+  - { t: "1969-07-21T21:35:00Z", x: -356072.2, y: -143099.5, z: 0 }
+  # TEI = start of the inbound Kepler transfer ellipse; real Moon position.
+  - { t: "1969-07-22T04:55:42Z", x: -343587.3, y: -166974.0, z: 0 }
+  - { t: "1969-07-22T12:25:03.625000Z", x: -335736.4, y: -174235.2, z: 0 }
+  - { t: "1969-07-22T19:54:25.250000Z", x: -320846.0, y: -177840.7, z: 0 }
+  - { t: "1969-07-23T03:23:46.875000Z", x: -298574.1, y: -177349.0, z: 0 }
+  - { t: "1969-07-23T10:53:08.500000Z", x: -268190.9, y: -172026.9, z: 0 }
+  - { t: "1969-07-23T18:22:30.125000Z", x: -228336.5, y: -160602.3, z: 0 }
+  - { t: "1969-07-24T01:51:51.750000Z", x: -176379.3, y: -140587.8, z: 0 }
+  - { t: "1969-07-24T09:21:13.375000Z", x: -106154.1, y: -105650.4, z: 0 }
+  # Splashdown (reentry interface, illustrative angle — see header note).
+  - { t: "1969-07-24T16:50:35Z", x: 5898.4, y: 2866.4, z: 0 }

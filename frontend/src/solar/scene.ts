@@ -8,6 +8,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { AU_KM, PLANETS, SUN, type MoonData, type PlanetData } from "./data";
 import { daysSinceJ2000, heliocentricPosition, moonPosition, orbitPath } from "./orbits";
+import type { MissionSpec } from "./mission";
 
 export type ScaleMode = "visible" | "true";
 
@@ -28,6 +29,19 @@ export interface SolarSceneHandle {
   select(id: string | null): void;
   refreshLabels(): void;
   dispose(): void;
+  mission: {
+    /**
+     * Loads a mission replay layer: trajectory polyline, craft marker, and
+     * milestone ticks. Forces true-scale mode (locked until clear()), clamps
+     * the sim clock to [t0, t1], applies Moon phase calibration if present,
+     * and tweens the camera to frame the mission. Calling load() while a
+     * mission is already active swaps the layer without disturbing the
+     * pre-mission snapshot restored by clear().
+     */
+    load(spec: MissionSpec): void;
+    /** Removes the mission layer and restores the prior clock, camera, and scale mode. */
+    clear(): void;
+  };
 }
 
 /** World units per AU in true-scale mode. */
@@ -312,6 +326,8 @@ export function createSolarScene(
     }
 
     sunMesh.rotation.y = ((days * 24) / SUN.rotationHours) * Math.PI * 2;
+
+    if (missionActive) updateMissionCraft();
   }
 
   // ---- selection & camera ------------------------------------------------
@@ -374,6 +390,184 @@ export function createSolarScene(
     if (dir.lengthSq() < 1e-6) dir.set(0, 0.5, 1);
     dir.normalize().multiplyScalar(dist);
     startFocusTween(target, target.clone().add(dir).add(new THREE.Vector3(0, dist * 0.25, 0)));
+  }
+
+  // ---- mission replay mode -------------------------------------------------
+  //
+  // A mode, not a second scene (Architecture/22-…, "Engine integration — one
+  // engine, two entry points"): the mission layer is parented onto the
+  // existing Earth group (geocentric) or the scene root (heliocentric) and
+  // reuses the same true-scale coordinate mapping as the planets/moons.
+
+  let missionActive = false;
+  let missionWindow: { t0: number; t1: number } | null = null;
+  let missionGroup: THREE.Group | null = null;
+  let missionCraft: THREE.Mesh | null = null;
+  let missionTimesMs: number[] = [];
+  let missionPositions: THREE.Vector3[] = [];
+  let missionMoonOverride: { entry: MoonEntry; priorPhaseDeg: number } | null = null;
+  let savedBeforeMission: {
+    scaleMode: ScaleMode;
+    simDate: Date;
+    daysPerSecond: number;
+    cameraPos: THREE.Vector3;
+    cameraTarget: THREE.Vector3;
+  } | null = null;
+
+  function missionPointToVector(p: { x: number; y: number; z: number }): THREE.Vector3 {
+    return new THREE.Vector3(p.x * KM_TO_UNITS, p.z * KM_TO_UNITS, -p.y * KM_TO_UNITS);
+  }
+
+  function missionPositionAtMs(ms: number): THREE.Vector3 | null {
+    if (missionPositions.length === 0) return null;
+    if (ms <= missionTimesMs[0]) return missionPositions[0].clone();
+    const last = missionTimesMs.length - 1;
+    if (ms >= missionTimesMs[last]) return missionPositions[last].clone();
+
+    let lo = 0;
+    let hi = last;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (missionTimesMs[mid] <= ms) lo = mid;
+      else hi = mid;
+    }
+    const span = missionTimesMs[hi] - missionTimesMs[lo];
+    const f = span > 0 ? (ms - missionTimesMs[lo]) / span : 0;
+    return missionPositions[lo].clone().lerp(missionPositions[hi], f);
+  }
+
+  function updateMissionCraft() {
+    if (!missionCraft || !missionWindow) return;
+    const ms = THREE.MathUtils.clamp(simDate.getTime(), missionWindow.t0, missionWindow.t1);
+    const pos = missionPositionAtMs(ms);
+    if (pos) missionCraft.position.copy(pos);
+  }
+
+  function focusOnMission(group: THREE.Object3D, extentUnits: number) {
+    const target = new THREE.Vector3();
+    group.getWorldPosition(target);
+    const dist = Math.max(extentUnits * 1.6, 0.02);
+    const dir = camera.position.clone().sub(controls.target);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0.5, 1);
+    dir.normalize().multiplyScalar(dist);
+    startFocusTween(target, target.clone().add(dir).add(new THREE.Vector3(0, dist * 0.25, 0)));
+  }
+
+  function disposeObject3D(root: THREE.Object3D) {
+    root.traverse((obj) => {
+      if (obj instanceof THREE.Mesh || obj instanceof THREE.Line) {
+        obj.geometry.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach((m) => m.dispose());
+      }
+    });
+  }
+
+  function teardownMissionLayer() {
+    if (missionGroup) {
+      missionGroup.parent?.remove(missionGroup);
+      disposeObject3D(missionGroup);
+    }
+    missionGroup = null;
+    missionCraft = null;
+    missionTimesMs = [];
+    missionPositions = [];
+    if (missionMoonOverride) {
+      missionMoonOverride.entry.phaseDeg = missionMoonOverride.priorPhaseDeg;
+      missionMoonOverride = null;
+    }
+  }
+
+  function loadMission(spec: MissionSpec) {
+    const wasActive = missionActive;
+    teardownMissionLayer();
+
+    if (!wasActive) {
+      savedBeforeMission = {
+        scaleMode,
+        simDate: new Date(simDate.getTime()),
+        daysPerSecond,
+        cameraPos: camera.position.clone(),
+        cameraTarget: controls.target.clone(),
+      };
+    }
+    missionActive = true;
+
+    if (scaleMode !== "true") {
+      scaleMode = "true";
+      applyScaleMode();
+    }
+
+    const t0 = Date.parse(spec.t0);
+    const t1 = Date.parse(spec.t1);
+    missionWindow = { t0, t1 };
+
+    const group = new THREE.Group();
+    const earth = bodies.find((b) => b.data.id === "earth");
+    const parent: THREE.Object3D = spec.frame === "geocentric" && earth ? earth.group : scene;
+    parent.add(group);
+    missionGroup = group;
+
+    if (spec.frame === "geocentric" && spec.bodyCalibration?.moon && earth) {
+      const moon = earth.moons.find((m) => m.data.id === "moon");
+      if (moon) {
+        missionMoonOverride = { entry: moon, priorPhaseDeg: moon.phaseDeg };
+        moon.phaseDeg = spec.bodyCalibration.moon.phaseDeg;
+      }
+    }
+
+    const positions = spec.trajectory.map(missionPointToVector);
+    missionTimesMs = spec.trajectory.map((p) => Date.parse(p.t));
+    missionPositions = positions;
+
+    let extent = 0;
+    for (const v of positions) extent = Math.max(extent, v.length());
+    const markerR = Math.max(extent * 0.012, 1e-4);
+
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(positions);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xffd166 });
+    group.add(new THREE.Line(lineGeo, lineMat));
+
+    const craftGeo = new THREE.SphereGeometry(markerR, 16, 12);
+    const craftMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const craft = new THREE.Mesh(craftGeo, craftMat);
+    group.add(craft);
+    missionCraft = craft;
+
+    const tickGeo = new THREE.SphereGeometry(markerR * 0.6, 8, 6);
+    const tickMat = new THREE.MeshBasicMaterial({ color: 0xff5d73 });
+    for (const m of spec.milestones) {
+      const pos = missionPositionAtMs(Date.parse(m.t));
+      const tick = new THREE.Mesh(tickGeo, tickMat);
+      if (pos) tick.position.copy(pos);
+      group.add(tick);
+    }
+
+    simDate = new Date(t0);
+    updatePositions();
+    updateMissionCraft();
+    focusOnMission(group, extent);
+  }
+
+  function clearMission() {
+    if (!missionActive) return;
+    teardownMissionLayer();
+    missionActive = false;
+    missionWindow = null;
+
+    const saved = savedBeforeMission;
+    savedBeforeMission = null;
+    if (saved) {
+      if (saved.scaleMode !== scaleMode) {
+        scaleMode = saved.scaleMode;
+        applyScaleMode();
+      }
+      simDate = new Date(saved.simDate.getTime());
+      daysPerSecond = saved.daysPerSecond;
+      updatePositions();
+      onDateTick(new Date(simDate.getTime()));
+      startFocusTween(saved.cameraTarget, saved.cameraPos);
+    }
   }
 
   function updateMoonLabelVisibility() {
@@ -461,6 +655,9 @@ export function createSolarScene(
     const delta = Math.min(clock.getDelta(), 0.25);
 
     simDate = new Date(simDate.getTime() + daysPerSecond * 86_400_000 * delta);
+    if (missionWindow) {
+      simDate = new Date(THREE.MathUtils.clamp(simDate.getTime(), missionWindow.t0, missionWindow.t1));
+    }
     updatePositions();
 
     // Ride along with the selected body.
@@ -513,6 +710,10 @@ export function createSolarScene(
       daysPerSecond = d;
     },
     setScaleMode(mode: ScaleMode) {
+      // Mission mode always renders true-scale geometry (Architecture/22-…,
+      // "Scale-mode lock") — a real trajectory can't terminate at the
+      // visible-mode Moon's decorative display distance.
+      if (missionActive) return;
       if (mode === scaleMode) return;
       scaleMode = mode;
       applyScaleMode();
@@ -520,7 +721,10 @@ export function createSolarScene(
       focusOn(selectedId);
     },
     setDate(date: Date) {
-      simDate = new Date(date.getTime());
+      const ms = missionWindow
+        ? THREE.MathUtils.clamp(date.getTime(), missionWindow.t0, missionWindow.t1)
+        : date.getTime();
+      simDate = new Date(ms);
       updatePositions();
       onDateTick(new Date(simDate.getTime()));
     },
@@ -536,8 +740,17 @@ export function createSolarScene(
         }
       }
     },
+    mission: {
+      load(spec: MissionSpec) {
+        loadMission(spec);
+      },
+      clear() {
+        clearMission();
+      },
+    },
     dispose() {
       disposed = true;
+      teardownMissionLayer();
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);

@@ -1,0 +1,6 @@
+{
+  "missions": [
+    { "slug": "apollo-11", "name_key": "missions.apollo11.name" },
+    { "slug": "mars-pathfinder", "name_key": "missions.marsPathfinder.name" }
+  ]
+}

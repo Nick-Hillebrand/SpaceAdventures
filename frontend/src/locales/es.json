@@ -10,7 +10,8 @@
     "login": "Iniciar sesión",
     "myAccount": "Mi cuenta",
     "logout": "Cerrar sesión",
-    "solarSystem": "Sistema solar"
+    "solarSystem": "Sistema solar",
+    "missions": "Misiones"
   },
   "apod": {
     "title": "Imagen astronómica del día",
@@ -303,6 +304,45 @@
       "saturn": "Famoso por sus espectaculares anillos de hielo y roca. Con 274 lunas conocidas, lidera el sistema solar.",
       "uranus": "Un gigante de hielo volcado de lado: su eje está inclinado casi 98°, por lo que rueda a lo largo de su órbita.",
       "neptune": "El planeta más lejano: un gigante de hielo azul profundo con los vientos más rápidos del sistema solar, de más de 2.000 km/h."
+    }
+  },
+  "missions": {
+    "toggle": "Misiones",
+    "indexTitle": "Repeticiones de misiones",
+    "indexSubtitle": "Reviva las misiones históricas del vuelo espacial en 3D, calculadas a partir de datos de trayectoria reales.",
+    "backToMissions": "← Volver a misiones",
+    "loading": "Cargando misiones…",
+    "loadError": "No se pudo cargar esta misión. Por favor, vuelva a intentarlo más tarde.",
+    "noMissions": "Aún no hay misiones disponibles.",
+    "pickerTitle": "Misiones",
+    "exit": "Salir de la misión",
+    "viewFull": "Abrir página completa",
+    "play": "Reproducir",
+    "pause": "Pausa",
+    "speed": "Velocidad",
+    "speedValue": "{{n}}×",
+    "scrubberLabel": "Línea de tiempo de la misión",
+    "canvasLabel": "Simulación de repetición de misión 3D",
+    "controlsLocked": "La reproducción es controlada por el panel de la misión",
+    "scaleLocked": "La escala se bloquea en escala verdadera durante la repetición de la misión",
+    "embedAttribution": "Space Adventures — Repetición de misión",
+    "apollo11": {
+      "name": "Apollo 11",
+      "launch": "Lanzamiento — el Saturn V despega del Centro Espacial Kennedy, 16 de julio de 1969.",
+      "tli": "Inyección translunar — la etapa S-IVB se enciende de nuevo para enviar la nave hacia la Luna.",
+      "loi": "Inserción en órbita lunar — Apollo 11 dispara su motor para frenar y entrar en órbita alrededor de la Luna.",
+      "landing": "Aterrizaje — el Eagle desciende en el Mar de la Tranquilidad. \"The Eagle has landed.\"",
+      "liftoff": "Despegue lunar — la etapa de ascenso sale de la superficie lunar para rendezvous con Columbia.",
+      "docking": "Acoplamiento — la etapa de ascenso vuelve a acoplarse con el módulo de mando en órbita lunar.",
+      "tei": "Inyección translunar — el motor se dispara una vez más para comenzar el viaje de regreso.",
+      "splashdown": "Amerizaje — Columbia regresa a la Tierra en el Océano Pacífico, 24 de julio de 1969."
+    },
+    "marsPathfinder": {
+      "name": "Mars Pathfinder",
+      "cruiseStart": "Comienza la fase de crucero — Pathfinder sale de la Tierra hacia Marte.",
+      "edl": "Entrada, Descenso y Aterrizaje — Pathfinder se sumerge en la atmósfera marciana, amortiguado por bolsas de aire.",
+      "landing": "Aterrizaje — Pathfinder desciende en Valles de Áres, 4 de julio de 1997.",
+      "roverDeploy": "Despliegue del rover — el rover Sojourner rueda sobre la superficie de Marte."
     }
   }
 }

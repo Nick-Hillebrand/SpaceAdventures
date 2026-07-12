@@ -1,0 +1,13 @@
+# Mars Pathfinder milestones — NASA mission event summary
+# (Horizons OBJ_DATA for COMMAND=-530; also mars.nasa.gov/MPF).
+# Horizons' cruise reconstruction only starts 1997-Feb-04 (not the
+# 1996-Dec-04 launch), so the trajectory's t0 is the reconstruction start,
+# not liftoff — see build_mission.py's horizons mode.
+- t: "1997-02-05T00:00:00Z"
+  key: missions.marsPathfinder.cruiseStart
+- t: "1997-07-04T16:51:00Z"
+  key: missions.marsPathfinder.edl
+- t: "1997-07-04T16:57:00Z"
+  key: missions.marsPathfinder.landing
+- t: "1997-07-05T12:00:00Z"
+  key: missions.marsPathfinder.roverDeploy

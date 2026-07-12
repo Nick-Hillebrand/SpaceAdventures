@@ -10,7 +10,8 @@
     "login": "Anmelden",
     "myAccount": "Mein Konto",
     "logout": "Abmelden",
-    "solarSystem": "Sonnensystem"
+    "solarSystem": "Sonnensystem",
+    "missions": "Missionen"
   },
   "apod": {
     "title": "Astronomisches Bild des Tages",
@@ -303,6 +304,45 @@
       "saturn": "Berühmt für seine spektakulären Ringe aus Eis und Gestein. Mit 274 bekannten Monden führt er das Sonnensystem an.",
       "uranus": "Ein zur Seite gekippter Eisriese — seine Achse ist um fast 98° geneigt, er rollt also auf seiner Bahn.",
       "neptune": "Der fernste Planet: ein tiefblauer Eisriese mit den schnellsten Winden im Sonnensystem — über 2.000 km/h."
+    }
+  },
+  "missions": {
+    "toggle": "Missionen",
+    "indexTitle": "Missionswiederholungen",
+    "indexSubtitle": "Erleben Sie historische Raumfahrtmissionen in 3D, berechnet aus echten Trajektoriendaten.",
+    "backToMissions": "← Zurück zu Missionen",
+    "loading": "Missionen werden geladen…",
+    "loadError": "Diese Mission konnte nicht geladen werden. Bitte versuchen Sie es später erneut.",
+    "noMissions": "Noch keine Missionen verfügbar.",
+    "pickerTitle": "Missionen",
+    "exit": "Mission verlassen",
+    "viewFull": "Vollseite öffnen",
+    "play": "Abspielen",
+    "pause": "Pause",
+    "speed": "Geschwindigkeit",
+    "speedValue": "{{n}}×",
+    "scrubberLabel": "Missionszeitstrahl",
+    "canvasLabel": "3D-Missionswiederholungssimulation",
+    "controlsLocked": "Die Wiedergabe wird durch das Missionsfenster gesteuert",
+    "scaleLocked": "Der Maßstab ist während der Missionswiederholung auf wahren Maßstab gesperrt",
+    "embedAttribution": "Space Adventures — Missionswiederholung",
+    "apollo11": {
+      "name": "Apollo 11",
+      "launch": "Start — die Saturn V hebt vom Kennedy Space Center ab, 16. Juli 1969.",
+      "tli": "Trans-Mond-Injektion — die S-IVB-Stufe zündet erneut, um das Raumschiff zum Mond zu schicken.",
+      "loi": "Mondumlaufbahn-Einschwung — Apollo 11 zündet seine Triebwerke, um in die Mondumlaufbahn zu bremsen.",
+      "landing": "Landung — die Eagle setzt in der Meer der Ruhe auf. \"The Eagle has landed.\"",
+      "liftoff": "Mondoberflächen-Abheben — die Aufstiegsstufe verlässt die Mondoberfläche, um mit Columbia zu rendezvous.",
+      "docking": "Andockung — die Aufstiegsstufe dockt wieder mit dem Kommandomodul in der Mondumlaufbahn an.",
+      "tei": "Trans-Erde-Injektion — die Triebwerke zünden erneut, um die Heimreise zu beginnen.",
+      "splashdown": "Wasserlandung — Columbia kehrt am 24. Juli 1969 zum Pazifischen Ozean auf der Erde zurück."
+    },
+    "marsPathfinder": {
+      "name": "Mars Pathfinder",
+      "cruiseStart": "Reisephase beginnt — Pathfinder verlässt die Erde in Richtung Mars.",
+      "edl": "Eintritt, Abstieg und Landung — Pathfinder stürzt in die Marsatmosphäre, durch Airbags gedämpft.",
+      "landing": "Landung — Pathfinder setzt am 4. Juli 1997 in Ares Vallis auf.",
+      "roverDeploy": "Rover-Einsatz — der Sojourner-Rover rollt auf die Marsoberfläche."
     }
   }
 }

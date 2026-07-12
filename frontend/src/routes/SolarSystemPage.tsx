@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import MissionPanel from "@/components/MissionPanel";
 import { PLANETS, SUN, type MoonData, type PlanetData } from "@/solar/data";
+import { fetchMissionIndex, fetchMissionSpec, type MissionIndexEntry, type MissionSpec } from "@/solar/mission";
 import { createSolarScene, type ScaleMode, type SolarSceneHandle } from "@/solar/scene";
 
 const MIN_SPEED = 0.01; // days per second
@@ -34,6 +36,12 @@ export default function SolarSystemPage() {
   const [paused, setPaused] = useState(false);
   const [slider, setSlider] = useState(DEFAULT_SLIDER);
   const [scaleMode, setScaleMode] = useState<ScaleMode>("visible");
+
+  const [missionsOpen, setMissionsOpen] = useState(false);
+  const [missionIndex, setMissionIndex] = useState<MissionIndexEntry[]>([]);
+  const [missionSpec, setMissionSpec] = useState<MissionSpec | null>(null);
+  const [missionSlug, setMissionSlug] = useState<string | null>(null);
+  const [missionError, setMissionError] = useState(false);
 
   const speed = sliderToSpeed(slider);
 
@@ -69,8 +77,46 @@ export default function SolarSystemPage() {
   }, [i18n.resolvedLanguage]);
 
   useEffect(() => {
+    // While a mission is loaded, MissionPanel owns the sim clock's speed —
+    // don't fight it. Re-runs on missionSpec becoming null, restoring the
+    // main transport's own speed.
+    if (missionSpec) return;
     sceneRef.current?.setSpeed(paused ? 0 : speed);
-  }, [paused, speed]);
+  }, [paused, speed, missionSpec]);
+
+  useEffect(() => {
+    if (!missionsOpen || missionIndex.length > 0) return;
+    let cancelled = false;
+    fetchMissionIndex()
+      .then((idx) => {
+        if (!cancelled) setMissionIndex(idx.missions);
+      })
+      .catch(() => {
+        if (!cancelled) setMissionError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [missionsOpen, missionIndex.length]);
+
+  async function handleSelectMission(slug: string) {
+    setMissionError(false);
+    try {
+      const spec = await fetchMissionSpec(slug);
+      sceneRef.current?.mission.load(spec);
+      setMissionSpec(spec);
+      setMissionSlug(slug);
+      setMissionError(false);
+    } catch {
+      setMissionError(true);
+    }
+  }
+
+  function handleClearMission() {
+    sceneRef.current?.mission.clear();
+    setMissionSpec(null);
+    setMissionSlug(null);
+  }
 
   function handleScaleMode(mode: ScaleMode) {
     setScaleMode(mode);
@@ -123,6 +169,14 @@ export default function SolarSystemPage() {
       <div className="solar-header">
         <h1>{t("solar.title")}</h1>
         <p className="solar-subtitle">{t("solar.subtitle")}</p>
+        <button
+          type="button"
+          className="solar-btn"
+          aria-pressed={missionsOpen}
+          onClick={() => setMissionsOpen((o) => !o)}
+        >
+          {t("missions.toggle")}
+        </button>
       </div>
 
       <div className="solar-stage">
@@ -251,14 +305,35 @@ export default function SolarSystemPage() {
             )}
           </aside>
         )}
+
+        {missionsOpen && (
+          <aside className="mission-dock" aria-label={t("missions.pickerTitle")}>
+            <MissionPanel
+              scene={sceneRef.current}
+              simDate={simDate}
+              missions={missionIndex}
+              activeSlug={missionSlug}
+              spec={missionSpec}
+              onSelectMission={handleSelectMission}
+              onClearMission={handleClearMission}
+              showPicker
+              canonicalHref={missionSlug ? `/missions/${missionSlug}` : undefined}
+            />
+            {missionError && <p className="mission-dock__error">{t("missions.loadError")}</p>}
+          </aside>
+        )}
       </div>
 
       <div className="solar-controls" aria-label={t("solar.controlsLabel")}>
-        <div className="solar-controls__group">
+        <div
+          className="solar-controls__group"
+          title={missionSpec ? t("missions.controlsLocked") : undefined}
+        >
           <button
             type="button"
             className="solar-btn"
             aria-pressed={paused}
+            disabled={!!missionSpec}
             onClick={() => setPaused((p) => !p)}
           >
             {paused ? `▶ ${t("solar.play")}` : `⏸ ${t("solar.pause")}`}
@@ -271,30 +346,41 @@ export default function SolarSystemPage() {
               max={100}
               value={slider}
               aria-label={t("solar.speed")}
+              disabled={!!missionSpec}
               onChange={(e) => setSlider(Number(e.target.value))}
             />
             <span className="solar-speed__value">{speedLabel}</span>
           </label>
         </div>
 
-        <div className="solar-controls__group">
+        <div
+          className="solar-controls__group"
+          title={missionSpec ? t("missions.controlsLocked") : undefined}
+        >
           <label className="solar-date">
             {t("solar.date")}
             <input
               type="date"
               value={dateInputValue}
+              disabled={!!missionSpec}
               onChange={(e) => handleDateInput(e.target.value)}
             />
           </label>
-          <button type="button" className="solar-btn" onClick={handleNow}>
+          <button type="button" className="solar-btn" disabled={!!missionSpec} onClick={handleNow}>
             {t("solar.now")}
           </button>
         </div>
 
-        <div className="solar-controls__group" role="group" aria-label={t("solar.scaleLabel")}>
+        <div
+          className="solar-controls__group"
+          role="group"
+          aria-label={t("solar.scaleLabel")}
+          title={missionSpec ? t("missions.scaleLocked") : undefined}
+        >
           <button
             type="button"
             className={`solar-btn solar-btn--toggle${scaleMode === "visible" ? " solar-btn--active" : ""}`}
+            disabled={!!missionSpec}
             onClick={() => handleScaleMode("visible")}
           >
             {t("solar.scaleVisible")}
@@ -302,6 +388,7 @@ export default function SolarSystemPage() {
           <button
             type="button"
             className={`solar-btn solar-btn--toggle${scaleMode === "true" ? " solar-btn--active" : ""}`}
+            disabled={!!missionSpec}
             onClick={() => handleScaleMode("true")}
           >
             {t("solar.scaleTrue")}

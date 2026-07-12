@@ -54,6 +54,7 @@ export default function Navbar() {
         <NavLink to="/neo">{t("nav.neo")}</NavLink>
         <NavLink to="/space-weather">{t("nav.spaceWeather")}</NavLink>
         <NavLink to="/solar-system">{t("nav.solarSystem")}</NavLink>
+        <NavLink to="/missions">{t("nav.missions")}</NavLink>
       </div>
       <div className="navbar-actions">
         <div

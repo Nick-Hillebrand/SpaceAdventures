@@ -2727,3 +2727,243 @@ input::placeholder {
     border: 1px solid rgba(23, 42, 69, 0.8);
   }
 }
+
+/* ── Mission replay (Architecture/22) ───────────────────────── */
+.solar-header {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.solar-header .solar-btn {
+  margin-left: auto;
+}
+
+.mission-dock {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  width: min(320px, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+  padding: 1rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, #0a0e1a 82%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e7edf9;
+}
+
+.mission-dock__error {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: #f87171;
+}
+
+.mission-panel__picker h2,
+.mission-panel__head h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+}
+
+.mission-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.mission-panel__pick {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #dbe5f7;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.mission-panel__pick:hover {
+  background: rgba(79, 156, 249, 0.25);
+}
+
+.mission-panel__pick--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.mission-panel__active {
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.mission-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mission-panel__exit {
+  border: none;
+  background: transparent;
+  color: #9fb2d8;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.mission-panel__exit:hover {
+  color: #ffffff;
+}
+
+.mission-panel__transport {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.mission-panel__play {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.mission-panel__speed {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  color: #9fb2d8;
+}
+
+.mission-panel__speed-value {
+  min-width: 3.5rem;
+  font-variant-numeric: tabular-nums;
+  color: #e7edf9;
+}
+
+.mission-panel__scrubber-wrap {
+  position: relative;
+  margin-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.mission-panel__scrubber {
+  width: 100%;
+  accent-color: var(--color-primary);
+}
+
+.mission-panel__ticks {
+  position: relative;
+  height: 0.75rem;
+}
+
+.mission-panel__tick {
+  position: absolute;
+  top: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  border: none;
+  background: #9fb2d8;
+  transform: translateX(-50%);
+  cursor: pointer;
+  padding: 0;
+}
+
+.mission-panel__tick:hover,
+.mission-panel__tick--active {
+  background: var(--color-primary);
+}
+
+.mission-panel__time {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: #9fb2d8;
+}
+
+.mission-panel__milestone-card {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius);
+  background: rgba(79, 156, 249, 0.12);
+  border: 1px solid rgba(79, 156, 249, 0.3);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.mission-panel__milestone-card p {
+  margin: 0;
+}
+
+.mission-panel__canonical {
+  display: inline-block;
+  margin-top: 0.625rem;
+  font-size: 0.8125rem;
+  color: #8fa7d4;
+}
+
+.missions-index-page,
+.mission-page,
+.mission-embed-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.missions-index-page__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.missions-index-page__list a {
+  display: inline-block;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.missions-index-page__error,
+.mission-page__status--error {
+  color: #f87171;
+}
+
+.mission-page__back {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.mission-embed-page {
+  padding: 0.75rem;
+}
+
+.mission-embed-page__attribution {
+  margin: 0;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.mission-embed-page__attribution a {
+  color: var(--color-text-muted);
+}

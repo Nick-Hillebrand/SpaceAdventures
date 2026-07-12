@@ -1,8 +1,10 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SolarSystemPage from "@/routes/SolarSystemPage";
 import { renderWithProviders } from "@/testUtils";
+import { server } from "@/msw/server";
 import type { SolarSceneOptions } from "@/solar/scene";
 import i18n from "@/i18n";
 
@@ -17,6 +19,7 @@ const { mockScene, createSolarScene } = vi.hoisted(() => {
     select: vi.fn(),
     refreshLabels: vi.fn(),
     dispose: vi.fn(),
+    mission: { load: vi.fn(), clear: vi.fn() },
   };
   const createSolarScene = vi.fn(
     (_container: HTMLElement, _options: unknown) => mockScene,
@@ -25,6 +28,23 @@ const { mockScene, createSolarScene } = vi.hoisted(() => {
 });
 
 vi.mock("@/solar/scene", () => ({ createSolarScene }));
+
+const MISSION_INDEX = {
+  missions: [{ slug: "apollo-11", name_key: "missions.apollo11.name" }],
+};
+const APOLLO_SPEC = {
+  slug: "apollo-11",
+  name_key: "missions.apollo11.name",
+  frame: "geocentric",
+  t0: "2020-01-01T00:00:00Z",
+  t1: "2020-01-02T00:00:00Z",
+  trajectory: [
+    { t: "2020-01-01T00:00:00Z", x: 0, y: 0, z: 0 },
+    { t: "2020-01-02T00:00:00Z", x: 100, y: 0, z: 0 },
+  ],
+  milestones: [{ t: "2020-01-01T12:00:00Z", key: "missions.apollo11.tli" }],
+  bodies: ["earth", "moon"],
+};
 
 function sceneOptions(): SolarSceneOptions {
   return createSolarScene.mock.calls.at(-1)![1] as SolarSceneOptions;
@@ -88,6 +108,34 @@ describe("SolarSystemPage", () => {
     expect(mockScene.select).toHaveBeenCalledWith(null);
   });
 
+  it("shows Sun facts (star type, no orbit/moon-count rows) when the Sun is selected", async () => {
+    renderWithProviders(<SolarSystemPage />);
+    act(() => sceneOptions().onSelect("sun"));
+
+    const panel = await screen.findByRole("complementary", { name: /Body details/i });
+    expect(within(panel).getByRole("heading", { name: "Sun" })).toBeInTheDocument();
+    expect(panel.querySelector(".solar-info__type")).toHaveTextContent("Star");
+    expect(within(panel).queryByText(/Major moons/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a planet with a period under a year in days, and retrograde rotation", async () => {
+    renderWithProviders(<SolarSystemPage />);
+    act(() => sceneOptions().onSelect("venus"));
+
+    const panel = await screen.findByRole("complementary", { name: /Body details/i });
+    expect(within(panel).getByText(/224.7 days/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/retrograde/i)).toBeInTheDocument();
+  });
+
+  it("shows a retrograde moon's orbit period with a retrograde suffix", async () => {
+    renderWithProviders(<SolarSystemPage />);
+    act(() => sceneOptions().onSelect("triton"));
+
+    const panel = await screen.findByRole("complementary", { name: /Body details/i });
+    const orbitDd = panel.querySelectorAll(".solar-facts dd")[2];
+    expect(orbitDd).toHaveTextContent("5.9 days (retrograde)");
+  });
+
   it("pause sets the scene speed to zero and play restores it", async () => {
     renderWithProviders(<SolarSystemPage />);
 
@@ -133,5 +181,81 @@ describe("SolarSystemPage", () => {
     const { unmount } = renderWithProviders(<SolarSystemPage />);
     unmount();
     expect(mockScene.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  describe("missions panel", () => {
+    beforeEach(() => {
+      server.use(
+        http.get("/missions/index.json", () => HttpResponse.json(MISSION_INDEX)),
+        http.get("/missions/apollo-11.json", () => HttpResponse.json(APOLLO_SPEC)),
+      );
+    });
+
+    it("opens the panel, loads a mission into the mounted scene, and shows a canonical link", async () => {
+      renderWithProviders(<SolarSystemPage />);
+
+      await userEvent.click(screen.getByRole("button", { name: /Missions/i }));
+      const dock = await screen.findByRole("complementary", { name: /Missions/i });
+      await userEvent.click(await within(dock).findByRole("button", { name: /Apollo 11/i }));
+
+      await waitFor(() => expect(mockScene.mission.load).toHaveBeenCalledWith(APOLLO_SPEC));
+      expect(within(dock).getByRole("link", { name: /Open full page/i })).toHaveAttribute(
+        "href",
+        "/missions/apollo-11",
+      );
+    });
+
+    it("locks the scale-mode and main transport controls while a mission is active", async () => {
+      renderWithProviders(<SolarSystemPage />);
+
+      await userEvent.click(screen.getByRole("button", { name: /Missions/i }));
+      const dock = await screen.findByRole("complementary", { name: /Missions/i });
+      await userEvent.click(await within(dock).findByRole("button", { name: /Apollo 11/i }));
+      await waitFor(() => expect(mockScene.mission.load).toHaveBeenCalled());
+
+      const mainControls = within(
+        document.querySelector(".solar-controls") as HTMLElement,
+      );
+      expect(mainControls.getByRole("button", { name: /True scale/i })).toBeDisabled();
+      expect(mainControls.getByRole("button", { name: /Didactic scale/i })).toBeDisabled();
+      expect(mainControls.getByRole("button", { name: /Pause/i })).toBeDisabled();
+      expect(mainControls.getByRole("button", { name: /^Now$/i })).toBeDisabled();
+    });
+
+    it("exiting the mission clears the scene layer and restores the main controls", async () => {
+      renderWithProviders(<SolarSystemPage />);
+
+      await userEvent.click(screen.getByRole("button", { name: /Missions/i }));
+      const dock = await screen.findByRole("complementary", { name: /Missions/i });
+      await userEvent.click(await within(dock).findByRole("button", { name: /Apollo 11/i }));
+      await waitFor(() => expect(mockScene.mission.load).toHaveBeenCalled());
+
+      await userEvent.click(within(dock).getByRole("button", { name: /Exit mission/i }));
+      expect(mockScene.mission.clear).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: /Pause/i })).not.toBeDisabled();
+    });
+
+    it("shows an error message when the mission index fails to load", async () => {
+      server.use(http.get("/missions/index.json", () => new HttpResponse(null, { status: 500 })));
+      renderWithProviders(<SolarSystemPage />);
+
+      await userEvent.click(screen.getByRole("button", { name: /Missions/i }));
+      const dock = await screen.findByRole("complementary", { name: /Missions/i });
+      expect(await within(dock).findByText(/could not be loaded/i)).toBeInTheDocument();
+    });
+
+    it("shows an error message when a selected mission's spec fails to load", async () => {
+      server.use(
+        http.get("/missions/apollo-11.json", () => new HttpResponse(null, { status: 500 })),
+      );
+      renderWithProviders(<SolarSystemPage />);
+
+      await userEvent.click(screen.getByRole("button", { name: /Missions/i }));
+      const dock = await screen.findByRole("complementary", { name: /Missions/i });
+      await userEvent.click(await within(dock).findByRole("button", { name: /Apollo 11/i }));
+
+      expect(await within(dock).findByText(/could not be loaded/i)).toBeInTheDocument();
+      expect(mockScene.mission.load).not.toHaveBeenCalled();
+    });
   });
 });
