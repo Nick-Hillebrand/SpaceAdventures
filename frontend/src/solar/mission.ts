@@ -14,6 +14,19 @@ export interface MissionTrajectoryPoint {
   z: number;
 }
 
+export type VignetteEnvironment = "moon-surface" | "mars-surface" | "space";
+
+export interface MissionVignette {
+  /** Path under /models/missions/, e.g. "/models/missions/apollo11-lm.glb". */
+  model: string;
+  environment: VignetteEnvironment;
+  /** i18n key for the credit line, e.g. "missions.credit.nasa". */
+  modelCredit: string;
+  cameraOrbit: { distanceM: number; elevationDeg: number };
+  /** i18n key for the narration/caption text shown alongside the vignette. */
+  narrationKey: string;
+}
+
 export interface MissionMilestone {
   /** ISO 8601 timestamp, within [t0, t1]. */
   t: string;
@@ -21,6 +34,7 @@ export interface MissionMilestone {
   key: string;
   lat?: number | null;
   lng?: number | null;
+  vignette?: MissionVignette;
 }
 
 export interface MissionBodyCalibration {

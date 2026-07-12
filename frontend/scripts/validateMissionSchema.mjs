@@ -5,8 +5,13 @@
 
 export const MAX_TRAJECTORY_POINTS = 5000;
 export const MAX_FILE_BYTES = 500 * 1024;
+// Architecture/27-mission-simulations-3d.md performance budgets.
+export const MAX_MODEL_FILE_BYTES = 2 * 1024 * 1024;
+export const MAX_MISSION_MODEL_BYTES = 6 * 1024 * 1024;
 
 const VALID_FRAMES = new Set(["geocentric", "heliocentric"]);
+const VALID_ENVIRONMENTS = new Set(["moon-surface", "mars-surface", "space"]);
+const MODEL_PATH_PREFIX = "/models/missions/";
 
 function isFiniteNumber(v) {
   return typeof v === "number" && Number.isFinite(v);
@@ -25,8 +30,18 @@ function parseIso(v) {
 /**
  * Validates a parsed mission spec against the schema. Returns an array of
  * human-readable error strings; empty array means valid.
+ *
+ * `knownModelFiles`/`modelFileSizes`/`localeKeySets` are injected (mirroring
+ * `validateIndexSpec`'s `knownSlugs`) so this stays pure/testable — the CLI
+ * (validate-missions.mjs) is the only place that touches the filesystem.
+ *   - knownModelFiles: Set<string> of basenames present under public/models/missions/
+ *   - modelFileSizes: Map<string basename, number bytes>
+ *   - localeKeySets: Map<string locale, Set<string> dotted i18n keys>
  */
-export function validateMissionSpec(data, { fileName } = {}) {
+export function validateMissionSpec(
+  data,
+  { fileName, knownModelFiles, modelFileSizes, localeKeySets } = {},
+) {
   const errors = [];
   const tag = (msg) => (fileName ? `${fileName}: ${msg}` : msg);
 
@@ -94,6 +109,9 @@ export function validateMissionSpec(data, { fileName } = {}) {
   if (!Array.isArray(data.milestones)) {
     errors.push(tag("missing required field: milestones (array)"));
   } else {
+    let missionModelBytes = 0;
+    const missionModelFilesSeen = new Set();
+
     data.milestones.forEach((m, i) => {
       if (!isNonEmptyString(m?.key)) {
         errors.push(tag(`milestones[${i}].key is missing or empty`));
@@ -110,7 +128,77 @@ export function validateMissionSpec(data, { fileName } = {}) {
           errors.push(tag(`milestones[${i}].${axis} must be a finite number or null`));
         }
       }
+
+      if (m?.vignette !== undefined) {
+        const v = m.vignette;
+        const vtag = (msg) => tag(`milestones[${i}].vignette.${msg}`);
+
+        if (typeof v !== "object" || v === null || Array.isArray(v)) {
+          errors.push(tag(`milestones[${i}].vignette must be an object`));
+          return;
+        }
+
+        if (!isNonEmptyString(v.model)) {
+          errors.push(vtag("model is missing or empty"));
+        } else if (!v.model.startsWith(MODEL_PATH_PREFIX)) {
+          errors.push(vtag(`model "${v.model}" must be under ${MODEL_PATH_PREFIX}`));
+        } else {
+          const basename = v.model.slice(MODEL_PATH_PREFIX.length);
+          if (knownModelFiles && !knownModelFiles.has(basename)) {
+            errors.push(vtag(`model file "${basename}" does not exist in public/models/missions/`));
+          }
+          if (modelFileSizes && modelFileSizes.has(basename)) {
+            const bytes = modelFileSizes.get(basename);
+            if (bytes > MAX_MODEL_FILE_BYTES) {
+              errors.push(
+                vtag(`model file "${basename}" is ${bytes} bytes, exceeds the ${MAX_MODEL_FILE_BYTES}-byte per-file budget`),
+              );
+            }
+            if (!missionModelFilesSeen.has(basename)) {
+              missionModelFilesSeen.add(basename);
+              missionModelBytes += bytes;
+            }
+          }
+        }
+
+        if (!VALID_ENVIRONMENTS.has(v.environment)) {
+          errors.push(
+            vtag(`environment must be one of ${[...VALID_ENVIRONMENTS].join(", ")}, got ${JSON.stringify(v.environment)}`),
+          );
+        }
+
+        for (const keyField of ["modelCredit", "narrationKey"]) {
+          const key = v[keyField];
+          if (!isNonEmptyString(key)) {
+            errors.push(vtag(`${keyField} is missing or empty`));
+          } else if (localeKeySets) {
+            const missingLocales = [...localeKeySets.keys()].filter(
+              (locale) => !localeKeySets.get(locale).has(key),
+            );
+            if (missingLocales.length > 0) {
+              errors.push(vtag(`${keyField} "${key}" is missing from locale(s): ${missingLocales.join(", ")}`));
+            }
+          }
+        }
+
+        if (typeof v.cameraOrbit !== "object" || v.cameraOrbit === null) {
+          errors.push(vtag("cameraOrbit is missing or not an object"));
+        } else {
+          if (!isFiniteNumber(v.cameraOrbit.distanceM)) {
+            errors.push(vtag("cameraOrbit.distanceM must be a finite number"));
+          }
+          if (!isFiniteNumber(v.cameraOrbit.elevationDeg)) {
+            errors.push(vtag("cameraOrbit.elevationDeg must be a finite number"));
+          }
+        }
+      }
     });
+
+    if (missionModelBytes > MAX_MISSION_MODEL_BYTES) {
+      errors.push(
+        tag(`vignette models total ${missionModelBytes} bytes, exceeds the ${MAX_MISSION_MODEL_BYTES}-byte per-mission budget`),
+      );
+    }
   }
 
   if (!Array.isArray(data.bodies) || data.bodies.length === 0) {
@@ -137,7 +225,10 @@ export function validateMissionSpec(data, { fileName } = {}) {
  * Validates raw JSON text: enforces the 500 KB size budget before parsing,
  * then delegates to validateMissionSpec. Returns { errors, data }.
  */
-export function validateMissionFileText(text, { fileName } = {}) {
+export function validateMissionFileText(
+  text,
+  { fileName, knownModelFiles, modelFileSizes, localeKeySets } = {},
+) {
   const byteLength = Buffer.byteLength(text, "utf8");
   const errors = [];
   const tag = (msg) => (fileName ? `${fileName}: ${msg}` : msg);
@@ -153,7 +244,13 @@ export function validateMissionFileText(text, { fileName } = {}) {
     return { errors: [...errors, tag(`invalid JSON: ${err.message}`)], data: null };
   }
 
-  return { errors: [...errors, ...validateMissionSpec(data, { fileName })], data };
+  return {
+    errors: [
+      ...errors,
+      ...validateMissionSpec(data, { fileName, knownModelFiles, modelFileSizes, localeKeySets }),
+    ],
+    data,
+  };
 }
 
 /**

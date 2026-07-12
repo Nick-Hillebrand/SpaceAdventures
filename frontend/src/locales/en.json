@@ -317,6 +317,16 @@
     "pickerTitle": "Missions",
     "exit": "Exit mission",
     "viewFull": "Open full page",
+    "enterVignette": "See it in 3D",
+    "vignette": {
+      "illustration": "3D illustration",
+      "exit": "Exit 3D view",
+      "loading": "Loading 3D scene…",
+      "error": "Couldn't load the 3D view. Please try again later."
+    },
+    "credit": {
+      "nasa": "Model: NASA/JPL-Caltech"
+    },
     "play": "Play",
     "pause": "Pause",
     "speed": "Speed",
@@ -332,6 +342,9 @@
       "tli": "Trans-Lunar Injection — the S-IVB stage fires again to send the spacecraft toward the Moon.",
       "loi": "Lunar Orbit Insertion — Apollo 11 fires its engine to brake into orbit around the Moon.",
       "landing": "Landing — Eagle touches down in the Sea of Tranquility. \"The Eagle has landed.\"",
+      "landingNarration": "The Eagle lunar module rests on its four legs in the Sea of Tranquility, kicking up lunar dust as Armstrong and Aldrin power down the descent engine.",
+      "firstEva": "First steps — Armstrong descends the ladder and plants the first human footprint on another world. \"That's one small step for [a] man, one giant leap for mankind.\"",
+      "firstEvaNarration": "Neil Armstrong descends the ladder and steps onto the lunar surface, with the Eagle towering behind him.",
       "liftoff": "Lunar liftoff — the ascent stage leaves the Moon's surface to rendezvous with Columbia.",
       "docking": "Docking — the ascent stage redocks with the command module in lunar orbit.",
       "tei": "Trans-Earth Injection — the engine fires once more to begin the journey home.",
@@ -341,8 +354,10 @@
       "name": "Mars Pathfinder",
       "cruiseStart": "Cruise phase begins — Pathfinder departs Earth on its journey to Mars.",
       "edl": "Entry, Descent, and Landing — Pathfinder plunges through the Martian atmosphere, cushioned by airbags.",
+      "edlNarration": "Wrapped in airbags, Pathfinder tumbles to a stop on the rock-strewn plain of Ares Vallis after bouncing more than a dozen times.",
       "landing": "Landing — Pathfinder touches down in Ares Vallis, July 4, 1997.",
-      "roverDeploy": "Rover deployment — the Sojourner rover rolls onto the surface of Mars."
+      "roverDeploy": "Rover deployment — the Sojourner rover rolls onto the surface of Mars.",
+      "roverDeployNarration": "The lander's petals unfold and the Sojourner rover rolls down its ramp to begin exploring the Martian surface."
     }
   }
 }

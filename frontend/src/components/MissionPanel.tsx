@@ -3,9 +3,10 @@
 // both entry points — the canonical /missions/:slug route and the in-context
 // "Missions" panel on SolarSystemPage — driven by the same
 // SolarSceneHandle.mission.load()/clear() the parent already mounted.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatDateTime } from "@/lib/dateTime";
+import { createVignette } from "@/solar/missionVignette";
 import type { MissionIndexEntry, MissionSpec } from "@/solar/mission";
 import type { SolarSceneHandle } from "@/solar/scene";
 
@@ -50,6 +51,17 @@ export default function MissionPanel({
   const [paused, setPaused] = useState(false);
   const [slider, setSlider] = useState(DEFAULT_SLIDER);
   const [activeMilestone, setActiveMilestone] = useState<number | null>(null);
+  const [vignetteOpen, setVignetteOpen] = useState(false);
+  const [vignetteLoading, setVignetteLoading] = useState(false);
+  const [vignetteError, setVignetteError] = useState(false);
+  const vignetteContainerRef = useRef<HTMLDivElement>(null);
+
+  // Vignette narration/credit lookups happen from inside an effect (see
+  // below) that must not re-mount the vignette every render just because `t`
+  // got a new function identity — same getLabelRef pattern as
+  // SolarSystemPage/MissionPage.
+  const getLabelRef = useRef(t);
+  getLabelRef.current = t;
 
   // A newly loaded mission always starts playing from its own default speed;
   // stale milestone-card state from the previous mission must not carry over.
@@ -57,14 +69,50 @@ export default function MissionPanel({
     setPaused(false);
     setSlider(DEFAULT_SLIDER);
     setActiveMilestone(null);
+    setVignetteOpen(false);
   }, [spec?.slug]);
 
   const multiplier = sliderToMultiplier(slider);
 
   useEffect(() => {
     if (!scene || !spec) return;
-    scene.setSpeed(paused ? 0 : multiplier / SECONDS_PER_DAY);
-  }, [scene, spec, paused, multiplier]);
+    // Entering a vignette pauses trajectory time regardless of the
+    // play/pause toggle — the vignette is a self-contained staging scene,
+    // not something the trajectory clock should keep running behind.
+    scene.setSpeed(paused || vignetteOpen ? 0 : multiplier / SECONDS_PER_DAY);
+  }, [scene, spec, paused, multiplier, vignetteOpen]);
+
+  const activeVignette =
+    spec && activeMilestone !== null ? spec.milestones[activeMilestone]?.vignette : undefined;
+
+  useEffect(() => {
+    const container = vignetteContainerRef.current;
+    if (!vignetteOpen || !activeVignette || !container) return;
+
+    setVignetteLoading(true);
+    setVignetteError(false);
+    const handle = createVignette(container, activeVignette, (key) => getLabelRef.current(key));
+    let cancelled = false;
+
+    handle
+      .play()
+      .then(() => {
+        if (!cancelled) setVignetteLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVignetteLoading(false);
+          setVignetteError(true);
+          setVignetteOpen(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      handle.dispose();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vignetteOpen, activeVignette]);
 
   const t0 = spec ? Date.parse(spec.t0) : 0;
   const t1 = spec ? Date.parse(spec.t1) : 0;
@@ -72,11 +120,13 @@ export default function MissionPanel({
 
   function handleScrub(value: number) {
     setActiveMilestone(null);
+    setVignetteOpen(false);
     scene?.setDate(new Date(value));
   }
 
   function handleMilestoneClick(index: number, atMs: number) {
     setActiveMilestone(index);
+    setVignetteOpen(false);
     scene?.setDate(new Date(atMs));
   }
 
@@ -175,6 +225,34 @@ export default function MissionPanel({
           {activeMilestoneData && (
             <div className="mission-panel__milestone-card">
               <p>{t(activeMilestoneData.key)}</p>
+              {activeVignette && !vignetteOpen && (
+                <button
+                  type="button"
+                  className="mission-panel__enter-vignette"
+                  onClick={() => setVignetteOpen(true)}
+                >
+                  {t("missions.enterVignette")}
+                </button>
+              )}
+              {vignetteError && <p className="mission-panel__vignette-error">{t("missions.vignette.error")}</p>}
+            </div>
+          )}
+
+          {vignetteOpen && activeVignette && (
+            <div className="mission-panel__vignette" role="region" aria-label={t("missions.vignette.illustration")}>
+              <div className="mission-panel__vignette-head">
+                <p className="mission-panel__vignette-illustration">{t("missions.vignette.illustration")}</p>
+                <button
+                  type="button"
+                  className="mission-panel__vignette-exit"
+                  onClick={() => setVignetteOpen(false)}
+                >
+                  {t("missions.vignette.exit")}
+                </button>
+              </div>
+              {vignetteLoading && <p className="mission-panel__vignette-loading">{t("missions.vignette.loading")}</p>}
+              <div ref={vignetteContainerRef} className="mission-panel__vignette-scene" />
+              <p className="mission-panel__vignette-narration">{t(activeVignette.narrationKey)}</p>
             </div>
           )}
 

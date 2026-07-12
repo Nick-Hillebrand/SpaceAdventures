@@ -317,6 +317,16 @@
     "pickerTitle": "Misiones",
     "exit": "Salir de la misión",
     "viewFull": "Abrir página completa",
+    "enterVignette": "Verlo en 3D",
+    "vignette": {
+      "illustration": "Ilustración 3D",
+      "exit": "Salir de la vista 3D",
+      "loading": "Cargando escena 3D…",
+      "error": "No se pudo cargar la vista 3D. Por favor, inténtelo más tarde."
+    },
+    "credit": {
+      "nasa": "Modelo: NASA/JPL-Caltech"
+    },
     "play": "Reproducir",
     "pause": "Pausa",
     "speed": "Velocidad",
@@ -332,6 +342,9 @@
       "tli": "Inyección translunar — la etapa S-IVB se enciende de nuevo para enviar la nave hacia la Luna.",
       "loi": "Inserción en órbita lunar — Apollo 11 dispara su motor para frenar y entrar en órbita alrededor de la Luna.",
       "landing": "Aterrizaje — el Eagle desciende en el Mar de la Tranquilidad. \"The Eagle has landed.\"",
+      "landingNarration": "El módulo lunar Eagle descansa sobre sus cuatro patas en el Mar de la Tranquilidad, levantando polvo lunar mientras Armstrong y Aldrin apagan el motor de descenso.",
+      "firstEva": "Primeros pasos — Armstrong desciende por la escalera y planta la primera huella humana en otro mundo. \"That's one small step for [a] man, one giant leap for mankind.\"",
+      "firstEvaNarration": "Neil Armstrong desciende por la escalera y pisa la superficie lunar, con el Eagle elevándose detrás de él.",
       "liftoff": "Despegue lunar — la etapa de ascenso sale de la superficie lunar para rendezvous con Columbia.",
       "docking": "Acoplamiento — la etapa de ascenso vuelve a acoplarse con el módulo de mando en órbita lunar.",
       "tei": "Inyección translunar — el motor se dispara una vez más para comenzar el viaje de regreso.",
@@ -341,8 +354,10 @@
       "name": "Mars Pathfinder",
       "cruiseStart": "Comienza la fase de crucero — Pathfinder sale de la Tierra hacia Marte.",
       "edl": "Entrada, Descenso y Aterrizaje — Pathfinder se sumerge en la atmósfera marciana, amortiguado por bolsas de aire.",
+      "edlNarration": "Envuelto en bolsas de aire, Pathfinder rebota más de una docena de veces antes de detenerse en la llanura rocosa de Valles de Áres.",
       "landing": "Aterrizaje — Pathfinder desciende en Valles de Áres, 4 de julio de 1997.",
-      "roverDeploy": "Despliegue del rover — el rover Sojourner rueda sobre la superficie de Marte."
+      "roverDeploy": "Despliegue del rover — el rover Sojourner rueda sobre la superficie de Marte.",
+      "roverDeployNarration": "Los pétalos del módulo se despliegan y el rover Sojourner desciende por su rampa para comenzar a explorar la superficie marciana."
     }
   }
 }

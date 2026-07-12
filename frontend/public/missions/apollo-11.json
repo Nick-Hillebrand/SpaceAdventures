@@ -4713,7 +4713,25 @@
     },
     {
       "t": "1969-07-20T20:17:40Z",
-      "key": "missions.apollo11.landing"
+      "key": "missions.apollo11.landing",
+      "vignette": {
+        "model": "/models/missions/apollo11-lm.glb",
+        "environment": "moon-surface",
+        "modelCredit": "missions.credit.nasa",
+        "cameraOrbit": { "distanceM": 18, "elevationDeg": 12 },
+        "narrationKey": "missions.apollo11.landingNarration"
+      }
+    },
+    {
+      "t": "1969-07-21T02:56:15Z",
+      "key": "missions.apollo11.firstEva",
+      "vignette": {
+        "model": "/models/missions/apollo11-lm.glb",
+        "environment": "moon-surface",
+        "modelCredit": "missions.credit.nasa",
+        "cameraOrbit": { "distanceM": 24, "elevationDeg": 18 },
+        "narrationKey": "missions.apollo11.firstEvaNarration"
+      }
     },
     {
       "t": "1969-07-21T17:54:00Z",

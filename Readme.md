@@ -13,7 +13,9 @@ A multilingual web application that fetches, caches, and visualises NASA data an
 - **Solar System Explorer** — 3D true-scale/didactic-scale simulator of the Sun, planets and major moons
 - **Mission Replay** — 3D playback of historic spaceflight trajectories (Apollo 11, Mars Pathfinder) with a
   timeline scrubber and milestone cards, at `/missions`, `/missions/:slug` and a chrome-less `/missions/:slug/embed`,
-  and as an in-context panel on the Solar System page
+  and as an in-context panel on the Solar System page. Key milestones (Apollo 11 landing/first EVA, Pathfinder
+  EDL/rover deployment) can open a close-up 3D "vignette" — the real NASA/JPL glTF model, staged with an
+  orbit camera and narration
 - **User accounts** — JWT auth with email/SMS OTP verification and launch notification subscriptions
 
 ---
@@ -60,8 +62,10 @@ SpaceAdventures/
     │   ├── locales/        # i18n translation files (en, de, es, fr, ja, ru)
     │   └── msw/            # Mock Service Worker handlers for tests
     ├── public/missions/    # Static mission JSON (index.json + one file per mission slug)
+    ├── public/models/      # Static 3D assets (rover viewer + mission vignette glTF models, CREDITS.md)
     ├── scripts/
-    │   └── validate-missions.mjs # Validates public/missions/*.json against the mission schema
+    │   ├── validate-missions.mjs # Validates public/missions/*.json against the mission schema
+    │   └── vrml-convert/   # Dev-only VRML(.wrl)→glTF converter used to produce mission vignette assets
     ├── __tests__/          # Vitest test suite
     ├── Dockerfile.dev      # Dev image (Vite HMR)
     └── vite.config.ts
@@ -256,6 +260,18 @@ schema (also run in CI) before committing:
 ```bash
 cd frontend
 npm run validate:missions
+```
+
+A milestone can optionally reference a 3D vignette (`vignette.model`, `.environment`,
+`.cameraOrbit`, `.narrationKey`) — see `Architecture/27-mission-simulations-3d.md`.
+Vignette glTF assets live in `frontend/public/models/missions/`; provenance and the
+VRML→glTF conversion pipeline used for the Pathfinder assets are documented in
+`frontend/public/models/CREDITS.md`.
+
+```sh
+# Re-run the VRML(.wrl)→glTF conversion for a mission vignette asset
+cd frontend
+node scripts/vrml-convert/convert.mjs <input.wrl> <output.glb>
 ```
 
 ---

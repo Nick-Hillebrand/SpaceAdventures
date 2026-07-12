@@ -3,6 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import {
   MAX_FILE_BYTES,
+  MAX_MISSION_MODEL_BYTES,
+  MAX_MODEL_FILE_BYTES,
   MAX_TRAJECTORY_POINTS,
   validateIndexSpec,
   validateMissionFileText,
@@ -160,6 +162,106 @@ describe("validateMissionSpec", () => {
     const spec = validSpec();
     spec.bodyCalibration.moon.phaseDeg = "big";
     expect(validateMissionSpec(spec).some((e) => e.includes("phaseDeg"))).toBe(true);
+  });
+});
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function validVignette(): any {
+  return {
+    model: "/models/missions/apollo11-lm.glb",
+    environment: "moon-surface",
+    modelCredit: "missions.credit.nasa",
+    cameraOrbit: { distanceM: 18, elevationDeg: 12 },
+    narrationKey: "missions.apollo11.landing.narration",
+  };
+}
+
+const vignetteOptions = {
+  knownModelFiles: new Set(["apollo11-lm.glb"]),
+  modelFileSizes: new Map([["apollo11-lm.glb", 1024]]),
+  localeKeySets: new Map([
+    ["en", new Set(["missions.credit.nasa", "missions.apollo11.landing.narration"])],
+    ["de", new Set(["missions.credit.nasa", "missions.apollo11.landing.narration"])],
+  ]),
+};
+
+describe("validateMissionSpec vignettes", () => {
+  it("accepts a well-formed vignette", () => {
+    const spec = validSpec();
+    spec.milestones[0].vignette = validVignette();
+    expect(validateMissionSpec(spec, vignetteOptions)).toEqual([]);
+  });
+
+  it("accepts a milestone without a vignette (optional field)", () => {
+    const spec = validSpec();
+    expect(validateMissionSpec(spec, vignetteOptions)).toEqual([]);
+  });
+
+  it("rejects a vignette model path outside /models/missions/", () => {
+    const spec = validSpec();
+    spec.milestones[0].vignette = { ...validVignette(), model: "/models/apollo11-lm.glb" };
+    const errors = validateMissionSpec(spec, vignetteOptions);
+    expect(errors.some((e) => e.includes("must be under /models/missions/"))).toBe(true);
+  });
+
+  it("flags a vignette model file missing from public/models/missions/", () => {
+    const spec = validSpec();
+    spec.milestones[0].vignette = { ...validVignette(), model: "/models/missions/ghost.glb" };
+    const errors = validateMissionSpec(spec, vignetteOptions);
+    expect(errors.some((e) => e.includes('model file "ghost.glb" does not exist'))).toBe(true);
+  });
+
+  it("rejects an unknown vignette environment", () => {
+    const spec = validSpec();
+    spec.milestones[0].vignette = { ...validVignette(), environment: "underwater" };
+    const errors = validateMissionSpec(spec, vignetteOptions);
+    expect(errors.some((e) => e.includes("environment must be one of"))).toBe(true);
+  });
+
+  it("flags a vignette i18n key missing from a locale", () => {
+    const spec = validSpec();
+    spec.milestones[0].vignette = { ...validVignette(), modelCredit: "missions.credit.unknown" };
+    const errors = validateMissionSpec(spec, vignetteOptions);
+    expect(errors.some((e) => e.includes('modelCredit "missions.credit.unknown" is missing from locale(s)'))).toBe(
+      true,
+    );
+  });
+
+  it("rejects a non-finite cameraOrbit field", () => {
+    const spec = validSpec();
+    spec.milestones[0].vignette = {
+      ...validVignette(),
+      cameraOrbit: { distanceM: "far", elevationDeg: 12 },
+    };
+    const errors = validateMissionSpec(spec, vignetteOptions);
+    expect(errors.some((e) => e.includes("cameraOrbit.distanceM"))).toBe(true);
+  });
+
+  it("flags a model file exceeding the per-file size budget", () => {
+    const spec = validSpec();
+    spec.milestones[0].vignette = validVignette();
+    const errors = validateMissionSpec(spec, {
+      ...vignetteOptions,
+      modelFileSizes: new Map([["apollo11-lm.glb", MAX_MODEL_FILE_BYTES + 1]]),
+    });
+    expect(errors.some((e) => e.includes("per-file budget"))).toBe(true);
+  });
+
+  it("flags a mission whose vignette models exceed the per-mission size budget", () => {
+    const spec = validSpec();
+    spec.milestones.push({ ...spec.milestones[0], key: "missions.testMission.second" });
+    spec.milestones[0].vignette = { ...validVignette(), model: "/models/missions/one.glb" };
+    spec.milestones[1].vignette = { ...validVignette(), model: "/models/missions/two.glb" };
+    const bigHalf = Math.ceil(MAX_MISSION_MODEL_BYTES / 2) + 1;
+    const errors = validateMissionSpec(spec, {
+      knownModelFiles: new Set(["one.glb", "two.glb"]),
+      modelFileSizes: new Map([
+        ["one.glb", bigHalf],
+        ["two.glb", bigHalf],
+      ]),
+      localeKeySets: vignetteOptions.localeKeySets,
+    });
+    expect(errors.some((e) => e.includes("per-mission budget"))).toBe(true);
   });
 });
 

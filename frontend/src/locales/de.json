@@ -317,6 +317,16 @@
     "pickerTitle": "Missionen",
     "exit": "Mission verlassen",
     "viewFull": "Vollseite öffnen",
+    "enterVignette": "In 3D ansehen",
+    "vignette": {
+      "illustration": "3D-Darstellung",
+      "exit": "3D-Ansicht beenden",
+      "loading": "3D-Szene wird geladen…",
+      "error": "Die 3D-Ansicht konnte nicht geladen werden. Bitte versuchen Sie es später erneut."
+    },
+    "credit": {
+      "nasa": "Modell: NASA/JPL-Caltech"
+    },
     "play": "Abspielen",
     "pause": "Pause",
     "speed": "Geschwindigkeit",
@@ -332,6 +342,9 @@
       "tli": "Trans-Mond-Injektion — die S-IVB-Stufe zündet erneut, um das Raumschiff zum Mond zu schicken.",
       "loi": "Mondumlaufbahn-Einschwung — Apollo 11 zündet seine Triebwerke, um in die Mondumlaufbahn zu bremsen.",
       "landing": "Landung — die Eagle setzt in der Meer der Ruhe auf. \"The Eagle has landed.\"",
+      "landingNarration": "Das Mondmodul Eagle ruht auf seinen vier Beinen im Meer der Ruhe und wirbelt Mondstaub auf, während Armstrong und Aldrin das Triebwerk abschalten.",
+      "firstEva": "Erste Schritte — Armstrong steigt die Leiter hinab und setzt den ersten menschlichen Fußabdruck auf einer anderen Welt. \"That's one small step for [a] man, one giant leap for mankind.\"",
+      "firstEvaNarration": "Neil Armstrong steigt die Leiter hinab und betritt die Mondoberfläche, wobei das Eagle-Modul hinter ihm aufragend steht.",
       "liftoff": "Mondoberflächen-Abheben — die Aufstiegsstufe verlässt die Mondoberfläche, um mit Columbia zu rendezvous.",
       "docking": "Andockung — die Aufstiegsstufe dockt wieder mit dem Kommandomodul in der Mondumlaufbahn an.",
       "tei": "Trans-Erde-Injektion — die Triebwerke zünden erneut, um die Heimreise zu beginnen.",
@@ -341,8 +354,10 @@
       "name": "Mars Pathfinder",
       "cruiseStart": "Reisephase beginnt — Pathfinder verlässt die Erde in Richtung Mars.",
       "edl": "Eintritt, Abstieg und Landung — Pathfinder stürzt in die Marsatmosphäre, durch Airbags gedämpft.",
+      "edlNarration": "In Airbags gehüllt kommt Pathfinder auf der felsigen Ebene von Ares Vallis nach mehr als einem Dutzend Hüpfer zum Stillstand.",
       "landing": "Landung — Pathfinder setzt am 4. Juli 1997 in Ares Vallis auf.",
-      "roverDeploy": "Rover-Einsatz — der Sojourner-Rover rollt auf die Marsoberfläche."
+      "roverDeploy": "Rover-Einsatz — der Sojourner-Rover rollt auf die Marsoberfläche.",
+      "roverDeployNarration": "Die Landerblütenblätter entfalten sich und der Sojourner-Rover rollt seine Rampe hinab, um die Marsoberfläche zu erkunden."
     }
   }
 }

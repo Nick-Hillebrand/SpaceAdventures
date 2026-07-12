@@ -925,7 +925,14 @@
     },
     {
       "t": "1997-07-04T16:51:00Z",
-      "key": "missions.marsPathfinder.edl"
+      "key": "missions.marsPathfinder.edl",
+      "vignette": {
+        "model": "/models/missions/pathfinder-lander.glb",
+        "environment": "mars-surface",
+        "modelCredit": "missions.credit.nasa",
+        "cameraOrbit": { "distanceM": 12, "elevationDeg": 20 },
+        "narrationKey": "missions.marsPathfinder.edlNarration"
+      }
     },
     {
       "t": "1997-07-04T16:57:00Z",
@@ -933,7 +940,14 @@
     },
     {
       "t": "1997-07-05T12:00:00Z",
-      "key": "missions.marsPathfinder.roverDeploy"
+      "key": "missions.marsPathfinder.roverDeploy",
+      "vignette": {
+        "model": "/models/missions/pathfinder-surface-ops.glb",
+        "environment": "mars-surface",
+        "modelCredit": "missions.credit.nasa",
+        "cameraOrbit": { "distanceM": 15, "elevationDeg": 15 },
+        "narrationKey": "missions.marsPathfinder.roverDeployNarration"
+      }
     }
   ],
   "bodies": [

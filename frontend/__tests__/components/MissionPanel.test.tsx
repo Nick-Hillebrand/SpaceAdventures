@@ -1,10 +1,37 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import MissionPanel from "@/components/MissionPanel";
-import type { MissionSpec } from "@/solar/mission";
+import type { MissionSpec, MissionVignette } from "@/solar/mission";
 import type { SolarSceneHandle } from "@/solar/scene";
 import i18n from "@/i18n";
+
+// The real createVignette owns a three.js render loop and requires a WebGL
+// context (P36) — MissionPanel is tested against a controllable fake handle
+// instead, matching the pattern already used for the scene/mission modules.
+const vignetteHandles: { play: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> }[] = [];
+let nextPlayResult: "resolve" | "reject" = "resolve";
+vi.mock("@/solar/missionVignette", () => ({
+  createVignette: vi.fn(() => {
+    const handle = {
+      play: vi.fn(() => (nextPlayResult === "resolve" ? Promise.resolve() : Promise.reject(new Error("boom")))),
+      dispose: vi.fn(),
+    };
+    vignetteHandles.push(handle);
+    return handle;
+  }),
+}));
+
+function makeVignette(overrides: Partial<MissionVignette> = {}): MissionVignette {
+  return {
+    model: "/models/missions/apollo11-lm.glb",
+    environment: "moon-surface",
+    modelCredit: "missions.credit.nasa",
+    cameraOrbit: { distanceM: 18, elevationDeg: 12 },
+    narrationKey: "missions.apollo11.landingNarration",
+    ...overrides,
+  };
+}
 
 function makeScene(): SolarSceneHandle {
   return {
@@ -42,6 +69,9 @@ afterEach(async () => {
   await act(async () => {
     await i18n.changeLanguage("en");
   });
+  vignetteHandles.length = 0;
+  nextPlayResult = "resolve";
+  vi.clearAllMocks();
 });
 
 describe("MissionPanel", () => {
@@ -310,5 +340,167 @@ describe("MissionPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: /Play/i }));
     const lastSpeed = (scene.setSpeed as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as number;
     expect(lastSpeed).toBeGreaterThan(0);
+  });
+
+  it("the vignette entry button only appears for milestones that declare one", async () => {
+    const spec = makeSpec({
+      milestones: [
+        { t: "2020-01-01T06:00:00.000Z", key: "missions.apollo11.launch" },
+        { t: "2020-01-01T18:00:00.000Z", key: "missions.apollo11.tli", vignette: makeVignette() },
+      ],
+    });
+    render(
+      <MissionPanel
+        scene={makeScene()}
+        simDate={new Date(spec.t0)}
+        missions={[]}
+        activeSlug="apollo-11"
+        spec={spec}
+        onSelectMission={vi.fn()}
+        onClearMission={vi.fn()}
+        showPicker={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Launch — the Saturn V lifts off/i }));
+    expect(screen.queryByRole("button", { name: /See it in 3D/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Trans-lunar injection/i }));
+    expect(screen.getByRole("button", { name: /See it in 3D/i })).toBeInTheDocument();
+  });
+
+  it("entering a vignette mounts it and pauses the trajectory scene regardless of play/pause", async () => {
+    const scene = makeScene();
+    const spec = makeSpec({
+      milestones: [{ t: "2020-01-01T06:00:00.000Z", key: "missions.apollo11.launch", vignette: makeVignette() }],
+    });
+    render(
+      <MissionPanel
+        scene={scene}
+        simDate={new Date(spec.t0)}
+        missions={[]}
+        activeSlug="apollo-11"
+        spec={spec}
+        onSelectMission={vi.fn()}
+        onClearMission={vi.fn()}
+        showPicker={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Launch — the Saturn V lifts off/i }));
+    await userEvent.click(screen.getByRole("button", { name: /See it in 3D/i }));
+
+    expect(scene.setSpeed).toHaveBeenLastCalledWith(0);
+    await waitFor(() => expect(vignetteHandles).toHaveLength(1));
+    expect(vignetteHandles[0].play).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("region", { name: /3D illustration/i })).toBeInTheDocument();
+  });
+
+  it("exiting a vignette disposes it and unmounts the overlay", async () => {
+    const spec = makeSpec({
+      milestones: [{ t: "2020-01-01T06:00:00.000Z", key: "missions.apollo11.launch", vignette: makeVignette() }],
+    });
+    render(
+      <MissionPanel
+        scene={makeScene()}
+        simDate={new Date(spec.t0)}
+        missions={[]}
+        activeSlug="apollo-11"
+        spec={spec}
+        onSelectMission={vi.fn()}
+        onClearMission={vi.fn()}
+        showPicker={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Launch — the Saturn V lifts off/i }));
+    await userEvent.click(screen.getByRole("button", { name: /See it in 3D/i }));
+    await waitFor(() => expect(vignetteHandles).toHaveLength(1));
+
+    await userEvent.click(screen.getByRole("button", { name: /Exit 3D view/i }));
+
+    expect(vignetteHandles[0].dispose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("region", { name: /3D illustration/i })).not.toBeInTheDocument();
+  });
+
+  it("scrubbing away from the active milestone closes an open vignette", async () => {
+    const spec = makeSpec({
+      milestones: [{ t: "2020-01-01T06:00:00.000Z", key: "missions.apollo11.launch", vignette: makeVignette() }],
+    });
+    render(
+      <MissionPanel
+        scene={makeScene()}
+        simDate={new Date(spec.t0)}
+        missions={[]}
+        activeSlug="apollo-11"
+        spec={spec}
+        onSelectMission={vi.fn()}
+        onClearMission={vi.fn()}
+        showPicker={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Launch — the Saturn V lifts off/i }));
+    await userEvent.click(screen.getByRole("button", { name: /See it in 3D/i }));
+    await waitFor(() => expect(vignetteHandles).toHaveLength(1));
+
+    const scrubber = screen.getByRole("slider", { name: /Mission timeline/i }) as HTMLInputElement;
+    Object.defineProperty(scrubber, "value", { writable: true, value: String(Date.parse(spec.t1)) });
+    await act(async () => {
+      scrubber.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(vignetteHandles[0].dispose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("region", { name: /3D illustration/i })).not.toBeInTheDocument();
+  });
+
+  it("a vignette load failure shows the error message and falls back to the milestone card", async () => {
+    nextPlayResult = "reject";
+    const spec = makeSpec({
+      milestones: [{ t: "2020-01-01T06:00:00.000Z", key: "missions.apollo11.launch", vignette: makeVignette() }],
+    });
+    render(
+      <MissionPanel
+        scene={makeScene()}
+        simDate={new Date(spec.t0)}
+        missions={[]}
+        activeSlug="apollo-11"
+        spec={spec}
+        onSelectMission={vi.fn()}
+        onClearMission={vi.fn()}
+        showPicker={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Launch — the Saturn V lifts off/i }));
+    await userEvent.click(screen.getByRole("button", { name: /See it in 3D/i }));
+
+    await waitFor(() => expect(screen.getByText(/Couldn.t load the 3D view/i)).toBeInTheDocument());
+    expect(screen.queryByRole("region", { name: /3D illustration/i })).not.toBeInTheDocument();
+  });
+
+  it("vignette entry works from the solar-tab panel (showPicker=true) as well as the dedicated route", async () => {
+    const scene = makeScene();
+    const spec = makeSpec({
+      milestones: [{ t: "2020-01-01T06:00:00.000Z", key: "missions.apollo11.launch", vignette: makeVignette() }],
+    });
+    render(
+      <MissionPanel
+        scene={scene}
+        simDate={new Date(spec.t0)}
+        missions={[{ slug: "apollo-11", name_key: "missions.apollo11.name" }]}
+        activeSlug="apollo-11"
+        spec={spec}
+        onSelectMission={vi.fn()}
+        onClearMission={vi.fn()}
+        showPicker
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Launch — the Saturn V lifts off/i }));
+    await userEvent.click(screen.getByRole("button", { name: /See it in 3D/i }));
+
+    await waitFor(() => expect(vignetteHandles).toHaveLength(1));
+    expect(screen.getByRole("region", { name: /3D illustration/i })).toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { disposeObject3D, normalizeModelScale } from "@/lib/gltfNormalize";
 
 const FALLBACK_SIZE = 320;
 const TARGET_MODEL_SIZE = 2.2;
@@ -9,30 +10,6 @@ const CAMERA_START = { x: 2.4, y: 1.7, z: 2.4 };
 export interface RoverScene {
   loadModel(url: string): Promise<void>;
   dispose(): void;
-}
-
-// Structural view of the mesh members disposeObject3D touches — not every
-// Object3D in a glTF scene graph is a mesh.
-interface Disposable {
-  dispose(): void;
-}
-interface MeshLike {
-  geometry?: Disposable;
-  material?: Disposable | Disposable[];
-}
-
-function disposeObject3D(object: THREE.Object3D): void {
-  object.traverse((node) => {
-    const child = node as unknown as MeshLike;
-    if (!child.geometry && !child.material) return;
-    child.geometry?.dispose();
-    const material = child.material;
-    if (Array.isArray(material)) {
-      material.forEach((m) => m.dispose());
-    } else {
-      material?.dispose();
-    }
-  });
 }
 
 // P36: mock `three` / GLTFLoader / OrbitControls entirely in tests — jsdom
@@ -95,14 +72,7 @@ export function createRoverScene(container: HTMLElement): RoverScene {
           }
 
           const model = gltf.scene;
-          const box = new THREE.Box3().setFromObject(model);
-          const size = box.getSize(new THREE.Vector3());
-          const center = box.getCenter(new THREE.Vector3());
-          const maxDim = Math.max(size.x, size.y, size.z) || 1;
-          const scale = TARGET_MODEL_SIZE / maxDim;
-
-          model.scale.setScalar(scale);
-          model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+          normalizeModelScale(model, TARGET_MODEL_SIZE);
           scene.add(model);
           currentModel = model;
 

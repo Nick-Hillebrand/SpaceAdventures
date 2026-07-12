@@ -317,6 +317,16 @@
     "pickerTitle": "ミッション",
     "exit": "ミッションを終了",
     "viewFull": "フルページを開く",
+    "enterVignette": "3Dで見る",
+    "vignette": {
+      "illustration": "3D表現",
+      "exit": "3D表示を終了",
+      "loading": "3Dシーンを読み込み中…",
+      "error": "3D表示を読み込むことができませんでした。後でもう一度お試しください。"
+    },
+    "credit": {
+      "nasa": "モデル: NASA/JPL-Caltech"
+    },
     "play": "再生",
     "pause": "一時停止",
     "speed": "速度",
@@ -332,6 +342,9 @@
       "tli": "トランスルナー軌道投入 — S-IVB段が再度燃焼して宇宙船を月に送る。",
       "loi": "月周回軌道投入 — Apollo 11 はエンジンを噴射して月周回軌道に制動する。",
       "landing": "着陸 — イーグル船が静かの海に着陸する。\"The Eagle has landed.\"",
+      "landingNarration": "イーグル司令船は静かの海で4本の脚の上に静止し、アームストロングとオルドリンが下降エンジンを停止させながら月のちりを巻き上げている。",
+      "firstEva": "月面第一歩 — アームストロングが梯子を降りて別の世界に最初の人間の足跡を残す。\"That's one small step for [a] man, one giant leap for mankind.\"",
+      "firstEvaNarration": "ニール・アームストロングが梯子を降りて月面に足を踏み入れ、イーグルが彼の後方そびえ立っている。",
       "liftoff": "月面離陸 — 上昇段が月表面を離れてコロンビア司令船とのランデブーに向かう。",
       "docking": "ドッキング — 上昇段が月周回軌道で司令船との再ドッキングを行う。",
       "tei": "トランスアース軌道投入 — エンジンが最後に燃焼して帰路の旅を開始する。",
@@ -341,8 +354,10 @@
       "name": "Mars Pathfinder",
       "cruiseStart": "巡航フェーズ開始 — Pathfinder が火星への旅のため地球を出発する。",
       "edl": "大気圏突入・降下・着陸 — Pathfinder はエアバッグに守られながら火星大気に突入する。",
+      "edlNarration": "エアバッグに包まれた Pathfinder は、アレス・バレスの岩石地帯を12回以上バウンドした後に停止する。",
       "landing": "着陸 — Pathfinder が1997年7月4日にアレス・バレスに着陸する。",
-      "roverDeploy": "ローバー展開 — Sojourner ローバーが火星表面に出発する。"
+      "roverDeploy": "ローバー展開 — Sojourner ローバーが火星表面に出発する。",
+      "roverDeployNarration": "ランダーの花弁が展開して、Sojourner ローバーが斜面を降りて火星表面の探査を開始する。"
     }
   }
 }

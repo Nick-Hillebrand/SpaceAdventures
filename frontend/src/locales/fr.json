@@ -317,6 +317,16 @@
     "pickerTitle": "Missions",
     "exit": "Quitter la mission",
     "viewFull": "Ouvrir la page complète",
+    "enterVignette": "Le voir en 3D",
+    "vignette": {
+      "illustration": "Illustration 3D",
+      "exit": "Quitter la vue 3D",
+      "loading": "Chargement de la scène 3D…",
+      "error": "Impossible de charger la vue 3D. Veuillez réessayer plus tard."
+    },
+    "credit": {
+      "nasa": "Modèle : NASA/JPL-Caltech"
+    },
     "play": "Lecture",
     "pause": "Pause",
     "speed": "Vitesse",
@@ -332,6 +342,9 @@
       "tli": "Injection trans-lunaire — l'étage S-IVB se rallume pour envoyer le vaisseau vers la Lune.",
       "loi": "Insertion en orbite lunaire — Apollo 11 tire son moteur pour freiner et entrer en orbite autour de la Lune.",
       "landing": "Atterrissage — l'Eagle se pose dans la Mer de la Tranquillité. \"The Eagle has landed.\"",
+      "landingNarration": "Le module lunaire Eagle repose sur ses quatre jambes dans la Mer de la Tranquillité, soulevant de la poussière lunaire tandis qu'Armstrong et Aldrin coupent le moteur de descente.",
+      "firstEva": "Premiers pas — Armstrong descend l'échelle et plante la première empreinte humaine sur un autre monde. \"That's one small step for [a] man, one giant leap for mankind.\"",
+      "firstEvaNarration": "Neil Armstrong descend l'échelle et pose le pied sur la surface lunaire, l'Eagle s'élevant derrière lui.",
       "liftoff": "Décollage lunaire — l'étage d'ascension quitte la surface lunaire pour rejoindre Columbia.",
       "docking": "Amarrage — l'étage d'ascension s'amarre de nouveau avec le module de commande en orbite lunaire.",
       "tei": "Injection trans-terrestre — le moteur se rallume une dernière fois pour commencer le voyage de retour.",
@@ -341,8 +354,10 @@
       "name": "Mars Pathfinder",
       "cruiseStart": "La phase de croisière commence — Pathfinder quitte la Terre vers Mars.",
       "edl": "Entrée, descente et atterrissage — Pathfinder plonge dans l'atmosphère martienne, amortie par des airbags.",
+      "edlNarration": "Enveloppée dans des airbags, Pathfinder rebondit plus d'une douzaine de fois avant de s'arrêter sur la plaine rocheuse de Valles Marineris.",
       "landing": "Atterrissage — Pathfinder se pose à Valles Marineris, 4 juillet 1997.",
-      "roverDeploy": "Déploiement du rover — le rover Sojourner se lance sur la surface de Mars."
+      "roverDeploy": "Déploiement du rover — le rover Sojourner se lance sur la surface de Mars.",
+      "roverDeployNarration": "Les pétales de l'atterrisseur se déplient et le rover Sojourner descend sa rampe pour commencer l'exploration de la surface martienne."
     }
   }
 }

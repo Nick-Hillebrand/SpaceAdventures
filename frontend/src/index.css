@@ -2910,6 +2910,90 @@ input::placeholder {
   margin: 0;
 }
 
+.mission-panel__enter-vignette {
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(79, 156, 249, 0.5);
+  background: rgba(79, 156, 249, 0.18);
+  color: #ffffff;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.mission-panel__enter-vignette:hover {
+  background: rgba(79, 156, 249, 0.3);
+}
+
+.mission-panel__vignette-error {
+  margin: 0.5rem 0 0;
+  color: #f2a3a3;
+}
+
+.mission-panel__vignette {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius);
+  background: rgba(79, 156, 249, 0.12);
+  border: 1px solid rgba(79, 156, 249, 0.3);
+}
+
+.mission-panel__vignette-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mission-panel__vignette-illustration {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #9fb2d8;
+}
+
+.mission-panel__vignette-exit {
+  border: none;
+  background: transparent;
+  color: #9fb2d8;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.mission-panel__vignette-exit:hover {
+  color: #ffffff;
+}
+
+.mission-panel__vignette-loading {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: #8fa7d4;
+}
+
+.mission-panel__vignette-scene {
+  margin-top: 0.5rem;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+  background: #05060a;
+}
+
+.mission-vignette__credit {
+  position: absolute;
+  bottom: 0.4rem;
+  right: 0.6rem;
+  font-size: 0.6875rem;
+  color: rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+
+.mission-panel__vignette-narration {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
 .mission-panel__canonical {
   display: inline-block;
   margin-top: 0.625rem;
