@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNeoFeed } from "@/hooks/useNeo";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -63,14 +63,6 @@ function sortRows(rows: NeoData[], key: SortKey, dir: SortDir): NeoData[] {
   return copy;
 }
 
-function fmtNumber(value: number | null | undefined, digits = 0): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-}
-
 export default function NeoPage() {
   const defaultEnd = todayIso();
   const defaultStart = addDaysIso(defaultEnd, -6);
@@ -79,7 +71,18 @@ export default function NeoPage() {
   const [sortKey, setSortKey] = useState<SortKey>("close_approach_date");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const fmtNumber = useCallback(
+    (value: number | null | undefined, digits = 0): string => {
+      if (value === null || value === undefined || Number.isNaN(value)) return "—";
+      return new Intl.NumberFormat(i18n.resolvedLanguage ?? "en", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      }).format(value);
+    },
+    [i18n.resolvedLanguage],
+  );
 
   const { data, isLoading, isError, error, refetch } = useNeoFeed(start, end);
 
