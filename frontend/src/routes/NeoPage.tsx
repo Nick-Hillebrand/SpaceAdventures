@@ -133,7 +133,7 @@ export default function NeoPage() {
             onChange={(event) => setEnd(event.target.value)}
           />
         </label>
-        <p className="neo-hint">Maximum 7-day range.</p>
+        <p className="neo-hint">{t("neo.maxRangeHint")}</p>
       </div>
 
       {isLoading ? (
@@ -151,7 +151,7 @@ export default function NeoPage() {
         <>
           <p
             className="neo-badge"
-            aria-label={data.cached ? "cached" : "live"}
+            aria-label={data.cached ? t("common.cached") : t("common.live")}
           >
             {data.stale
               ? t("error.staleData", { date: formatDateTime(data.fetched_at) })
@@ -172,27 +172,27 @@ export default function NeoPage() {
               <tr>
                 <th>
                   <button type="button" onClick={() => toggleSort("name")}>
-                    Name{sortIndicator("name")}
+                    {t("neo.name")}{sortIndicator("name")}
                   </button>
                 </th>
                 <th>
                   <button type="button" onClick={() => toggleSort("close_approach_date")}>
-                    Close Approach{sortIndicator("close_approach_date")}
+                    {t("neo.closeApproach")}{sortIndicator("close_approach_date")}
                   </button>
                 </th>
                 <th>
                   <button type="button" onClick={() => toggleSort("diameter")}>
-                    {t("neo.diameter")} (km){sortIndicator("diameter")}
+                    {t("neo.diameter")} ({t("neo.unitKm")}){sortIndicator("diameter")}
                   </button>
                 </th>
                 <th>
                   <button type="button" onClick={() => toggleSort("velocity")}>
-                    {t("neo.velocity")} (kph){sortIndicator("velocity")}
+                    {t("neo.velocity")} ({t("neo.unitKph")}){sortIndicator("velocity")}
                   </button>
                 </th>
                 <th>
                   <button type="button" onClick={() => toggleSort("miss_distance")}>
-                    {t("neo.missDistance")} (km){sortIndicator("miss_distance")}
+                    {t("neo.missDistance")} ({t("neo.unitKm")}){sortIndicator("miss_distance")}
                   </button>
                 </th>
                 <th>{t("neo.hazardous")}</th>
@@ -242,7 +242,7 @@ export default function NeoPage() {
         <aside
           className="neo-drawer"
           role="dialog"
-          aria-label={`Details for ${selected.name}`}
+          aria-label={t("neo.detailsForAria", { name: selected.name })}
         >
           <button
             type="button"
@@ -254,30 +254,30 @@ export default function NeoPage() {
           </button>
           <h2>{selected.name}</h2>
           <dl>
-            <dt>ID</dt>
+            <dt>{t("neo.id")}</dt>
             <dd>{selected.id}</dd>
-            <dt>Close approach</dt>
+            <dt>{t("neo.closeApproach")}</dt>
             <dd>{formatDate(selected.close_approach_date)}</dd>
-            <dt>Absolute magnitude (H)</dt>
+            <dt>{t("neo.absoluteMagnitude")}</dt>
             <dd>{fmtNumber(selected.absolute_magnitude_h, 2)}</dd>
-            <dt>Diameter min (km)</dt>
+            <dt>{t("neo.diameterMin")}</dt>
             <dd>{fmtNumber(selected.estimated_diameter_min_km, 3)}</dd>
-            <dt>Diameter max (km)</dt>
+            <dt>{t("neo.diameterMax")}</dt>
             <dd>{fmtNumber(selected.estimated_diameter_max_km, 3)}</dd>
-            <dt>Velocity (kph)</dt>
+            <dt>{t("neo.velocityKph")}</dt>
             <dd>{fmtNumber(selected.relative_velocity_kph)}</dd>
-            <dt>Miss distance (km)</dt>
+            <dt>{t("neo.missDistanceKm")}</dt>
             <dd>{fmtNumber(selected.miss_distance_km)}</dd>
-            <dt>Orbiting body</dt>
+            <dt>{t("neo.orbitingBody")}</dt>
             <dd>{selected.orbiting_body ?? "—"}</dd>
             <dt>{t("neo.hazardous")}</dt>
             <dd>{selected.is_potentially_hazardous ? t("iss.yes") : t("iss.no")}</dd>
             {selected.nasa_jpl_url ? (
               <>
-                <dt>JPL</dt>
+                <dt>{t("neo.jpl")}</dt>
                 <dd>
                   <a href={selected.nasa_jpl_url} target="_blank" rel="noreferrer">
-                    View on JPL
+                    {t("neo.viewOnJpl")}
                   </a>
                 </dd>
               </>

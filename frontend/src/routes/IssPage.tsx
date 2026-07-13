@@ -193,7 +193,7 @@ export default function IssPage() {
         <div
           ref={containerRef}
           className="iss-globe"
-          aria-label="ISS globe tracker"
+          aria-label={t("iss.globeTrackerAria")}
           data-testid="iss-globe"
         />
         {currentPos && (
@@ -206,7 +206,7 @@ export default function IssPage() {
 
       {/* Data panel */}
       {currentPos && (
-        <section className="iss-data-panel" aria-label="ISS data">
+        <section className="iss-data-panel" aria-label={t("iss.dataPanelAria")}>
           <dl className="iss-stat-grid">
             <div className="iss-stat-tile">
               <dt>{t("iss.latitude")}</dt>

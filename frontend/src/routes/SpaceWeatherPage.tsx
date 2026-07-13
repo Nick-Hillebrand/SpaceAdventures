@@ -132,6 +132,7 @@ interface FlareRow {
 }
 
 function FlareDashboard({ events }: { events: SpaceWeatherEventData[] }) {
+  const { t } = useTranslation();
   const flares: FlareRow[] = useMemo(() => events.map((e) => {
     const d = parseRaw(e.raw_json);
     return {
@@ -169,17 +170,17 @@ function FlareDashboard({ events }: { events: SpaceWeatherEventData[] }) {
       <div className="sw-stats-row">
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value" data-testid="flare-total">{flares.length}</span>
-          <span className="sw-stat-tile__label">Total flares</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.totalFlares")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value" style={{ color: peakColor }} data-testid="flare-peak">
             {peak}
           </span>
-          <span className="sw-stat-tile__label">Peak class</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.peakClass")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{activeDays}</span>
-          <span className="sw-stat-tile__label">Active days</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.activeDays")}</span>
         </div>
       </div>
 
@@ -215,7 +216,7 @@ function FlareDashboard({ events }: { events: SpaceWeatherEventData[] }) {
               key={flare.id}
               className="sw-event-row"
               role="listitem"
-              aria-label={`FLR event ${flare.id}`}
+              aria-label={t("spaceWeather.flrEventAria", { id: flare.id })}
             >
               <span className="sw-flare-row__class" style={{ color }}>
                 {flare.classType || "—"}
@@ -240,6 +241,7 @@ function ActivityTimeline({ events, start, end, color }: {
   end: string;
   color: string;
 }) {
+  const { t } = useTranslation();
   const bars = useMemo(() => {
     const startMs = new Date(`${start}T00:00:00Z`).getTime();
     const endMs = new Date(`${end}T23:59:59Z`).getTime();
@@ -270,11 +272,17 @@ function ActivityTimeline({ events, start, end, color }: {
   return (
     <div className="sw-timeline" aria-hidden="true">
       <div className="sw-timeline-header">
-        <span className="sw-timeline-stat">{totalEvents} events over {activeDays} active day{activeDays !== 1 ? "s" : ""}</span>
+        <span className="sw-timeline-stat">
+          {t("spaceWeather.timelineSummary", { total: totalEvents, days: activeDays })}
+        </span>
       </div>
       <div className="sw-timeline-bars">
         {bars.map(({ date, count, h }) => (
-          <div key={date} className="sw-timeline-bar-wrap" title={count > 0 ? `${date}: ${count} event${count !== 1 ? "s" : ""}` : date}>
+          <div
+            key={date}
+            className="sw-timeline-bar-wrap"
+            title={count > 0 ? t("spaceWeather.timelineTooltip", { date, count }) : date}
+          >
             <div
               className="sw-timeline-bar"
               style={{ height: `${h * 100}%`, background: color }}
@@ -293,15 +301,15 @@ function ActivityTimeline({ events, start, end, color }: {
 // ── Storm dashboard (GST) ───────────────────────────────────────────────────────
 
 const KP_LEVELS = [
-  { key: "G5", label: "Extreme", min: 9, color: "#ef4444" },
-  { key: "G4", label: "Severe", min: 8, color: "#f97316" },
-  { key: "G3", label: "Strong", min: 7, color: "#f59e0b" },
-  { key: "G2", label: "Moderate", min: 6, color: "#eab308" },
-  { key: "G1", label: "Minor", min: 5, color: "#84cc16" },
+  { key: "G5", labelKey: "spaceWeather.kpExtreme", min: 9, color: "#ef4444" },
+  { key: "G4", labelKey: "spaceWeather.kpSevere", min: 8, color: "#f97316" },
+  { key: "G3", labelKey: "spaceWeather.kpStrong", min: 7, color: "#f59e0b" },
+  { key: "G2", labelKey: "spaceWeather.kpModerate", min: 6, color: "#eab308" },
+  { key: "G1", labelKey: "spaceWeather.kpMinor", min: 5, color: "#84cc16" },
 ] as const;
 
-function kpLevel(kp: number): { key: string; label: string; color: string } {
-  return KP_LEVELS.find((l) => kp >= l.min) ?? { key: "—", label: "Below G1", color: "#6b7280" };
+function kpLevel(kp: number): { key: string; labelKey: string; color: string } {
+  return KP_LEVELS.find((l) => kp >= l.min) ?? { key: "—", labelKey: "spaceWeather.kpBelowG1", color: "#6b7280" };
 }
 
 interface StormRow {
@@ -311,6 +319,7 @@ interface StormRow {
 }
 
 function StormDashboard({ events }: { events: SpaceWeatherEventData[] }) {
+  const { t } = useTranslation();
   const storms: StormRow[] = useMemo(() => events.map((e) => {
     const d = parseRaw(e.raw_json);
     const allKp = Array.isArray(d.allKpIndex) ? d.allKpIndex : [];
@@ -344,15 +353,15 @@ function StormDashboard({ events }: { events: SpaceWeatherEventData[] }) {
       <div className="sw-stats-row">
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{storms.length}</span>
-          <span className="sw-stat-tile__label">Total storms</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.totalStorms")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value" style={{ color: peakColor }}>{maxKpOverall || "—"}</span>
-          <span className="sw-stat-tile__label">Peak Kp</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.peakKp")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{activeDays}</span>
-          <span className="sw-stat-tile__label">Active days</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.activeDays")}</span>
         </div>
       </div>
 
@@ -375,12 +384,17 @@ function StormDashboard({ events }: { events: SpaceWeatherEventData[] }) {
         {sorted.map((storm) => {
           const lvl = kpLevel(storm.maxKp);
           return (
-            <div key={storm.id} className="sw-event-row" role="listitem" aria-label={`GST event ${storm.id}`}>
+            <div
+              key={storm.id}
+              className="sw-event-row"
+              role="listitem"
+              aria-label={t("spaceWeather.gstEventAria", { id: storm.id })}
+            >
               <span className="sw-event-row__badge" style={{ color: lvl.color, borderColor: lvl.color }}>
                 Kp {storm.maxKp || "—"}
               </span>
               <span className="sw-event-row__time">{formatDate(storm.date)}</span>
-              <span className="sw-event-row__loc">{lvl.label}</span>
+              <span className="sw-event-row__loc">{t(lvl.labelKey)}</span>
             </div>
           );
         })}
@@ -414,6 +428,7 @@ interface CmeRow {
 }
 
 function CmeDashboard({ events }: { events: SpaceWeatherEventData[] }) {
+  const { t } = useTranslation();
   const cmes: CmeRow[] = useMemo(() => events.map((e) => {
     const d = parseRaw(e.raw_json);
     const analyses = Array.isArray(d.cmeAnalyses) ? d.cmeAnalyses : [];
@@ -453,15 +468,15 @@ function CmeDashboard({ events }: { events: SpaceWeatherEventData[] }) {
       <div className="sw-stats-row">
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{cmes.length}</span>
-          <span className="sw-stat-tile__label">Total CMEs</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.totalCmes")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value" style={{ color: cmeSpeedColor(maxSpeed) }}>{maxSpeed || "—"}</span>
-          <span className="sw-stat-tile__label">Max speed (km/s)</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.maxSpeedKms")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{avgSpeed || "—"}</span>
-          <span className="sw-stat-tile__label">Avg speed (km/s)</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.avgSpeedKms")}</span>
         </div>
       </div>
 
@@ -484,7 +499,12 @@ function CmeDashboard({ events }: { events: SpaceWeatherEventData[] }) {
         {sorted.map((cme) => {
           const color = cmeSpeedColor(cme.speed ?? 0);
           return (
-            <div key={cme.id} className="sw-event-row" role="listitem" aria-label={`CME event ${cme.id}`}>
+            <div
+              key={cme.id}
+              className="sw-event-row"
+              role="listitem"
+              aria-label={t("spaceWeather.cmeEventAria", { id: cme.id })}
+            >
               <span className="sw-event-row__badge" style={{ color, borderColor: color }}>
                 {cme.speed !== null ? `${Math.round(cme.speed)} km/s` : "—"}
               </span>
@@ -514,6 +534,7 @@ interface SepRow {
 }
 
 function SepDashboard({ events }: { events: SpaceWeatherEventData[] }) {
+  const { t } = useTranslation();
   const seps: SepRow[] = useMemo(() => events.map((e) => {
     const d = parseRaw(e.raw_json);
     return { id: e.id, date: e.start_date.slice(0, 10), instruments: instrumentNames(d) };
@@ -539,15 +560,15 @@ function SepDashboard({ events }: { events: SpaceWeatherEventData[] }) {
       <div className="sw-stats-row">
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{seps.length}</span>
-          <span className="sw-stat-tile__label">Total events</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.totalEvents")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{Object.keys(instrumentCounts).length}</span>
-          <span className="sw-stat-tile__label">Instruments</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.instruments")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{activeDays}</span>
-          <span className="sw-stat-tile__label">Active days</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.activeDays")}</span>
         </div>
       </div>
 
@@ -570,7 +591,12 @@ function SepDashboard({ events }: { events: SpaceWeatherEventData[] }) {
 
       <div className="sw-event-list" role="list">
         {sorted.map((sep) => (
-          <div key={sep.id} className="sw-event-row" role="listitem" aria-label={`SEP event ${sep.id}`}>
+          <div
+            key={sep.id}
+            className="sw-event-row"
+            role="listitem"
+            aria-label={t("spaceWeather.sepEventAria", { id: sep.id })}
+          >
             <span className="sw-event-row__time">{formatDate(sep.date)}</span>
             <span className="sw-event-row__loc">
               {sep.instruments[0] ?? "—"}
@@ -592,6 +618,7 @@ interface RbeRow {
 }
 
 function RbeDashboard({ events, start, end }: { events: SpaceWeatherEventData[]; start: string; end: string }) {
+  const { t } = useTranslation();
   const rbes: RbeRow[] = useMemo(() => events.map((e) => {
     const d = parseRaw(e.raw_json);
     return { id: e.id, date: e.start_date.slice(0, 10), rbId: typeof d.rbID === "string" ? d.rbID : "" };
@@ -605,15 +632,15 @@ function RbeDashboard({ events, start, end }: { events: SpaceWeatherEventData[];
       <div className="sw-stats-row">
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{rbes.length}</span>
-          <span className="sw-stat-tile__label">Total events</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.totalEvents")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{activeDays}</span>
-          <span className="sw-stat-tile__label">Active days</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.activeDays")}</span>
         </div>
         <div className="sw-stat-tile">
           <span className="sw-stat-tile__value">{sorted[0] ? formatDate(sorted[0].date) : "—"}</span>
-          <span className="sw-stat-tile__label">Most recent</span>
+          <span className="sw-stat-tile__label">{t("spaceWeather.mostRecent")}</span>
         </div>
       </div>
 
@@ -621,7 +648,12 @@ function RbeDashboard({ events, start, end }: { events: SpaceWeatherEventData[];
 
       <div className="sw-event-list" role="list">
         {sorted.map((rbe) => (
-          <div key={rbe.id} className="sw-event-row" role="listitem" aria-label={`RBE event ${rbe.id}`}>
+          <div
+            key={rbe.id}
+            className="sw-event-row"
+            role="listitem"
+            aria-label={t("spaceWeather.rbeEventAria", { id: rbe.id })}
+          >
             <span className="sw-event-row__time">{formatDate(rbe.date)}</span>
             {rbe.rbId && <span className="sw-event-row__loc">{rbe.rbId}</span>}
           </div>
@@ -658,7 +690,7 @@ function TabPanel({ eventType, start, end }: { eventType: Tab; start: string; en
 
   return (
     <>
-      <p className="sw-status-badge" aria-label={data.cached ? "cached" : "live"}>
+      <p className="sw-status-badge" aria-label={data.cached ? t("common.cached") : t("common.live")}>
         <span className={`sw-status-dot ${data.cached ? "sw-status-dot--cached" : "sw-status-dot--live"}`} />
         {data.stale
           ? t("error.staleData", { date: formatDateTime(data.fetched_at) })

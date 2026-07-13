@@ -40,7 +40,7 @@ function Lightbox({ photo, onClose }: LightboxProps) {
     <div
       className="mars-lightbox-overlay"
       role="dialog"
-      aria-label={`Photo ${photo.id} fullscreen`}
+      aria-label={t("mars.photoFullscreenAria", { id: photo.id })}
       onClick={onClose}
     >
       <div className="mars-lightbox-inner" onClick={(e) => e.stopPropagation()}>
@@ -54,12 +54,17 @@ function Lightbox({ photo, onClose }: LightboxProps) {
         </button>
         <img
           src={photo.img_src}
-          alt={`Mars photo ${photo.id} taken by ${photo.rover_name} ${photo.camera_name} on ${formatDate(photo.earth_date)}`}
+          alt={t("mars.photoAltLightbox", {
+            id: photo.id,
+            rover: photo.rover_name,
+            camera: photo.camera_name,
+            date: formatDate(photo.earth_date),
+          })}
           className="mars-lightbox-img"
         />
         <dl className="mars-lightbox-meta">
-          <dt>Rover</dt><dd>{photo.rover_name}</dd>
-          <dt>Camera</dt><dd>{photo.camera_name}</dd>
+          <dt>{t("mars.rover")}</dt><dd>{photo.rover_name}</dd>
+          <dt>{t("mars.camera")}</dt><dd>{photo.camera_name}</dd>
           <dt>{t("mars.sol")}</dt><dd>{photo.sol}</dd>
           <dt>{t("mars.earthDate")}</dt><dd>{formatDate(photo.earth_date)}</dd>
         </dl>
@@ -220,7 +225,7 @@ export default function MarsPage() {
         <p className="mars-empty">{t("mars.noPhotos")}</p>
       ) : (
         <>
-          <p className="mars-badge" aria-label={data.cached ? "cached" : "live"}>
+          <p className="mars-badge" aria-label={data.cached ? t("common.cached") : t("common.live")}>
             {data.stale
               ? t("error.staleData", { date: formatDateTime(data.fetched_at) })
               : data.cached
@@ -235,11 +240,16 @@ export default function MarsPage() {
                   type="button"
                   className="mars-photo-btn"
                   onClick={() => setLightboxPhoto(photo)}
-                  aria-label={`Open photo ${photo.id}`}
+                  aria-label={t("mars.openPhotoAria", { id: photo.id })}
                 >
                   <img
                     src={photo.img_src}
-                    alt={`Mars photo ${photo.id} by ${photo.rover_name} ${photo.camera_name} on sol ${photo.sol}`}
+                    alt={t("mars.photoAltGrid", {
+                      id: photo.id,
+                      rover: photo.rover_name,
+                      camera: photo.camera_name,
+                      sol: photo.sol,
+                    })}
                     className="mars-photo-thumb"
                     loading="lazy"
                   />
@@ -256,7 +266,7 @@ export default function MarsPage() {
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              aria-label="Previous page"
+              aria-label={t("mars.prevPageAria")}
             >
               {t("mars.prevPage")}
             </button>
@@ -265,7 +275,7 @@ export default function MarsPage() {
               type="button"
               onClick={() => setPage((p) => p + 1)}
               disabled={data.data.length < 25}
-              aria-label="Next page"
+              aria-label={t("mars.nextPageAria")}
             >
               {t("mars.nextPage")}
             </button>

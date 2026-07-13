@@ -218,7 +218,7 @@ describe("SpaceWeatherPage", () => {
       ),
     );
     renderWithProviders(<SpaceWeatherPage />);
-    expect(await screen.findByLabelText(/cached/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Served from cache/i)).toBeInTheDocument();
     expect(screen.getByText(/Served from cache/i)).toBeInTheDocument();
   });
 

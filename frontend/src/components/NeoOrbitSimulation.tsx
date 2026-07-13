@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { NeoData } from "@/types/api";
 
 interface Props {
@@ -75,6 +76,7 @@ function getBodyPos(params: OrbitParams, t_secs: number): { x: number; y: number
 }
 
 export function NeoOrbitSimulation({ neos, selectedId, onSelect }: Props) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const startTimeRef = useRef<number>(Date.now());
@@ -83,9 +85,15 @@ export function NeoOrbitSimulation({ neos, selectedId, onSelect }: Props) {
   const orbitsRef = useRef<Map<string, OrbitParams>>(new Map());
   const trailsRef = useRef<Map<string, { x: number; y: number }[]>>(new Map());
   const starsRef = useRef<Star[]>([]);
+  const sunLabelRef = useRef(t("neo.simSun"));
+  const earthLabelRef = useRef(t("neo.simEarthLabel"));
 
   useEffect(() => { neosRef.current = neos; }, [neos]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+  useEffect(() => {
+    sunLabelRef.current = t("neo.simSun");
+    earthLabelRef.current = t("neo.simEarthLabel");
+  }, [t]);
 
   useEffect(() => {
     const map = new Map<string, OrbitParams>();
@@ -327,10 +335,10 @@ export function NeoOrbitSimulation({ neos, selectedId, onSelect }: Props) {
       // Labels
       ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
       ctx.fillStyle = "rgba(251, 191, 36, 0.75)";
-      ctx.fillText("Sun", cx + 18, cy + 4);
+      ctx.fillText(sunLabelRef.current, cx + 18, cy + 4);
 
       ctx.fillStyle = "rgba(147, 197, 253, 0.75)";
-      ctx.fillText("Earth", ex + 9, ey + 4);
+      ctx.fillText(earthLabelRef.current, ex + 9, ey + 4);
 
       // Selected NEO label
       if (currentSelected) {
@@ -362,26 +370,26 @@ export function NeoOrbitSimulation({ neos, selectedId, onSelect }: Props) {
         className="neo-sim-canvas"
         onClick={handleClick}
         role="img"
-        aria-label="Near-Earth Object orbital simulation around the Sun"
+        aria-label={t("neo.simCanvasAria")}
       />
       <div className="neo-sim-legend">
         <span className="neo-sim-legend-item">
           <span className="neo-sim-legend-dot" style={{ background: "#ffd700" }} />
-          Sun
+          {t("neo.simSun")}
         </span>
         <span className="neo-sim-legend-item">
           <span className="neo-sim-legend-dot" style={{ background: "#3b82f6" }} />
-          Earth (1 AU)
+          {t("neo.simEarthLegend")}
         </span>
         <span className="neo-sim-legend-item">
           <span className="neo-sim-legend-dot" style={{ background: "#93c5fd" }} />
-          Safe NEO
+          {t("neo.simSafe")}
         </span>
         <span className="neo-sim-legend-item">
           <span className="neo-sim-legend-dot neo-sim-legend-dot--hazard" style={{ background: "#f87171" }} />
-          Potentially Hazardous
+          {t("neo.hazardous")}
         </span>
-        <span className="neo-sim-legend-hint">Click an object to select</span>
+        <span className="neo-sim-legend-hint">{t("neo.simClickHint")}</span>
       </div>
     </div>
   );
