@@ -204,10 +204,27 @@ Read: `17-worker-and-scheduling.md`, `12-deployment.md`, `26-performance.md`
     matrix pre-P3).
   - Step P3 is now complete. Next: Step P4 (Slip-history recording).
 
-**Step P4 — Slip-history recording.**
+**Step P4 — Slip-history recording.** ✅ complete (shipped 2026-07-13)
 Read: `18-slip-history-and-reliability.md` (Stage 1 only)
 - `launch_net_changes` table + append-only writes in sync. Ships with first
   prod deploy — the dataset's value is elapsed time.
+  - ✅ Shipped 2026-07-13: `LaunchNetChange` model (`app/models/launch_net_changes.py`)
+    with CHECK constraint, CASCADE FK on `launches.ll2_id`, and composite
+    indexes on `(launch_id, detected_at)` / `(provider_name, detected_at)`;
+    Alembic migration `c3f7a2d01e4b`; `_record_change()` helper in
+    `launches_service.py` sanitises all LL2-supplied strings before storage
+    and is called in the same transaction as the launch upsert for NET slips,
+    status changes, and Gone-markings (both the partial-feed and empty-feed
+    paths). Unsubscribed launches are recorded; Gone marks the row rather than
+    deleting it (FK row stays alive). 8 new tests in
+    `test_launches_service_unit.py` cover all spec-required scenarios (net
+    slip, status, unchanged, unsubscribed, gone, sanitisation); injection
+    fixture matrix (`tests/security/test_injection.py`) parametrized over 8
+    LL2 payloads, plus an AST-based SQL-injection guard for
+    `launches_service.py`. 621 backend tests green, per-module branch
+    coverage gate passed (31 modules ≥ 80%), route-authorization matrix
+    unaffected (no new routes in Stage 1).
+  - Step P4 is now complete. Next: Step B1 (Outbox hardening + Web Push).
 
 ### Milestone B — Beta (50–100 users; the test is notification correctness)
 

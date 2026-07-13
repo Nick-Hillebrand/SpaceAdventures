@@ -10,10 +10,12 @@ from dateutil.parser import isoparse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.launch_net_changes import LaunchNetChange
 from app.models.launches import Launch
 from app.models.notification_log import PendingNotification
 from app.models.subscription import Subscription
 from app.services.ll2_client import LL2Client, LL2ClientError
+from app.services.notification_service import sanitise
 from app.services.url_utils import sanitise_url
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,34 @@ logger = logging.getLogger(__name__)
 _NET_SLIP_THRESHOLD_SECONDS = 5 * 60  # 5 minutes
 
 _Translator = Callable[[dict[str, str]], Awaitable[dict[str, dict[str, str]]]] | None
+
+
+def _record_change(
+    session: AsyncSession,
+    launch_id: str,
+    change_type: str,
+    provider_name: str,
+    rocket_name: str,
+    pad_name: str | None,
+    old_value: str | None = None,
+    new_value: str | None = None,
+) -> None:
+    """Append one row to launch_net_changes in the caller's transaction.
+
+    All string values from LL2 are sanitised before storage (10-security.md).
+    This function is synchronous — session.add() does not require await.
+    """
+    session.add(
+        LaunchNetChange(
+            launch_id=launch_id,
+            change_type=change_type,
+            old_value=sanitise(old_value) if old_value is not None else None,
+            new_value=sanitise(new_value) if new_value is not None else None,
+            provider_name=sanitise(provider_name),
+            rocket_name=sanitise(rocket_name),
+            pad_name=sanitise(pad_name) if pad_name is not None else None,
+        )
+    )
 
 
 def _trunc(value: object, max_len: int) -> str | None:
@@ -229,6 +259,16 @@ async def sync_launches(
                     old_value=old_net.isoformat(),
                     new_value=new_net.isoformat(),
                 )
+                _record_change(
+                    session,
+                    launch_id=ll2_id,
+                    change_type="net",
+                    provider_name=fields["agency_name"],
+                    rocket_name=fields["rocket_name"],
+                    pad_name=fields["pad_name"],
+                    old_value=old_net.isoformat(),
+                    new_value=new_net.isoformat(),
+                )
 
             # Check for STATUS_CHANGE
             if existing.status_abbrev != fields["status_abbrev"]:
@@ -237,6 +277,16 @@ async def sync_launches(
                     ll2_id=ll2_id,
                     agency_name=fields["agency_name"],
                     change_type="STATUS_CHANGE",
+                    old_value=existing.status_abbrev,
+                    new_value=fields["status_abbrev"],
+                )
+                _record_change(
+                    session,
+                    launch_id=ll2_id,
+                    change_type="status",
+                    provider_name=fields["agency_name"],
+                    rocket_name=fields["rocket_name"],
+                    pad_name=fields["pad_name"],
                     old_value=existing.status_abbrev,
                     new_value=fields["status_abbrev"],
                 )
@@ -265,12 +315,28 @@ async def sync_launches(
         result = await session.execute(stmt)
         for gone_launch in result.scalars().all():
             gone_launch.status_abbrev = "Gone"
+            _record_change(
+                session,
+                launch_id=gone_launch.ll2_id,
+                change_type="gone",
+                provider_name=gone_launch.agency_name,
+                rocket_name=gone_launch.rocket_name,
+                pad_name=gone_launch.pad_name,
+            )
     else:
         # If nothing was returned, mark everything Gone
         stmt = select(Launch).where(Launch.status_abbrev != "Gone")
         result = await session.execute(stmt)
         for gone_launch in result.scalars().all():
             gone_launch.status_abbrev = "Gone"
+            _record_change(
+                session,
+                launch_id=gone_launch.ll2_id,
+                change_type="gone",
+                provider_name=gone_launch.agency_name,
+                rocket_name=gone_launch.rocket_name,
+                pad_name=gone_launch.pad_name,
+            )
 
     await session.commit()
 
