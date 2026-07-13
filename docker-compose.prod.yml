@@ -1,4 +1,20 @@
 services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # No ports: — only reachable from other containers on the compose network
+
   backend:
     build:
       context: ./backend
@@ -9,12 +25,18 @@ services:
       # Unconditional: production must never start on unenforced/missing
       # secrets, regardless of what .env.prod does or doesn't set (15-…, P1.2).
       - APP_REQUIRE_SECRETS=1
-    volumes:
-      - backend-data:/app/data
+      # Built here (not left as a literal ${POSTGRES_PASSWORD} inside
+      # .env.prod) because env_file: values are passed through verbatim —
+      # docker compose only expands ${...} in the compose file itself.
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DATABASE_URL_SYNC=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "127.0.0.1:8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
     restart: unless-stopped
 
 volumes:
-  backend-data:
+  pg_data:

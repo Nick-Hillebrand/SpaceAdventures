@@ -79,12 +79,11 @@ async def test_get_positions_live(client):
 
 @respx.mock
 async def test_get_positions_cached(client, db_session):
-    import json
     positions = [{"timestamp_ms": 1_700_000_000_000, "satlatitude": 10.0}]
     db_session.add(
         IssPositionBatch(
             id=1,
-            positions=json.dumps(positions),
+            positions=positions,
             fetched_at=datetime.utcnow(),  # just now → still within TTL
         )
     )
@@ -99,12 +98,11 @@ async def test_get_positions_cached(client, db_session):
 
 @respx.mock
 async def test_get_positions_quota_exhausted_with_cache(client, db_session):
-    import json
     positions = [{"timestamp_ms": 1_700_000_000_000}]
     db_session.add(
         IssPositionBatch(
             id=1,
-            positions=json.dumps(positions),
+            positions=positions,
             fetched_at=datetime.utcnow() - timedelta(minutes=10),  # stale
         )
     )
@@ -250,14 +248,13 @@ async def test_get_radio_passes_computes_missing_duration(client):
 
 @respx.mock
 async def test_get_passes_cached(client, db_session):
-    import json
     db_session.add(
         IssPassSet(
             pass_type="visual",
             observer_lat=51.5,
             observer_lng=-0.1,
             observer_alt=30.0,
-            passes_json=json.dumps([_PASS]),
+            passes_json=[_PASS],
             fetched_at=datetime.utcnow(),
         )
     )

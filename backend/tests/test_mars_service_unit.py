@@ -241,9 +241,9 @@ async def test_empty_photos_list_is_today_when_today(db_session, mars_client):
 
 
 def test_latest_fetched_at_empty_returns_now():
-    before = datetime.now(timezone.utc).replace(tzinfo=None)
+    before = datetime.now(timezone.utc)
     result = mars_service._latest_fetched_at([])
-    after = datetime.now(timezone.utc).replace(tzinfo=None)
+    after = datetime.now(timezone.utc)
     assert before <= result <= after
 
 

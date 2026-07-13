@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock
@@ -319,7 +318,7 @@ class TestGetUpcomingLaunches:
             rocket_name="Falcon 9",
             pad_name="SLC-40",
             pad_location="Cape Canaveral",
-            livestream_urls="[]",
+            livestream_urls=[],
             fetched_at=now,
         )
         future_launch = Launch(
@@ -332,7 +331,7 @@ class TestGetUpcomingLaunches:
             rocket_name="Falcon 9",
             pad_name="SLC-40",
             pad_location="Cape Canaveral",
-            livestream_urls="[]",
+            livestream_urls=[],
             fetched_at=now,
         )
         db_session.add(old_launch)
@@ -406,7 +405,7 @@ class TestDefensiveFieldAccess:
 
         result = await db_session.get(Launch, "launch-001")
         assert result is not None
-        assert json.loads(result.livestream_urls) == []
+        assert result.livestream_urls == []
         await client.close()
 
     @respx.mock
@@ -450,7 +449,7 @@ class TestUpcomingRoute:
             pad_name="SLC-40",
             pad_location="Cape Canaveral",
             image_url=None,
-            livestream_urls="[]",
+            livestream_urls=[],
             fetched_at=now,
         )
         db_session.add(launch)

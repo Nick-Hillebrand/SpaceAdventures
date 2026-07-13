@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Index, String, text
+from sqlalchemy import JSON, CheckConstraint, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class SpaceWeatherEvent(Base):
@@ -12,9 +12,9 @@ class SpaceWeatherEvent(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     event_type: Mapped[str] = mapped_column(String, nullable=False)
     start_date: Mapped[str] = mapped_column(String, nullable=False)
-    raw_json: Mapped[str] = mapped_column(String, nullable=False)
+    raw_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     __table_args__ = (

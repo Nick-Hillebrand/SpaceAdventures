@@ -127,12 +127,36 @@ Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
     @vitest/coverage-v8→3.2.7 (fixes a critical vitest-UI arbitrary-file-read
     CVE). `pip-audit` and `npm audit --audit-level=high` both clean.
   - Step P1 is now complete — all sub-items shipped, per-module coverage gate
-    green, security/perf test suites in place. Next: Step P2 (PostgreSQL).
+    green, security/perf test suites in place.
 
-**Step P2 — PostgreSQL.**
+**Step P2 — PostgreSQL.** ✅ complete (shipped 2026-07-13)
 Read: `16-postgres-migration.md`, `01-database-schemas.md`
 - Engine factory (fixes ignored `DATABASE_URL`), dialect audit, squashed
   initial migration, CI on Postgres, pool config, backup runbook.
+  - ✅ Shipped 2026-07-13: `init_engine`/`get_sessionmaker`/`dispose_engine`
+    factory in `app/database.py` (Postgres pool_size/max_overflow only
+    applied for `postgresql+asyncpg://`, SQLite FK pragma scoped to its own
+    engine instead of the global `Engine` class); `UTCDateTime` type
+    decorator normalizing SQLite's naive read-back to aware UTC; full
+    dialect audit (all `DateTime` columns → `UTCDateTime`, all JSON-as-TEXT
+    columns → `sa.JSON()`, SQLite-only `randomblob()` subscription-id
+    default replaced with a Python-side `secrets.token_hex`); `alembic/env.py`
+    reads `DATABASE_URL_SYNC` (env wins, falls back to `Settings()`); prior
+    incremental migrations squashed into one initial migration (no
+    production data existed yet); `docker-compose.prod.yml` gets a `db`
+    (postgres:17-alpine) service with healthcheck and `pg_data` volume,
+    `DATABASE_URL`/`DATABASE_URL_SYNC` built in the compose file's
+    `environment:` (not left in `.env.prod`, since `env_file:` values aren't
+    `${...}`-expanded); backup/restore runbook (nightly `pg_dump -Fc` via
+    host cron, 30-day retention, documented restore rehearsal) added to
+    `12-deployment.md`. `tests/conftest.py`'s `db_engine` fixture already
+    read `DATABASE_URL` for dialect selection, so CI-on-Postgres is a
+    workflow-authoring task left to Step P3 (which owns CI/CD per its own
+    bullet below). 534 backend tests green, per-module branch coverage gate
+    passed (27 modules with branches, all ≥ 80%), route-authorization matrix
+    and injection-fixture suites unaffected (no new routes or external data
+    sources this step).
+  - Step P2 is now complete. Next: Step P3 (Worker & scale).
 
 **Step P3 — Worker & scale.**
 Read: `17-worker-and-scheduling.md`, `12-deployment.md`, `26-performance.md`

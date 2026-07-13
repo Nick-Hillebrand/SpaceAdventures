@@ -1,9 +1,11 @@
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app import models  # noqa: F401 — register models
+from app.config import Settings
 from app.database import Base
 
 config = context.config
@@ -12,6 +14,13 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+
+# P2.1/P2.2: never hardcode the migration URL — env var wins (CI/prod), else
+# fall back to Settings()'s default (sqlite for zero-setup local dev).
+config.set_main_option(
+    "sqlalchemy.url",
+    os.environ.get("DATABASE_URL_SYNC", Settings().database_url_sync),
+)
 
 
 def run_migrations_offline() -> None:

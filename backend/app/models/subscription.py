@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -16,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -25,8 +25,11 @@ if TYPE_CHECKING:
 class Subscription(Base):
     __tablename__ = "subscriptions"
 
+    # Application-side default (not server_default): SQLite's
+    # randomblob()/hex() functions have no Postgres equivalent, so the ID
+    # is generated in Python to stay dialect-portable (16-postgres-migration.md P2.3).
     id: Mapped[str] = mapped_column(
-        String, primary_key=True, server_default=text("(lower(hex(randomblob(16))))")
+        String, primary_key=True, default=lambda: secrets.token_hex(16)
     )
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -37,7 +40,7 @@ class Subscription(Base):
     notify_email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notify_sms: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     user: Mapped[User] = relationship("User", lazy="raise")

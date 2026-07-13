@@ -11,7 +11,7 @@ class SpaceWeatherEventData(BaseModel):
     id: str
     event_type: str
     start_date: str
-    raw_json: str
+    raw_json: dict
 
 
 class SpaceWeatherResponse(BaseModel):

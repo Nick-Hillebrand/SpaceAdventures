@@ -62,7 +62,7 @@ def _make_launch(session, ll2_id: str = "launch-001", name: str = "Falcon 9 Miss
         rocket_family="Falcon",
         pad_name="LC-39A",
         pad_location="Florida, USA",
-        livestream_urls="[]",
+        livestream_urls=[],
         fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     session.add(launch)

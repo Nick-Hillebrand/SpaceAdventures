@@ -89,7 +89,7 @@ async def test_fetch_apod_fresh_fetch_translates(db_session):
         db_session, client, "2020-01-01", translator=_ok_translator
     )
     assert result.row.translations_json is not None
-    assert "DE:Sun" in result.row.translations_json
+    assert result.row.translations_json["de"]["title"] == "DE:Sun"
 
 
 async def test_fetch_apod_cached_row_fills_missing_translations(db_session):
@@ -112,7 +112,7 @@ async def test_fetch_apod_cached_row_fills_missing_translations(db_session):
         db_session, client, "2020-01-02", translator=_ok_translator
     )
     assert result.cached is True
-    assert "DE:Moon" in result.row.translations_json
+    assert result.row.translations_json["de"]["title"] == "DE:Moon"
 
 
 async def test_fetch_apod_translator_failure_is_swallowed(db_session):
@@ -305,7 +305,7 @@ async def test_drain_concatenates_email_and_sms_errors(db_session, settings):
         rocket_name="Falcon 9",
         pad_name="LC-39A",
         pad_location="Florida",
-        livestream_urls="[]",
+        livestream_urls=[],
         fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db_session.add(launch)

@@ -14,7 +14,6 @@ Tests omit the translator (default None) so no network translation is attempted.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import date, datetime, timezone
 from typing import Any, Awaitable, Callable
@@ -50,7 +49,7 @@ def _apod_from_payload(payload: dict, target_date: str) -> Apod:
         media_type=payload.get("media_type", "image"),
         copyright=payload.get("copyright"),
         thumbnail_url=sanitise_url(payload.get("thumbnail_url")),
-        fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        fetched_at=datetime.now(timezone.utc),
     )
 
 
@@ -79,7 +78,7 @@ async def _fill_translations(session: AsyncSession, row: Apod, translator: Any) 
     """Translate title + explanation and persist to translations_json."""
     try:
         i18n = await translator({"title": row.title, "explanation": row.explanation})
-        row.translations_json = json.dumps(i18n, ensure_ascii=False)
+        row.translations_json = i18n
         await session.commit()
     except Exception as exc:  # noqa: BLE001
         logger.warning("APOD translation failed for %s: %s", row.date, exc)

@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, text
+from sqlalchemy import Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class RateLimitEvent(Base):
@@ -13,7 +13,7 @@ class RateLimitEvent(Base):
     bucket: Mapped[str] = mapped_column(String, nullable=False)
     ip_hash: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     __table_args__ = (

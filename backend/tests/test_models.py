@@ -63,7 +63,7 @@ async def test_space_weather_event_check_constraint(db_session):
         id="SW-1",
         event_type="FLR",
         start_date="2026-07-04",
-        raw_json="{}",
+        raw_json={},
     )
     db_session.add(good)
     await db_session.commit()
@@ -72,7 +72,7 @@ async def test_space_weather_event_check_constraint(db_session):
         id="SW-2",
         event_type="INVALID",
         start_date="2026-07-04",
-        raw_json="{}",
+        raw_json={},
     )
     db_session.add(bad)
     with pytest.raises(IntegrityError):
@@ -109,14 +109,14 @@ async def test_mars_photo_unique(db_session):
 
 
 async def test_iss_tables_insert(db_session):
-    batch = IssPositionBatch(id=1, positions="[]")
+    batch = IssPositionBatch(id=1, positions=[])
     tle = IssTle(id=1, tle_line0="ISS", tle_line1="1", tle_line2="2")
     passes = IssPassSet(
         pass_type="visual",
         observer_lat=48.0,
         observer_lng=11.0,
         observer_alt=0.0,
-        passes_json="[]",
+        passes_json=[],
     )
     db_session.add_all([batch, tle, passes])
     await db_session.commit()
@@ -132,7 +132,7 @@ async def test_iss_pass_bad_type_rejected(db_session):
         observer_lat=0.0,
         observer_lng=0.0,
         observer_alt=0.0,
-        passes_json="[]",
+        passes_json=[],
     )
     db_session.add(bad)
     with pytest.raises(IntegrityError):
@@ -160,7 +160,7 @@ async def test_launch_insert(db_session):
         rocket_name="Falcon 9",
         pad_name="LC-39A",
         pad_location="Kennedy Space Center",
-        livestream_urls="[]",
+        livestream_urls=[],
     )
     db_session.add(launch)
     await db_session.commit()

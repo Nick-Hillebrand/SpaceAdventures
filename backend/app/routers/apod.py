@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -26,20 +25,16 @@ def _get_translator(request: Request) -> Any:
     return getattr(request.app.state, "translator", None)
 
 
-def _apply_translations(data: ApodData, translations_json: str | None, lang: str) -> ApodData:
-    if lang == "en" or not translations_json:
+def _apply_translations(data: ApodData, translations: dict | None, lang: str) -> ApodData:
+    if lang == "en" or not translations:
         return data
-    try:
-        t = json.loads(translations_json)
-        lang_data = t.get(lang, {})
-        if not lang_data:
-            return data
-        return data.model_copy(update={
-            "title": lang_data.get("title", data.title),
-            "explanation": lang_data.get("explanation", data.explanation),
-        })
-    except (json.JSONDecodeError, AttributeError):
+    lang_data = translations.get(lang, {})
+    if not lang_data:
         return data
+    return data.model_copy(update={
+        "title": lang_data.get("title", data.title),
+        "explanation": lang_data.get("explanation", data.explanation),
+    })
 
 
 @router.get("", response_model=ApodResponse)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable
@@ -60,9 +59,10 @@ def _parse_raw(raw: dict) -> dict:
     # Parse net with isoparse to handle Z-suffix (Python < 3.11 fromisoformat limitation)
     raw_net = raw.get("net") or ""
     net_dt = isoparse(raw_net)
-    # Store as naive UTC
     if net_dt.tzinfo is not None:
-        net_dt = net_dt.astimezone(timezone.utc).replace(tzinfo=None)
+        net_dt = net_dt.astimezone(timezone.utc)
+    else:
+        net_dt = net_dt.replace(tzinfo=timezone.utc)
 
     livestream_urls = [
         {
@@ -90,7 +90,7 @@ def _parse_raw(raw: dict) -> dict:
         "pad_name": _trunc_required(pad.get("name") or "", 500),
         "pad_location": _trunc_required(location.get("name") or "", 500),
         "image_url": _trunc(sanitise_url(_extract_image_url(raw.get("image"))), 500),
-        "livestream_urls": json.dumps(livestream_urls),
+        "livestream_urls": livestream_urls,
     }
 
 
@@ -111,7 +111,7 @@ async def _translate_launch(launch: Launch, translator: Any) -> None:
         return
     try:
         i18n = await translator(fields)
-        launch.translations_json = json.dumps(i18n, ensure_ascii=False)
+        launch.translations_json = i18n
     except Exception as exc:  # noqa: BLE001
         logger.warning("Launch translation for %s failed: %s", launch.ll2_id, exc)
 
@@ -182,7 +182,7 @@ async def sync_launches(
         )
         raw_launches = raw_launches[:100]
 
-    fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    fetched_at = datetime.now(timezone.utc)
     seen_ids: set[str] = set()
 
     for raw in raw_launches:
@@ -284,7 +284,7 @@ async def get_upcoming_launches(
 
     Also returns last_synced_at = MAX(fetched_at) or None.
     """
-    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     stmt = (
         select(Launch)
         .where(Launch.net > cutoff)

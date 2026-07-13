@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Index, String, text
+from sqlalchemy import Boolean, Float, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class Neo(Base):
@@ -21,7 +21,7 @@ class Neo(Base):
     orbiting_body: Mapped[str | None] = mapped_column(String, nullable=True)
     nasa_jpl_url: Mapped[str | None] = mapped_column(String, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     __table_args__ = (Index("ix_neo_close_approach_date", "close_approach_date"),)

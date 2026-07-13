@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -14,7 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 if TYPE_CHECKING:
     from app.models.subscription import Subscription
@@ -33,7 +32,7 @@ class PendingNotification(Base):
     new_value: Mapped[str | None] = mapped_column(String, nullable=True)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     subscription: Mapped[Subscription] = relationship("Subscription", lazy="raise")
@@ -66,7 +65,7 @@ class NotificationLog(Base):
     delivery_status: Mapped[str] = mapped_column(String, nullable=False)
     error_detail: Mapped[str | None] = mapped_column(String, nullable=True)
     sent_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     __table_args__ = (

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import AsyncIterator
 
 import pytest_asyncio
@@ -12,17 +13,30 @@ from sqlalchemy.ext.asyncio import (
 
 from app import models  # noqa: F401 — import registers all ORM models with Base.metadata
 from app.config import Settings
-from app.database import Base, get_db
+from app.database import Base, enable_sqlite_fk_pragma, get_db
 from app.main import create_app
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
 from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient
 
+# P2.5: DATABASE_URL drives which dialect the suite runs against — unset
+# (dev parity) uses in-memory SQLite; CI additionally runs the same suite
+# with DATABASE_URL=postgresql+asyncpg://… against a postgres:17 service.
+# Per-test create/drop (rather than session-scoped rollback isolation) is
+# kept deliberately: it is correct on both dialects without the SAVEPOINT
+# sessionmaker rewrite that Postgres CI performance would otherwise call
+# for — that optimization is deferred to Step P3, when the CI pipeline is
+# actually stood up and can be measured against a live Postgres service
+# container (see `16-postgres-migration.md` P2.5).
+_TEST_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+
 
 @pytest_asyncio.fixture
 async def db_engine():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", future=True)
+    engine = create_async_engine(_TEST_DATABASE_URL, future=True)
+    if not _TEST_DATABASE_URL.startswith("postgresql"):
+        enable_sqlite_fk_pragma(engine)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     try:

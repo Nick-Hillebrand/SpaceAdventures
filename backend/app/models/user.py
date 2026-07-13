@@ -3,7 +3,6 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -12,7 +11,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class User(Base):
@@ -27,12 +26,12 @@ class User(Base):
     email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     phone_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
     # P1.9: CASL/PIPEDA/GDPR — express consent to notification alerting.
     # consent_notifications_at is cleared back to null on withdrawal, which
     # is what subscription creation gates on (see subscription_service).
-    consent_notifications_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    consent_notifications_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     consent_source: Mapped[str | None] = mapped_column(String, nullable=True)
 
     otps: Mapped[list["Otp"]] = relationship(
@@ -58,11 +57,11 @@ class Otp(Base):
     )
     channel: Mapped[str] = mapped_column(String, nullable=False)
     code_hash: Mapped[str] = mapped_column(String, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     user: Mapped["User"] = relationship(back_populates="otps")
@@ -81,10 +80,10 @@ class RefreshToken(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     token_hash: Mapped[str] = mapped_column(String, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     user: Mapped["User"] = relationship(back_populates="refresh_tokens")
@@ -102,7 +101,7 @@ class LoginAttempt(Base):
     identifier: Mapped[str] = mapped_column(String, nullable=False)
     ip_address: Mapped[str] = mapped_column(String, nullable=False)
     failed_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     __table_args__ = (

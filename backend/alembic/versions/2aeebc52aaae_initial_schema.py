@@ -1,15 +1,17 @@
 """initial schema
 
-Revision ID: ee08ba069158
+Revision ID: 2aeebc52aaae
 Revises: 
-Create Date: 2026-07-04 23:55:36.183833
+Create Date: 2026-07-13 12:17:07.732524
 """
 from alembic import op
 import sqlalchemy as sa
 
+import app.database
+
 
 # revision identifiers, used by Alembic.
-revision = 'ee08ba069158'
+revision = '2aeebc52aaae'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -26,7 +28,8 @@ def upgrade() -> None:
     sa.Column('media_type', sa.String(), nullable=False),
     sa.Column('copyright', sa.String(), nullable=True),
     sa.Column('thumbnail_url', sa.String(), nullable=True),
-    sa.Column('fetched_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('fetched_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('translations_json', sa.JSON(), nullable=True),
     sa.PrimaryKeyConstraint('date')
     )
     op.create_table('iss_passes',
@@ -35,16 +38,16 @@ def upgrade() -> None:
     sa.Column('observer_lat', sa.Float(), nullable=False),
     sa.Column('observer_lng', sa.Float(), nullable=False),
     sa.Column('observer_alt', sa.Float(), nullable=False),
-    sa.Column('passes_json', sa.String(), nullable=False),
-    sa.Column('fetched_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('passes_json', sa.JSON(), nullable=False),
+    sa.Column('fetched_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.CheckConstraint("pass_type IN ('visual','radio')", name='ck_iss_pass_type'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('pass_type', 'observer_lat', 'observer_lng', 'observer_alt', name='uq_iss_passes')
     )
     op.create_table('iss_position_batch',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('positions', sa.String(), nullable=False),
-    sa.Column('fetched_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('positions', sa.JSON(), nullable=False),
+    sa.Column('fetched_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('iss_tle',
@@ -52,13 +55,13 @@ def upgrade() -> None:
     sa.Column('tle_line0', sa.String(), nullable=False),
     sa.Column('tle_line1', sa.String(), nullable=False),
     sa.Column('tle_line2', sa.String(), nullable=False),
-    sa.Column('fetched_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('fetched_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('launches',
     sa.Column('ll2_id', sa.String(), nullable=False),
     sa.Column('name', sa.String(length=200), nullable=False),
-    sa.Column('net', sa.DateTime(), nullable=False),
+    sa.Column('net', app.database.UTCDateTime(timezone=True), nullable=False),
     sa.Column('status_abbrev', sa.String(), nullable=False),
     sa.Column('status_name', sa.String(), nullable=False),
     sa.Column('agency_name', sa.String(), nullable=False),
@@ -71,8 +74,9 @@ def upgrade() -> None:
     sa.Column('pad_name', sa.String(), nullable=False),
     sa.Column('pad_location', sa.String(), nullable=False),
     sa.Column('image_url', sa.String(), nullable=True),
-    sa.Column('livestream_urls', sa.String(), nullable=False),
-    sa.Column('fetched_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('livestream_urls', sa.JSON(), nullable=False),
+    sa.Column('fetched_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('translations_json', sa.JSON(), nullable=True),
     sa.PrimaryKeyConstraint('ll2_id')
     )
     with op.batch_alter_table('launches', schema=None) as batch_op:
@@ -83,7 +87,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('identifier', sa.String(), nullable=False),
     sa.Column('ip_address', sa.String(), nullable=False),
-    sa.Column('failed_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('failed_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('login_attempts', schema=None) as batch_op:
@@ -96,13 +100,13 @@ def upgrade() -> None:
     sa.Column('rover_name', sa.String(), nullable=False),
     sa.Column('camera_name', sa.String(), nullable=False),
     sa.Column('img_src', sa.String(), nullable=False),
-    sa.Column('fetched_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('fetched_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('rover_name', 'sol', 'camera_name', 'id', name='uq_mars_photo_composite')
     )
     op.create_table('n2yo_quota',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('window_start', sa.DateTime(), nullable=False),
+    sa.Column('window_start', app.database.UTCDateTime(timezone=True), nullable=False),
     sa.Column('used', sa.Integer(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
@@ -118,18 +122,28 @@ def upgrade() -> None:
     sa.Column('miss_distance_km', sa.Float(), nullable=True),
     sa.Column('orbiting_body', sa.String(), nullable=True),
     sa.Column('nasa_jpl_url', sa.String(), nullable=True),
-    sa.Column('fetched_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('fetched_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('neo', schema=None) as batch_op:
         batch_op.create_index('ix_neo_close_approach_date', ['close_approach_date'], unique=False)
 
+    op.create_table('rate_limit_events',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('bucket', sa.String(), nullable=False),
+    sa.Column('ip_hash', sa.String(), nullable=False),
+    sa.Column('created_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('rate_limit_events', schema=None) as batch_op:
+        batch_op.create_index('ix_rate_limit_events_bucket_ip_created', ['bucket', 'ip_hash', 'created_at'], unique=False)
+
     op.create_table('space_weather_event',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('event_type', sa.String(), nullable=False),
     sa.Column('start_date', sa.String(), nullable=False),
-    sa.Column('raw_json', sa.String(), nullable=False),
-    sa.Column('fetched_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('raw_json', sa.JSON(), nullable=False),
+    sa.Column('fetched_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.CheckConstraint("event_type IN ('FLR','GST','RBE','SEP','CME')", name='ck_space_weather_event_type'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -145,7 +159,9 @@ def upgrade() -> None:
     sa.Column('password_hash', sa.String(), nullable=False),
     sa.Column('email_verified', sa.Boolean(), nullable=False),
     sa.Column('phone_verified', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('created_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('consent_notifications_at', app.database.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('consent_source', sa.String(), nullable=True),
     sa.CheckConstraint('email IS NOT NULL OR phone IS NOT NULL', name='ck_users_email_or_phone'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
@@ -153,13 +169,13 @@ def upgrade() -> None:
     )
     op.create_table('notification_log',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('ll2_id', sa.String(), nullable=False),
     sa.Column('change_type', sa.String(), nullable=False),
     sa.Column('channel', sa.String(), nullable=False),
     sa.Column('delivery_status', sa.String(), nullable=False),
     sa.Column('error_detail', sa.String(), nullable=True),
-    sa.Column('sent_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('sent_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.CheckConstraint("channel IN ('email','sms')", name='ck_notification_log_channel'),
     sa.CheckConstraint("delivery_status IN ('sent','failed')", name='ck_notification_log_delivery_status'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
@@ -173,10 +189,10 @@ def upgrade() -> None:
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('channel', sa.String(), nullable=False),
     sa.Column('code_hash', sa.String(), nullable=False),
-    sa.Column('expires_at', sa.DateTime(), nullable=False),
+    sa.Column('expires_at', app.database.UTCDateTime(timezone=True), nullable=False),
     sa.Column('used', sa.Boolean(), nullable=False),
     sa.Column('failed_attempts', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('created_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.CheckConstraint("channel IN ('email','phone')", name='ck_otps_channel'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
@@ -188,9 +204,9 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('token_hash', sa.String(), nullable=False),
-    sa.Column('expires_at', sa.DateTime(), nullable=False),
+    sa.Column('expires_at', app.database.UTCDateTime(timezone=True), nullable=False),
     sa.Column('revoked', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('created_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -199,14 +215,14 @@ def upgrade() -> None:
         batch_op.create_index('ix_refresh_tokens_user_revoked', ['user_id', 'revoked'], unique=False)
 
     op.create_table('subscriptions',
-    sa.Column('id', sa.String(), server_default=sa.text('(lower(hex(randomblob(16))))'), nullable=False),
+    sa.Column('id', sa.String(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('type', sa.String(), nullable=False),
     sa.Column('ll2_id', sa.String(), nullable=True),
     sa.Column('agency_name', sa.String(), nullable=True),
     sa.Column('notify_email', sa.Boolean(), nullable=False),
     sa.Column('notify_sms', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('created_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.CheckConstraint("type IN ('launch','agency')", name='ck_subscription_type'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
@@ -225,7 +241,7 @@ def upgrade() -> None:
     sa.Column('old_value', sa.String(), nullable=True),
     sa.Column('new_value', sa.String(), nullable=True),
     sa.Column('attempt_count', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('created_at', app.database.UTCDateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.CheckConstraint("change_type IN ('NET_SLIP','STATUS_CHANGE','NEW_LAUNCH')", name='ck_pending_notifications_change_type'),
     sa.ForeignKeyConstraint(['subscription_id'], ['subscriptions.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
@@ -265,6 +281,10 @@ def downgrade() -> None:
         batch_op.drop_index('ix_space_weather_event_type_start_date')
 
     op.drop_table('space_weather_event')
+    with op.batch_alter_table('rate_limit_events', schema=None) as batch_op:
+        batch_op.drop_index('ix_rate_limit_events_bucket_ip_created')
+
+    op.drop_table('rate_limit_events')
     with op.batch_alter_table('neo', schema=None) as batch_op:
         batch_op.drop_index('ix_neo_close_approach_date')
 

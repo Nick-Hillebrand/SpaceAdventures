@@ -83,8 +83,6 @@ _SAMPLE_EVENTS = {
 
 
 def _seed_event(event_type: str, date: str, n: int = 1) -> SpaceWeatherEvent:
-    import json
-
     builder = _SAMPLE_EVENTS[event_type]
     raw = builder(date, n)
     id_val = raw.get(f"{event_type.lower()}ID") or raw.get("activityID") or raw.get("gstID")
@@ -92,7 +90,7 @@ def _seed_event(event_type: str, date: str, n: int = 1) -> SpaceWeatherEvent:
         id=f"{event_type}:{id_val}",
         event_type=event_type,
         start_date=date,
-        raw_json=json.dumps(raw),
+        raw_json=raw,
         fetched_at=datetime(2020, 1, 1, 12, 0, 0),
     )
 
@@ -299,7 +297,6 @@ async def test_empty_response_from_donki(client):
 @respx.mock
 async def test_upsert_updates_existing_row(client, db_session):
     today = datetime.now(timezone.utc).date().isoformat()
-    import json
 
     orig_raw = _flr_event(today)
     db_session.add(
@@ -307,7 +304,7 @@ async def test_upsert_updates_existing_row(client, db_session):
             id=f"FLR:FLR-{today}-1",
             event_type="FLR",
             start_date=today,
-            raw_json=json.dumps(orig_raw),
+            raw_json=orig_raw,
             fetched_at=datetime.utcnow() - timedelta(hours=4),
         )
     )
@@ -326,8 +323,7 @@ async def test_upsert_updates_existing_row(client, db_session):
 
     row = await db_session.get(SpaceWeatherEvent, f"FLR:FLR-{today}-1")
     assert row is not None
-    stored = json.loads(row.raw_json)
-    assert stored["classType"] == "X1.0"
+    assert row.raw_json["classType"] == "X1.0"
 
 
 # ── events with no ID field are skipped ──────────────────────────────────────

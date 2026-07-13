@@ -1,18 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Float, Integer, String, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, Float, Integer, JSON, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class IssPositionBatch(Base):
     __tablename__ = "iss_position_batch"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    positions: Mapped[str] = mapped_column(String, nullable=False)
+    positions: Mapped[list] = mapped_column(JSON, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
 
@@ -24,7 +24,7 @@ class IssTle(Base):
     tle_line1: Mapped[str] = mapped_column(String, nullable=False)
     tle_line2: Mapped[str] = mapped_column(String, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
 
@@ -36,9 +36,9 @@ class IssPassSet(Base):
     observer_lat: Mapped[float] = mapped_column(Float, nullable=False)
     observer_lng: Mapped[float] = mapped_column(Float, nullable=False)
     observer_alt: Mapped[float] = mapped_column(Float, nullable=False)
-    passes_json: Mapped[str] = mapped_column(String, nullable=False)
+    passes_json: Mapped[list] = mapped_column(JSON, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
 
     __table_args__ = (

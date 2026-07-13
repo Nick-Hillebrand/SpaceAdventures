@@ -14,7 +14,6 @@ Quota guard (per Architecture/05-iss-tracker.md):
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -32,7 +31,7 @@ PassType = Literal["visual", "radio"]
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc)
 
 
 def _age_seconds(fetched_at: datetime) -> float:
@@ -100,25 +99,25 @@ async def get_positions(
     """Returns (positions, fetched_at, cached, quota_exhausted)."""
     batch = await session.get(IssPositionBatch, 1)
     if batch is not None and _age_seconds(batch.fetched_at) < POSITIONS_TTL:
-        return json.loads(batch.positions), batch.fetched_at, True, False
+        return batch.positions, batch.fetched_at, True, False
 
     async with _QUOTA_LOCK:
         # Re-check cache inside lock to avoid double-fetch
         batch = await session.get(IssPositionBatch, 1)
         if batch is not None and _age_seconds(batch.fetched_at) < POSITIONS_TTL:
-            return json.loads(batch.positions), batch.fetched_at, True, False
+            return batch.positions, batch.fetched_at, True, False
 
         quota, exceeded = await _check_and_increment_quota(session, cap)
         if exceeded:
             if batch is not None:
-                return json.loads(batch.positions), batch.fetched_at, True, True
+                return batch.positions, batch.fetched_at, True, True
             raise N2YOError("N2YO_QUOTA_EXHAUSTED", "N2YO quota exhausted", 429)
 
         try:
             data = await client.get_positions()
         except N2YOError:
             if batch is not None:
-                return json.loads(batch.positions), batch.fetched_at, True, False
+                return batch.positions, batch.fetched_at, True, False
             raise
 
     raw_positions = data.get("positions") or []
@@ -126,10 +125,10 @@ async def get_positions(
     now = _utcnow()
 
     if batch is None:
-        batch = IssPositionBatch(id=1, positions=json.dumps(positions), fetched_at=now)
+        batch = IssPositionBatch(id=1, positions=positions, fetched_at=now)
         session.add(batch)
     else:
-        batch.positions = json.dumps(positions)
+        batch.positions = positions
         batch.fetched_at = now
     await session.commit()
     return positions, now, False, False
@@ -221,17 +220,17 @@ async def get_passes(
     """Returns (passes, fetched_at, cached, quota_exhausted)."""
     existing = await _get_pass_set(session, pass_type, lat, lng, alt)
     if existing is not None and _age_seconds(existing.fetched_at) < PASSES_TTL:
-        return _with_duration(json.loads(existing.passes_json)), existing.fetched_at, True, False
+        return _with_duration(existing.passes_json), existing.fetched_at, True, False
 
     async with _QUOTA_LOCK:
         existing = await _get_pass_set(session, pass_type, lat, lng, alt)
         if existing is not None and _age_seconds(existing.fetched_at) < PASSES_TTL:
-            return _with_duration(json.loads(existing.passes_json)), existing.fetched_at, True, False
+            return _with_duration(existing.passes_json), existing.fetched_at, True, False
 
         quota, exceeded = await _check_and_increment_quota(session, cap)
         if exceeded:
             if existing is not None:
-                return _with_duration(json.loads(existing.passes_json)), existing.fetched_at, True, True
+                return _with_duration(existing.passes_json), existing.fetched_at, True, True
             raise N2YOError("N2YO_QUOTA_EXHAUSTED", "N2YO quota exhausted", 429)
 
         try:
@@ -241,7 +240,7 @@ async def get_passes(
                 data = await client.get_radio_passes(lat, lng, alt)
         except N2YOError:
             if existing is not None:
-                return _with_duration(json.loads(existing.passes_json)), existing.fetched_at, True, False
+                return _with_duration(existing.passes_json), existing.fetched_at, True, False
             raise
 
     passes = _with_duration(data.get("passes") or [])
@@ -253,12 +252,12 @@ async def get_passes(
             observer_lat=lat,
             observer_lng=lng,
             observer_alt=alt,
-            passes_json=json.dumps(passes),
+            passes_json=passes,
             fetched_at=now,
         )
         session.add(ps)
     else:
-        existing.passes_json = json.dumps(passes)
+        existing.passes_json = passes
         existing.fetched_at = now
     await session.commit()
     return passes, now, False, False

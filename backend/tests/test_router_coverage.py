@@ -314,7 +314,7 @@ async def test_lifespan_initial_sync_when_empty(settings):
     mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_ctx.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.main.AsyncSessionLocal", return_value=mock_ctx), \
+    with patch("app.main.get_sessionmaker", return_value=lambda: mock_ctx), \
          patch("app.main.launches_service.is_launches_table_empty", return_value=True) as mock_empty, \
          patch("app.main.launches_service.sync_launches") as mock_sync:
 
@@ -335,7 +335,7 @@ async def test_lifespan_skips_sync_when_populated(settings):
     mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_ctx.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.main.AsyncSessionLocal", return_value=mock_ctx), \
+    with patch("app.main.get_sessionmaker", return_value=lambda: mock_ctx), \
          patch("app.main.launches_service.is_launches_table_empty", return_value=False) as mock_empty, \
          patch("app.main.launches_service.sync_launches") as mock_sync:
 

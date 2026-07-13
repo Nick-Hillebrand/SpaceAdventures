@@ -69,7 +69,7 @@ def _row_from_photo(obj: dict) -> MarsPhoto | None:
         rover_name=str(rover.get("name", "")).lower(),
         camera_name=str(camera.get("name", "")),
         img_src=sanitise_url(obj.get("img_src")) or "",
-        fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        fetched_at=datetime.now(timezone.utc),
     )
 
 
@@ -120,7 +120,7 @@ def _is_today_result(rows: list[MarsPhoto]) -> bool:
 
 def _latest_fetched_at(rows: list[MarsPhoto]) -> datetime:
     if not rows:
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(timezone.utc)
     return max(r.fetched_at for r in rows)
 
 

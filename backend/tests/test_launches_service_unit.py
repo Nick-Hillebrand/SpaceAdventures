@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -97,7 +96,7 @@ def _launch_row(**overrides) -> Launch:
         mission_description="Sats.",
         pad_name="SLC-40",
         pad_location="Cape",
-        livestream_urls="[]",
+        livestream_urls=[],
         fetched_at=datetime(2026, 1, 1),
     )
     base.update(overrides)
@@ -121,7 +120,7 @@ async def test_translate_launch_success():
         return {"de": {k: f"DE:{v}" for k, v in fields.items()}}
 
     await _translate_launch(launch, translator)
-    stored = json.loads(launch.translations_json)
+    stored = launch.translations_json
     assert stored["de"]["mission_name"] == "DE:Starlink"
 
 
@@ -181,7 +180,7 @@ async def test_sync_translates_new_launch(db_session):
     await sync_launches(db_session, FakeLL2Client([_raw()]), translator=translator)
     launch = await db_session.get(Launch, "l-1")
     assert launch.translations_json is not None
-    assert "DE:Starlink" in launch.translations_json
+    assert launch.translations_json["de"]["mission_name"] == "DE:Starlink"
 
 
 async def test_sync_retranslates_when_mission_changes(db_session):
@@ -195,7 +194,7 @@ async def test_sync_retranslates_when_mission_changes(db_session):
     await sync_launches(db_session, FakeLL2Client([updated]), translator=translator)
 
     launch = await db_session.get(Launch, "l-1")
-    assert "DE:New description." in launch.translations_json
+    assert launch.translations_json["de"]["mission_description"] == "DE:New description."
 
 
 async def test_sync_skips_translation_when_unchanged(db_session):

@@ -11,7 +11,6 @@ DONKI endpoint. All share the same permanent-cache logic:
 
 from __future__ import annotations
 
-import json
 from datetime import date, datetime, timezone
 from typing import Literal
 
@@ -80,8 +79,8 @@ def _row_from_event(obj: dict, event_type: EventType, feed_date: str) -> SpaceWe
         id=f"{event_type}:{event_id}",
         event_type=event_type,
         start_date=start_date,
-        raw_json=json.dumps(obj),
-        fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        raw_json=obj,
+        fetched_at=datetime.now(timezone.utc),
     )
 
 
@@ -133,7 +132,7 @@ class SpaceWeatherResult:
 
 def _latest_fetched_at(rows: list[SpaceWeatherEvent]) -> datetime:
     if not rows:
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(timezone.utc)
     return max(r.fetched_at for r in rows)
 
 

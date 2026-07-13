@@ -6,7 +6,6 @@ attribution for branches the ASGI-level tests miss.
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -59,7 +58,7 @@ def _apod_data() -> ApodData:
 
 def test_apod_apply_translations_english_passthrough():
     data = _apod_data()
-    assert _apply_translations(data, '{"de": {"title": "Sonne"}}', "en") is data
+    assert _apply_translations(data, {"de": {"title": "Sonne"}}, "en") is data
 
 
 def test_apod_apply_translations_no_json_passthrough():
@@ -69,13 +68,13 @@ def test_apod_apply_translations_no_json_passthrough():
 
 def test_apod_apply_translations_missing_lang_passthrough():
     data = _apod_data()
-    translations = json.dumps({"fr": {"title": "Soleil"}})
+    translations = {"fr": {"title": "Soleil"}}
     assert _apply_translations(data, translations, "de") is data
 
 
 def test_apod_apply_translations_applies_lang():
     data = _apod_data()
-    translations = json.dumps({"de": {"title": "Sonne", "explanation": "Ein Stern."}})
+    translations = {"de": {"title": "Sonne", "explanation": "Ein Stern."}}
     result = _apply_translations(data, translations, "de")
     assert result.title == "Sonne"
     assert result.explanation == "Ein Stern."
@@ -83,18 +82,13 @@ def test_apod_apply_translations_applies_lang():
 
 def test_apod_apply_translations_partial_lang_keeps_missing_fields():
     data = _apod_data()
-    translations = json.dumps({"de": {"title": "Sonne"}})
+    translations = {"de": {"title": "Sonne"}}
     result = _apply_translations(data, translations, "de")
     assert result.title == "Sonne"
     assert result.explanation == "A star."
 
 
-def test_apod_apply_translations_invalid_json_passthrough():
-    data = _apod_data()
-    assert _apply_translations(data, "{not json", "de") is data
-
-
-def _apod_row(translations_json: str | None = None) -> Apod:
+def _apod_row(translations_json: dict | None = None) -> Apod:
     return Apod(
         date="2026-01-01",
         title="Sun",
@@ -107,7 +101,7 @@ def _apod_row(translations_json: str | None = None) -> Apod:
 
 
 async def test_get_apod_route_returns_translated_payload(db_session):
-    row = _apod_row(json.dumps({"de": {"title": "Sonne", "explanation": "Ein Stern."}}))
+    row = _apod_row({"de": {"title": "Sonne", "explanation": "Ein Stern."}})
     fake_result = SimpleNamespace(row=row, cached=True, stale=False, is_today=False)
     with patch(
         "app.services.apod_service.fetch_apod", AsyncMock(return_value=fake_result)
@@ -187,7 +181,7 @@ def _launch_out(**overrides) -> LaunchOut:
 
 def test_launch_apply_translations_english_passthrough():
     out = _launch_out()
-    assert _apply_launch_translations(out, '{"de": {"mission_name": "X"}}', "en") is out
+    assert _apply_launch_translations(out, {"de": {"mission_name": "X"}}, "en") is out
 
 
 def test_launch_apply_translations_no_json_passthrough():
@@ -197,15 +191,13 @@ def test_launch_apply_translations_no_json_passthrough():
 
 def test_launch_apply_translations_missing_lang_passthrough():
     out = _launch_out()
-    translations = json.dumps({"fr": {"mission_name": "Mission FR"}})
+    translations = {"fr": {"mission_name": "Mission FR"}}
     assert _apply_launch_translations(out, translations, "de") is out
 
 
 def test_launch_apply_translations_applies_fields():
     out = _launch_out()
-    translations = json.dumps(
-        {"de": {"mission_name": "Starlink DE", "mission_description": "Satelliten."}}
-    )
+    translations = {"de": {"mission_name": "Starlink DE", "mission_description": "Satelliten."}}
     result = _apply_launch_translations(out, translations, "de")
     assert result.mission_name == "Starlink DE"
     assert result.mission_description == "Satelliten."
@@ -213,16 +205,11 @@ def test_launch_apply_translations_applies_fields():
 
 def test_launch_apply_translations_empty_values_ignored():
     out = _launch_out()
-    translations = json.dumps({"de": {"mission_name": "", "mission_description": ""}})
+    translations = {"de": {"mission_name": "", "mission_description": ""}}
     assert _apply_launch_translations(out, translations, "de") is out
 
 
-def test_launch_apply_translations_invalid_json_passthrough():
-    out = _launch_out()
-    assert _apply_launch_translations(out, "{broken", "de") is out
-
-
-def _launch_row(ll2_id: str = "l-1", translations_json: str | None = None) -> Launch:
+def _launch_row(ll2_id: str = "l-1", translations_json: dict | None = None) -> Launch:
     return Launch(
         ll2_id=ll2_id,
         name="Falcon 9 | Starlink",
@@ -235,7 +222,7 @@ def _launch_row(ll2_id: str = "l-1", translations_json: str | None = None) -> La
         mission_description="Sats.",
         pad_name="SLC-40",
         pad_location="Cape Canaveral",
-        livestream_urls="[]",
+        livestream_urls=[],
         fetched_at=datetime(2026, 1, 1),
         translations_json=translations_json,
     )
@@ -244,7 +231,7 @@ def _launch_row(ll2_id: str = "l-1", translations_json: str | None = None) -> La
 async def test_get_upcoming_launches_route_translates(db_session):
     db_session.add(
         _launch_row(
-            translations_json=json.dumps({"de": {"mission_name": "Starlink DE"}})
+            translations_json={"de": {"mission_name": "Starlink DE"}}
         )
     )
     await db_session.commit()

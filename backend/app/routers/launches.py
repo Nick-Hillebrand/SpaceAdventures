@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import secrets
 from typing import Any
 
@@ -43,24 +42,20 @@ def _require_admin(
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-def _apply_launch_translations(launch: LaunchOut, translations_json: str | None, lang: str) -> LaunchOut:
-    if lang == "en" or not translations_json:
+def _apply_launch_translations(launch: LaunchOut, translations: dict | None, lang: str) -> LaunchOut:
+    if lang == "en" or not translations:
         return launch
-    try:
-        t = json.loads(translations_json)
-        lang_data = t.get(lang, {})
-        if not lang_data:
-            return launch
-        updates: dict[str, Any] = {}
-        if "mission_name" in lang_data and lang_data["mission_name"]:
-            updates["mission_name"] = lang_data["mission_name"]
-        if "mission_description" in lang_data and lang_data["mission_description"]:
-            updates["mission_description"] = lang_data["mission_description"]
-        if not updates:
-            return launch
-        return launch.model_copy(update=updates)
-    except (json.JSONDecodeError, AttributeError):
+    lang_data = translations.get(lang, {})
+    if not lang_data:
         return launch
+    updates: dict[str, Any] = {}
+    if "mission_name" in lang_data and lang_data["mission_name"]:
+        updates["mission_name"] = lang_data["mission_name"]
+    if "mission_description" in lang_data and lang_data["mission_description"]:
+        updates["mission_description"] = lang_data["mission_description"]
+    if not updates:
+        return launch
+    return launch.model_copy(update=updates)
 
 
 @router.get("/upcoming", response_model=LaunchesResponse)

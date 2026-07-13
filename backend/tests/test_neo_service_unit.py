@@ -188,9 +188,9 @@ def test_neo_result_container_fields():
 
 
 def test_latest_fetched_at_empty_returns_now():
-    before = datetime.now(timezone.utc).replace(tzinfo=None)
+    before = datetime.now(timezone.utc)
     latest = neo_service._latest_fetched_at([])
-    after = datetime.now(timezone.utc).replace(tzinfo=None)
+    after = datetime.now(timezone.utc)
     assert before <= latest <= after
 
 

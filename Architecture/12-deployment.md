@@ -20,11 +20,20 @@ Internet
 ┌──────────────────────────────────────────┐
 │  Backend (Uvicorn, --workers 1)          │
 │  port 8000 — NOT exposed externally      │
+└──────────────────┬───────────────────────┘
+                   │ Docker internal network
+                   ▼
+┌──────────────────────────────────────────┐
+│  Postgres 17 (db)                        │
+│  port 5432 — NOT exposed externally      │
 └──────────────────────────────────────────┘
          │
          ▼
-  /app/data/space_adventures.db  (named Docker volume)
+     pg_data  (named Docker volume)
 ```
+
+SQLite remains the local-dev default (zero-setup) — see `16-postgres-migration.md`.
+Production and CI run Postgres.
 
 The frontend is **not a running container**. It is built to static files (`npm run build`) and served directly by Caddy. Only 2 containers run in production: **Caddy** and **Backend**.
 
@@ -208,8 +217,15 @@ services:
     restart: unless-stopped
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
     env_file: .env.prod
-    volumes:
-      - sa_db_data:/app/data
+    environment:
+      # Built here, not left as a literal ${POSTGRES_PASSWORD} inside
+      # .env.prod — env_file: values are passed through verbatim, docker
+      # compose only expands ${...} in the compose file itself.
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DATABASE_URL_SYNC=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8000/api/v1/health"]
       interval: 30s
@@ -217,11 +233,28 @@ services:
       retries: 3
       start_period: 15s
     # No ports: — backend is internal only
+    # No sa_db_data volume — the app is stateless; all data lives in Postgres (db).
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # No ports: — only reachable from other containers on the compose network
 
 volumes:
   caddy_data:
   caddy_config:
-  sa_db_data:
+  pg_data:
 ```
 
 ---
@@ -265,17 +298,26 @@ N2YO_API_KEY=your_n2yo_api_key
 LL2_API_KEY=
 LL2_SYNC_INTERVAL_MINUTES=30
 
-# Generate: python -c "import secrets; print(secrets.token_hex(32))"
+# Generate each with: python -c "import secrets; print(secrets.token_hex(32))"
 JWT_SECRET_KEY=
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
-JWT_REFRESH_TOKEN_EXPIRE_DAYS=30
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_TTL_SECONDS=900
+REFRESH_TOKEN_TTL_SECONDS=1209600
 UNSUBSCRIBE_SECRET_KEY=
 ADMIN_API_KEY=
 
 N2YO_QUOTA_CAP=900
-DATABASE_URL=sqlite+aiosqlite:///./data/space_adventures.db
-DATABASE_URL_SYNC=sqlite:///./data/space_adventures.db
-CORS_ORIGINS=https://space-adventures.example.com
+# Prod and CI run Postgres (16-postgres-migration.md); `db` is the compose
+# service name — resolves on the Docker internal network only.
+# DATABASE_URL / DATABASE_URL_SYNC are NOT set here — env_file: values are
+# not ${...}-expanded by docker compose, so they're built from these three
+# vars directly in docker-compose.prod.yml's backend service instead.
+POSTGRES_USER=sa
+POSTGRES_PASSWORD=
+POSTGRES_DB=space_adventures
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
+FRONTEND_ORIGIN=https://space-adventures.example.com
 
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
@@ -286,6 +328,11 @@ SMTP_FROM=noreply@space-adventures.example.com
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_FROM_NUMBER=
+
+APP_REQUIRE_SECRETS=1
+COOKIE_SECURE=true
+TRUST_PROXY_HEADERS=true
+EXPOSE_DOCS=false
 ```
 
 ---
@@ -311,24 +358,103 @@ ls dist/index.html   # must exist
 cd ..
 ```
 
-**Step 3 — Run migrations**
+**Step 3 — Start the database and run migrations**
 ```bash
-docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d db
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm backend alembic upgrade head
 ```
 
 **Step 4 — Start stack**
 ```bash
-docker compose -f docker-compose.prod.yml up -d
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 ```
 
 **Step 5 — Verify**
 ```bash
 curl -sf https://<APP_DOMAIN>/api/v1/health | python -m json.tool
 curl -sv https://<APP_DOMAIN> 2>&1 | grep "SSL certificate"
-docker compose -f docker-compose.prod.yml logs --tail=50
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs --tail=50
 ```
 
 Caddy provisions the Let's Encrypt cert on first request (5–30 seconds). If it fails: check DNS resolves and port 80 is reachable.
+
+---
+
+## Backup & Restore Runbook (P2.6)
+
+Nightly logical backups of the Postgres `db` service, run from the **host**
+(a cron job or systemd timer calling `docker compose exec`), never from an
+in-container crond — the host is what survives a container being recreated,
+and it's the one place with the object-storage credentials.
+
+**Nightly backup (host cron / systemd timer)**
+
+```bash
+#!/usr/bin/env bash
+# /opt/space-adventures/backup.sh — run nightly at 03:00 server time.
+set -euo pipefail
+
+cd /opt/space-adventures
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+DUMP="/opt/space-adventures/backups/space_adventures_${STAMP}.dump"
+
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T db \
+  pg_dump -Fc -U "$POSTGRES_USER" "$POSTGRES_DB" > "$DUMP"
+
+# Upload to object storage (adjust for the provider actually in use).
+aws s3 cp "$DUMP" "s3://space-adventures-backups/$(basename "$DUMP")"
+
+# 30-day retention, both locally and in the bucket.
+find /opt/space-adventures/backups -name '*.dump' -mtime +30 -delete
+aws s3api list-objects-v2 --bucket space-adventures-backups \
+  --query "Contents[?LastModified<='$(date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)'].Key" \
+  --output text | xargs -r -n1 -I{} aws s3 rm "s3://space-adventures-backups/{}"
+```
+
+Crontab entry (`crontab -e` for the deploy user, or a systemd timer with the
+same schedule):
+
+```
+0 3 * * * /opt/space-adventures/backup.sh >> /var/log/sa-backup.log 2>&1
+```
+
+`pg_dump -Fc` (custom format) is used rather than plain SQL so `pg_restore`
+can do a parallel, selective restore and so the dump is compressed on disk.
+
+**Restore rehearsal (rehearse once before beta, and after any major version
+bump of Postgres)**
+
+1. **Drop the DB** (on a disposable staging stack — never rehearse against
+   the live prod volume):
+   ```bash
+   docker compose --env-file .env.prod -f docker-compose.prod.yml stop backend
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec db \
+     dropdb -U "$POSTGRES_USER" "$POSTGRES_DB"
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec db \
+     createdb -U "$POSTGRES_USER" -O "$POSTGRES_USER" "$POSTGRES_DB"
+   ```
+2. **Restore the dump**:
+   ```bash
+   docker compose --env-file .env.prod -f docker-compose.prod.yml cp \
+     backups/space_adventures_<STAMP>.dump db:/tmp/restore.dump
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec db \
+     pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists \
+     /tmp/restore.dump
+   ```
+3. **App healthy**: bring the backend back up and confirm the same health
+   check used in the deployment runbook (Step 5 above) passes, and that a
+   spot-checked row count (e.g. `SELECT count(*) FROM users;`) matches the
+   pre-drop expectation:
+   ```bash
+   docker compose --env-file .env.prod -f docker-compose.prod.yml start backend
+   curl -sf https://<APP_DOMAIN>/api/v1/health | python -m json.tool
+   ```
+
+Record the date and outcome of each rehearsal here once performed:
+
+| Date | Rehearsed by | Result |
+| --- | --- | --- |
+| _(pending — schedule before beta, per L3 pre-launch gates)_ | | |
 
 ---
 
@@ -385,9 +511,9 @@ operator is Canadian).
 git pull
 
 # Backend changed:
-docker compose -f docker-compose.prod.yml build backend
-docker compose -f docker-compose.prod.yml up -d backend
-docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
+docker compose --env-file .env.prod -f docker-compose.prod.yml build backend
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d backend
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm backend alembic upgrade head
 
 # Frontend changed:
 cd frontend && npm ci

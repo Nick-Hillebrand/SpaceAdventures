@@ -26,7 +26,8 @@ A multilingual web application that fetches, caches, and visualises NASA data an
 | Layer | Technology |
 |---|---|
 | Frontend | React 18, TypeScript, Vite, React Query, React Router, i18next |
-| Backend | Python 3.12, FastAPI, SQLAlchemy (async), Alembic, SQLite |
+| Backend | Python 3.12, FastAPI, SQLAlchemy (async), Alembic |
+| Database | SQLite (local dev, zero-setup) — PostgreSQL 17 (production and CI) |
 | Auth | JWT (PyJWT), httpOnly-cookie refresh tokens, bcrypt (passlib), OTP via email (aiosmtplib) or SMS (Twilio) |
 | Testing | Vitest + Testing Library + MSW (frontend), pytest + pytest-asyncio + respx (backend) |
 | Reverse proxy (prod) | Caddy |
@@ -94,7 +95,10 @@ cp .env.example backend/.env
 | `JWT_SECRET_KEY` | **Yes** | Secret used to sign access tokens. Use any long random string in dev. |
 | `UNSUBSCRIBE_SECRET_KEY` | **Yes** | Secret used to sign unsubscribe tokens. |
 | `ADMIN_API_KEY` | **Yes** | Key for protected admin endpoints. |
-| `DATABASE_URL` | No | SQLAlchemy async URL. Defaults to `sqlite+aiosqlite:///./data/app.db`. |
+| `DATABASE_URL` | No | SQLAlchemy async URL. Defaults to `sqlite+aiosqlite:///./data/app.db`. Set to `postgresql+asyncpg://user:pass@host:5432/dbname` in production and CI. |
+| `DATABASE_URL_SYNC` | No | Sync URL used by Alembic migrations only. Defaults to `sqlite:///./data/app.db`. Set to `postgresql+psycopg://user:pass@host:5432/dbname` in production and CI (must point at the same database as `DATABASE_URL`). |
+| `DB_POOL_SIZE` | No | SQLAlchemy connection pool size. Only applied when `DATABASE_URL` is `postgresql+asyncpg://…` (ignored for SQLite). Defaults to `10`. |
+| `DB_MAX_OVERFLOW` | No | Extra connections allowed beyond `DB_POOL_SIZE` under load. Only applied for Postgres. Defaults to `20`. |
 | `FRONTEND_ORIGIN` | No | CORS allowed origin. Defaults to `http://localhost:5173`. |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | No | Leave blank to disable email sending in dev. |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | No | Leave blank to disable SMS in dev. |
@@ -177,39 +181,29 @@ Log in at `http://localhost:5173/login`.
 
 ## Production Deployment
 
-The production setup runs the backend behind **Caddy** as a reverse proxy. Uvicorn must always use `--workers 1` because the APScheduler launch-sync job is process-local.
+The production setup runs the backend behind **Caddy** as a reverse proxy, backed by a **PostgreSQL 17** `db`
+service (see `docker-compose.prod.yml`). Uvicorn must always use `--workers 1` because the APScheduler
+launch-sync job is process-local. Full first-deploy runbook, environment file template, and the
+backup/restore procedure: `Architecture/12-deployment.md`.
 
 ### 1 — Backend
 
 ```bash
-cd backend
+cp .env.prod.example .env.prod   # fill in secrets, POSTGRES_PASSWORD, etc. — see 12-deployment.md
+chmod 600 .env.prod
 
-# Build the Docker image
-docker build -t space-adventures-backend .
+# Start Postgres first, then run migrations against it
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d db
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm backend alembic upgrade head
 
-# Run — supply all required env vars
-docker run -d \
-  --name sa-backend \
-  -p 127.0.0.1:8000:8000 \
-  -v sa-data:/app/data \
-  -e APP_REQUIRE_SECRETS=1 \
-  -e NASA_API_KEY=your-nasa-key \
-  -e N2YO_API_KEY=your-n2yo-key \
-  -e JWT_SECRET_KEY=long-random-secret \
-  -e UNSUBSCRIBE_SECRET_KEY=long-random-secret \
-  -e ADMIN_API_KEY=long-random-secret \
-  -e FRONTEND_ORIGIN=https://yourdomain.com \
-  -e SMTP_HOST=smtp.example.com \
-  -e SMTP_USER=no-reply@example.com \
-  -e SMTP_PASSWORD=... \
-  -e SMTP_FROM=no-reply@example.com \
-  space-adventures-backend
+# Start the rest of the stack
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 ```
 
-Run migrations on first deploy and after any schema changes:
+Run migrations again after any schema change:
 
 ```bash
-docker exec sa-backend alembic upgrade head
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm backend alembic upgrade head
 ```
 
 ### 2 — Frontend
@@ -311,6 +305,16 @@ python scripts/check_module_coverage.py
 `tests/security/` (route-authorization matrix) and `tests/perf/` (query-count /
 N+1 guard) run as part of the normal `pytest` invocation above — see
 `Architecture/25-security-testing.md` and `Architecture/26-performance.md`.
+
+The suite runs against an in-memory SQLite database by default. To run it
+against Postgres instead (as CI does — `16-postgres-migration.md` P2.5), point
+`DATABASE_URL` at a running Postgres instance before invoking pytest:
+
+```bash
+docker run -d --rm --name sa-test-pg -e POSTGRES_USER=sa -e POSTGRES_PASSWORD=sa \
+  -e POSTGRES_DB=sa_test -p 5432:5432 postgres:17-alpine
+DATABASE_URL=postgresql+asyncpg://sa:sa@localhost:5432/sa_test pytest --cov=app --cov-branch
+```
 
 ### Frontend
 

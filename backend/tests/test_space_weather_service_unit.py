@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
@@ -106,9 +105,9 @@ def test_row_from_event_constructs_correct_id():
 
 
 def test_latest_fetched_at_empty_returns_now():
-    before = datetime.now(timezone.utc).replace(tzinfo=None)
+    before = datetime.now(timezone.utc)
     result = space_weather_service._latest_fetched_at([])
-    after = datetime.now(timezone.utc).replace(tzinfo=None)
+    after = datetime.now(timezone.utc)
     assert before <= result <= after
 
 
@@ -150,7 +149,7 @@ async def test_fetch_events_cache_hit(db_session, nasa):
             id="GST:GST-2020-05-01",
             event_type="GST",
             start_date="2020-05-01",
-            raw_json=json.dumps({"gstID": "GST-2020-05-01"}),
+            raw_json={"gstID": "GST-2020-05-01"},
             fetched_at=datetime(2020, 5, 1, 12, 0, 0),
         )
     )
@@ -172,7 +171,7 @@ async def test_fetch_events_stale_fallback(db_session, nasa):
             id="CME:CME-today-1",
             event_type="CME",
             start_date=today,
-            raw_json=json.dumps({"activityID": "CME-today-1"}),
+            raw_json={"activityID": "CME-today-1"},
             fetched_at=datetime.utcnow() - timedelta(hours=2),
         )
     )
@@ -199,7 +198,7 @@ async def test_fetch_events_upsert_updates_existing(db_session, nasa):
             id="RBE:RBE-today-1",
             event_type="RBE",
             start_date=today,
-            raw_json=json.dumps({"rbeID": "RBE-today-1", "old": True}),
+            raw_json={"rbeID": "RBE-today-1", "old": True},
             fetched_at=datetime.utcnow() - timedelta(hours=6),
         )
     )
@@ -212,8 +211,7 @@ async def test_fetch_events_upsert_updates_existing(db_session, nasa):
     assert result.cached is False
 
     row = await db_session.get(SpaceWeatherEvent, "RBE:RBE-today-1")
-    stored = json.loads(row.raw_json)
-    assert stored.get("updated") is True
+    assert row.raw_json.get("updated") is True
 
 
 @respx.mock

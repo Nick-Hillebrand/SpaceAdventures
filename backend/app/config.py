@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:///./data/app.db"
     database_url_sync: str = "sqlite:///./data/app.db"
+    # Pool settings only apply when database_url is postgresql+asyncpg://… (P2.1).
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
 
     # NASA
     nasa_api_key: str = "DEMO_KEY"

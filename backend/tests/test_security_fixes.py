@@ -47,7 +47,7 @@ def _make_launch(name: str = "Falcon 9 | Starlink") -> Launch:
         rocket_name='Falcon "9"',
         pad_name="SLC-40",
         pad_location="Cape Canaveral",
-        livestream_urls="[]",
+        livestream_urls=[],
     )
 
 
@@ -205,9 +205,10 @@ def test_launch_parse_raw_sanitises_urls():
     )
     assert fields["image_url"] is None
     livestreams = fields["livestream_urls"]
-    assert "javascript:" not in livestreams
-    assert "data:" not in livestreams
-    assert "https://youtube.example/watch?v=1" in livestreams
+    assert len(livestreams) == 1
+    assert all("javascript:" not in item["url"] for item in livestreams)
+    assert all("data:" not in item["feature_image"] for item in livestreams)
+    assert livestreams[0]["url"] == "https://youtube.example/watch?v=1"
 
 
 def test_launch_parse_raw_image_object_form_sanitised():

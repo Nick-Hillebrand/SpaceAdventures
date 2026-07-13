@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 
 class LivestreamUrl(BaseModel):
@@ -32,13 +31,6 @@ class LaunchOut(BaseModel):
     fetched_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-    @field_validator("livestream_urls", mode="before")
-    @classmethod
-    def _parse_livestream(cls, v: object) -> object:
-        if isinstance(v, str):
-            return json.loads(v)
-        return v
 
 
 class LaunchesResponse(BaseModel):

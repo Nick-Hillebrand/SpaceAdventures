@@ -14,7 +14,7 @@ from app.services.n2yo_client import N2YOError
 
 
 def _make_quota(used: int, window_offset_seconds: int = 0) -> N2yoQuota:
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     return N2yoQuota(
         id=1,
         window_start=now - timedelta(seconds=window_offset_seconds),
@@ -46,7 +46,7 @@ async def test_get_or_create_quota_returns_existing(db_session):
 async def test_window_resets_after_one_hour(db_session):
     row = N2yoQuota(
         id=1,
-        window_start=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2),
+        window_start=datetime.now(timezone.utc) - timedelta(hours=2),
         used=800,
     )
     db_session.add(row)
@@ -60,7 +60,7 @@ async def test_window_resets_after_one_hour(db_session):
 async def test_window_does_not_reset_within_hour(db_session):
     row = N2yoQuota(
         id=1,
-        window_start=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=30),
+        window_start=datetime.now(timezone.utc) - timedelta(minutes=30),
         used=100,
     )
     db_session.add(row)
@@ -77,7 +77,7 @@ async def test_window_does_not_reset_within_hour(db_session):
 async def test_quota_exceeded_when_at_cap(db_session):
     row = N2yoQuota(
         id=1,
-        window_start=datetime.now(timezone.utc).replace(tzinfo=None),
+        window_start=datetime.now(timezone.utc),
         used=900,
     )
     db_session.add(row)
@@ -92,7 +92,7 @@ async def test_quota_exceeded_when_at_cap(db_session):
 async def test_quota_not_exceeded_at_cap_minus_one(db_session):
     row = N2yoQuota(
         id=1,
-        window_start=datetime.now(timezone.utc).replace(tzinfo=None),
+        window_start=datetime.now(timezone.utc),
         used=899,
     )
     db_session.add(row)
@@ -111,7 +111,7 @@ async def test_concurrent_calls_at_boundary(db_session):
     should see quota exhausted."""
     row = N2yoQuota(
         id=1,
-        window_start=datetime.now(timezone.utc).replace(tzinfo=None),
+        window_start=datetime.now(timezone.utc),
         used=899,
     )
     db_session.add(row)

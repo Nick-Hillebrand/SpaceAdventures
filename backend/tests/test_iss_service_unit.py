@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -62,7 +61,7 @@ async def test_get_positions_cache_hit(db_session, n2yo):
     db_session.add(
         IssPositionBatch(
             id=1,
-            positions=json.dumps([{"timestamp_ms": 1}]),
+            positions=[{"timestamp_ms": 1}],
             fetched_at=datetime.utcnow(),
         )
     )
@@ -81,7 +80,7 @@ async def test_get_positions_stale_cache_served_on_error(db_session, n2yo):
     db_session.add(
         IssPositionBatch(
             id=1,
-            positions=json.dumps([{"timestamp_ms": 1}]),
+            positions=[{"timestamp_ms": 1}],
             fetched_at=datetime.utcnow() - timedelta(minutes=10),
         )
     )
@@ -108,7 +107,7 @@ async def test_get_positions_updates_existing_batch(db_session, n2yo):
     db_session.add(
         IssPositionBatch(
             id=1,
-            positions=json.dumps([{"old": True}]),
+            positions=[{"old": True}],
             fetched_at=datetime.utcnow() - timedelta(minutes=10),
         )
     )
@@ -235,7 +234,7 @@ async def test_get_passes_cache_hit(db_session, n2yo):
         IssPassSet(
             pass_type="visual",
             observer_lat=10.0, observer_lng=20.0, observer_alt=0.0,
-            passes_json=json.dumps([{"startUTC": 1}]),
+            passes_json=[{"startUTC": 1}],
             fetched_at=datetime.utcnow(),
         )
     )
@@ -257,7 +256,7 @@ async def test_get_passes_stale_served_on_error(db_session, n2yo):
         IssPassSet(
             pass_type="visual",
             observer_lat=10.0, observer_lng=20.0, observer_alt=0.0,
-            passes_json=json.dumps([{"startUTC": 1}]),
+            passes_json=[{"startUTC": 1}],
             fetched_at=datetime.utcnow() - timedelta(hours=2),
         )
     )
@@ -289,7 +288,7 @@ async def test_get_passes_updates_existing(db_session, n2yo):
         IssPassSet(
             pass_type="visual",
             observer_lat=0.0, observer_lng=0.0, observer_alt=0.0,
-            passes_json=json.dumps([{"old": True}]),
+            passes_json=[{"old": True}],
             fetched_at=datetime.utcnow() - timedelta(hours=2),
         )
     )
@@ -321,7 +320,7 @@ async def test_positions_quota_exhausted_with_cache(db_session, n2yo):
     db_session.add(
         IssPositionBatch(
             id=1,
-            positions=json.dumps([{"quota": True}]),
+            positions=[{"quota": True}],
             fetched_at=datetime.utcnow() - timedelta(minutes=10),
         )
     )
@@ -359,7 +358,7 @@ async def test_passes_quota_exhausted_with_cache(db_session, n2yo):
         IssPassSet(
             pass_type="visual",
             observer_lat=1.0, observer_lng=1.0, observer_alt=0.0,
-            passes_json=json.dumps([{"old": True}]),
+            passes_json=[{"old": True}],
             fetched_at=datetime.utcnow() - timedelta(hours=2),
         )
     )

@@ -78,7 +78,7 @@ def _neo_from_object(obj: dict, feed_date: str) -> Neo:
         miss_distance_km=_coerce_float(miss_map.get("kilometers")),
         orbiting_body=approach.get("orbiting_body"),
         nasa_jpl_url=sanitise_url(obj.get("nasa_jpl_url")),
-        fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        fetched_at=datetime.now(timezone.utc),
     )
 
 
@@ -133,7 +133,7 @@ class NeoResult:
 
 def _latest_fetched_at(rows: list[Neo]) -> datetime:
     if not rows:
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(timezone.utc)
     return max(row.fetched_at for row in rows)
 
 

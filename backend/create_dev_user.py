@@ -12,12 +12,11 @@ import sys
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import Settings
 from app.models.user import User
 from app.services.auth_service import hash_password
 
-DATABASE_URL = "sqlite+aiosqlite:///./data/app.db"
-
-engine = create_async_engine(DATABASE_URL)
+engine = create_async_engine(Settings(require_secrets=False).database_url)  # type: ignore[call-arg]
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

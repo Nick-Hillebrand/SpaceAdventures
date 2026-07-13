@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import delete
 
 from app.config import Settings
-from app.database import AsyncSessionLocal
+from app.database import dispose_engine, get_sessionmaker, init_engine
 from app.models.rate_limit import RateLimitEvent
 from app.routers import apod as apod_router
 from app.routers import iss as iss_router
@@ -33,6 +33,7 @@ _RATE_LIMIT_EVENT_RETENTION_HOURS = 24
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
+    init_engine(settings)
     app.state.nasa_client = NasaClient(settings)
     app.state.n2yo_client = N2YOClient(settings)
     app.state.ll2_client = LL2Client(settings)
@@ -42,7 +43,7 @@ async def lifespan(app: FastAPI):
     scheduler = AsyncIOScheduler()
 
     async def _sync_job() -> None:
-        async with AsyncSessionLocal() as session:
+        async with get_sessionmaker()() as session:
             await launches_service.sync_launches(
                 session, app.state.ll2_client, settings,
                 translator=app.state.translator,
@@ -56,7 +57,7 @@ async def lifespan(app: FastAPI):
 
     async def _purge_rate_limit_events_job() -> None:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=_RATE_LIMIT_EVENT_RETENTION_HOURS)
-        async with AsyncSessionLocal() as session:
+        async with get_sessionmaker()() as session:
             await session.execute(delete(RateLimitEvent).where(RateLimitEvent.created_at < cutoff))
             await session.commit()
 
@@ -68,7 +69,7 @@ async def lifespan(app: FastAPI):
     scheduler.start()
 
     # Startup: immediate sync if table is empty
-    async with AsyncSessionLocal() as session:
+    async with get_sessionmaker()() as session:
         if await launches_service.is_launches_table_empty(session):
             await launches_service.sync_launches(
                 session, app.state.ll2_client, settings,
@@ -83,6 +84,7 @@ async def lifespan(app: FastAPI):
         await app.state.n2yo_client.close()
         await app.state.ll2_client.close()
         await app.state.mars_raw_images_client.close()
+        await dispose_engine()
 
 
 def _default_settings() -> Settings:
