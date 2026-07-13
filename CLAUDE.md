@@ -105,7 +105,7 @@ Read: `27-mission-simulations-3d.md`, `13-mars-rover-3d-model.md`
 
 ### Milestone P — Production readiness ⭐ current focus (blocks public users; resumed here after S, 2026-07-12)
 
-**Step P1 — Hardening.** *(partially complete — see status below)*
+**Step P1 — Hardening.** *(complete — see status below)*
 Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
 `26-performance.md` §1.2, §4
 - Remove settings key-mutation endpoints; secrets enforcement; PyJWT migration;
@@ -117,9 +117,17 @@ Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
   - ✅ Shipped 2026-07-12: secrets enforcement (P1.2), PyJWT migration (P1.3),
     httpOnly refresh-token cookie (P1.4), IP rate limiting (P1.6), consent
     recording (P1.9), account deletion/export (P1.10).
-  - ⬜ Deferred, still open: DeepL translation swap (P1.7), List-Unsubscribe,
-    `scripts/check_module_coverage.py`, `tests/security/test_route_matrix.py`,
-    `tests/perf/test_query_counts.py`, root `SECURITY.md`.
+  - ✅ Shipped 2026-07-13: DeepL translation swap (P1.7), List-Unsubscribe +
+    SPF/DKIM/DMARC deliverability runbook (P1.8), `scripts/check_module_coverage.py`
+    (wired into the backend test flow), `tests/security/test_route_matrix.py`
+    (route-authorization matrix), `tests/perf/test_query_counts.py`
+    (query-count/N+1 guard), root `SECURITY.md`. Dependency security sweep:
+    fastapi 0.115→0.139 (fixes starlette CVEs), PyJWT→2.13.0, aiosmtplib→5.1.2,
+    pytest/pytest-asyncio/pytest-cov bumped; frontend vite→6.4.3, vitest→3.2.7,
+    @vitest/coverage-v8→3.2.7 (fixes a critical vitest-UI arbitrary-file-read
+    CVE). `pip-audit` and `npm audit --audit-level=high` both clean.
+  - Step P1 is now complete — all sub-items shipped, per-module coverage gate
+    green, security/perf test suites in place. Next: Step P2 (PostgreSQL).
 
 **Step P2 — PostgreSQL.**
 Read: `16-postgres-migration.md`, `01-database-schemas.md`

@@ -132,6 +132,34 @@ async def test_email_sent_on_net_slip(mock_send, db_session, settings):
 
 @pytest.mark.asyncio
 @patch("aiosmtplib.send", new_callable=AsyncMock)
+async def test_email_includes_list_unsubscribe_headers(mock_send, db_session, settings):
+    """P1.8: every notification email carries a valid one-click unsubscribe header pair."""
+    import jwt as _jwt
+
+    user = _make_user(db_session, email_verified=True)
+    launch = _make_launch(db_session)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    sub = await _make_subscription(db_session, user.id, notify_email=True, notify_sms=False)
+    await _make_pending(db_session, sub.id)
+    await db_session.commit()
+
+    await notification_service.drain_queue(db_session, settings)
+
+    msg = mock_send.call_args.args[0]
+    list_unsubscribe = msg["List-Unsubscribe"]
+    assert list_unsubscribe.startswith("<") and list_unsubscribe.endswith(">")
+    assert msg["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+
+    token = list_unsubscribe.strip("<>").split("token=", 1)[1]
+    payload = _jwt.decode(token, settings.unsubscribe_secret_key, algorithms=["HS256"])
+    assert payload["subscription_id"] == sub.id
+    assert payload["user_id"] == user.id
+
+
+@pytest.mark.asyncio
+@patch("aiosmtplib.send", new_callable=AsyncMock)
 async def test_email_not_sent_when_unverified(mock_send, db_session, settings):
     user = _make_user(db_session, email_verified=False)
     launch = _make_launch(db_session)

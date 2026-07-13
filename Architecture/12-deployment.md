@@ -332,6 +332,53 @@ Caddy provisions the Let's Encrypt cert on first request (5–30 seconds). If it
 
 ---
 
+## Email Deliverability Checklist (P1.8)
+
+Run once, before the first production notification email goes out. Gmail/Yahoo
+silently foldered mail is a broken product — this is not optional.
+
+- [ ] Transactional SMTP provider configured (Postmark or SES), `SMTP_HOST` /
+      `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` point at it — not a personal
+      mailbox.
+- [ ] Provider's DKIM keys installed as DNS TXT records for the sending
+      domain.
+- [ ] SPF record includes the provider's sending host
+      (`v=spf1 include:<provider> ~all`).
+- [ ] DMARC record published at `p=none` initially:
+      `v=DMARC1; p=none; rua=mailto:dmarc-reports@<domain>`.
+- [ ] After one clean week (no unexpected DMARC failures in the aggregate
+      reports), tighten to `p=quarantine`.
+- [ ] `List-Unsubscribe` / `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+      headers verified present on a live test send (`notification_service._send_email`
+      sets these; see `tests/test_notifications.py::test_email_includes_list_unsubscribe_headers`).
+
+---
+
+## Secret Rotation Runbook
+
+Rotate immediately on suspected compromise; rotate proactively on a schedule
+otherwise (annually at minimum). See root `SECURITY.md` for the disclosure
+process this supports.
+
+| Secret | Rotation procedure |
+|---|---|
+| `JWT_SECRET_KEY` | Set new value in `.env.prod`, redeploy backend. Invalidates all outstanding access/refresh tokens — every user is logged out. |
+| `UNSUBSCRIBE_SECRET_KEY` | Set new value, redeploy. Invalidates outstanding unsubscribe links (30-day TTL) — acceptable, they regenerate on the next notification email. |
+| `ADMIN_API_KEY` | Set new value, redeploy, update any external caller (monitoring scripts). |
+| VAPID keys (Web Push) | Regenerate, redeploy. Existing push subscriptions become invalid — clients re-subscribe on next visit. |
+| `DEEPL_API_KEY` | Rotate in the DeepL dashboard, update `.env.prod`, redeploy. No user-facing invalidation. |
+| SMTP credentials | Rotate with the provider (Postmark/SES), update `.env.prod`, redeploy. |
+| Twilio credentials | Rotate in the Twilio console, update `.env.prod`, redeploy. |
+| Social/bot API tokens | Rotate with the provider, update `.env.prod`, redeploy. |
+
+**Compromised dependency response:** pin the affected package to the last
+known-good version, run `pip-audit` / `npm audit` to confirm the fix, rotate
+any secret the dependency could plausibly have exfiltrated, and — if user data
+may have been touched — notify per PIPEDA's breach-notification duty (the
+operator is Canadian).
+
+---
+
 ## Redeployment
 
 ```bash

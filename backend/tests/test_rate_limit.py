@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
+import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -15,6 +18,7 @@ from app.rate_limit import (
     OTP_SEND_LIMIT,
     _check_and_record,
     hash_ip,
+    rate_limiter,
 )
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
@@ -91,6 +95,28 @@ async def test_check_and_record_different_ips_dont_interfere(db_session):
     # ip_a is now exhausted; ip_b is untouched and independent.
     assert await _check_and_record(db_session, bucket, ip_a, limit=3, window_seconds=900) is True
     assert await _check_and_record(db_session, bucket, ip_b, limit=3, window_seconds=900) is False
+
+
+async def test_dependency_raises_429_when_exceeded(db_session, settings):
+    """Direct call to the `rate_limiter()`-returned dependency (bypassing the
+    full ASGI stack) so the raise path is exercised in isolation."""
+    dependency = rate_limiter("direct-test-bucket", limit=1, window_seconds=900)
+    ip_hash = hash_ip("5.5.5.5")
+    db_session.add(RateLimitEvent(bucket="direct-test-bucket", ip_hash=ip_hash))
+    await db_session.commit()
+
+    fake_request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(settings=settings)),
+        headers={},
+        client=SimpleNamespace(host="5.5.5.5"),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await dependency(fake_request, db_session)
+
+    assert exc_info.value.status_code == 429
+    assert exc_info.value.detail["error"]["code"] == "RATE_LIMITED"
+    assert exc_info.value.headers["Retry-After"] == "900"
 
 
 async def test_check_and_record_window_slides(db_session):

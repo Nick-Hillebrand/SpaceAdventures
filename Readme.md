@@ -48,9 +48,12 @@ SpaceAdventures/
 │   │   └── main.py         # FastAPI app factory and lifespan
 │   ├── alembic/            # Database migrations
 │   ├── tests/              # pytest test suite
+│   │   ├── security/       # Route-authorization matrix (Architecture/25-security-testing.md)
+│   │   └── perf/           # Query-count / N+1 guard (Architecture/26-performance.md)
 │   ├── create_dev_user.py  # Dev helper — seeds a verified test user
 │   ├── scripts/
-│   │   └── build_mission.py # Dev-only generator for public/missions/*.json (not deployed, not imported by app/)
+│   │   ├── build_mission.py         # Dev-only generator for public/missions/*.json (not deployed, not imported by app/)
+│   │   └── check_module_coverage.py # Per-module branch coverage gate (>= 80% for every app/**/*.py with branches)
 │   ├── Dockerfile          # Production image
 │   └── requirements.txt
 └── frontend/
@@ -86,6 +89,8 @@ cp .env.example backend/.env
 |---|---|---|
 | `NASA_API_KEY` | No | NASA Open APIs key. `DEMO_KEY` works for dev (30 req/hr). Get a free key at [api.nasa.gov](https://api.nasa.gov). |
 | `N2YO_API_KEY` | No | N2YO satellite tracking key. ISS page works without it but won't fetch live positions. |
+| `DEEPL_API_KEY` | No | DeepL API key used to translate launch/APOD/etc. text into de/fr/es/ja/ru. Leave blank to fall back to English text (the sync never fails because of it). |
+| `DEEPL_BASE_URL` | No | DeepL API base URL. Defaults to the free-tier endpoint `https://api-free.deepl.com`; use `https://api.deepl.com` for a paid plan. |
 | `JWT_SECRET_KEY` | **Yes** | Secret used to sign access tokens. Use any long random string in dev. |
 | `UNSUBSCRIBE_SECRET_KEY` | **Yes** | Secret used to sign unsubscribe tokens. |
 | `ADMIN_API_KEY` | **Yes** | Key for protected admin endpoints. |
@@ -296,7 +301,16 @@ pytest --cov=app --cov-branch --cov-fail-under=80
 # HTML report
 pytest --cov=app --cov-branch --cov-report=html
 open htmlcov/index.html
+
+# Per-module coverage gate — fails if any app/**/*.py file with >= 1 branch
+# is below 80%, even if the global number above looks fine. pytest.ini already
+# writes coverage.json on every run (--cov-report=json), so this just needs:
+python scripts/check_module_coverage.py
 ```
+
+`tests/security/` (route-authorization matrix) and `tests/perf/` (query-count /
+N+1 guard) run as part of the normal `pytest` invocation above — see
+`Architecture/25-security-testing.md` and `Architecture/26-performance.md`.
 
 ### Frontend
 
