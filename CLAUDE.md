@@ -105,7 +105,7 @@ Read: `27-mission-simulations-3d.md`, `13-mars-rover-3d-model.md`
 
 ### Milestone P — Production readiness ⭐ current focus (blocks public users; resumed here after S, 2026-07-12)
 
-**Step P1 — Hardening.** *(complete — see status below)*
+**Step P1 — Hardening.** ✅ complete (shipped 2026-07-13, see status below)
 Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
 `26-performance.md` §1.2, §4
 - Remove settings key-mutation endpoints; secrets enforcement; PyJWT migration;
