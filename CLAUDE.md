@@ -77,12 +77,12 @@ Do not start a step until the previous step's tests pass and per-module
 coverage is met. Steps within a milestone are ordered; milestones are strictly
 sequential (P → B → L → G → T).
 
-### Milestone S — Mission simulations ⭐ current focus (pulled forward 2026-07-09)
+### Milestone S — Mission simulations ✅ complete (pulled forward 2026-07-09, shipped 2026-07-12)
 
 Frontend-only + offline dev tooling — no new routes, DB tables, or worker
-jobs, so it does not collide with Milestone P hardening. **Milestone P still
-blocks public users** (no public users before P4); S ships to the existing
-private deployment only.
+jobs, so it did not collide with Milestone P hardening. Both steps below are
+built and merged to `dev`; G3 (Artemis content + Horizons-backed generator)
+remains scoped to the Growth milestone.
 
 **Step S1 — Mission replay engine (static-content scope).**
 Read: `22-ephemeris-and-mission-replay.md` (Engine integration + G3
@@ -103,9 +103,9 @@ Read: `27-mission-simulations-3d.md`, `13-mars-rover-3d-model.md`
 - Content order: Apollo 11 first (lowest asset risk), then
   Pathfinder/Sojourner (validates the VRML→glb conversion pipeline).
 
-### Milestone P — Production readiness (blocks public users; resume here after S)
+### Milestone P — Production readiness ⭐ current focus (blocks public users; resumed here after S, 2026-07-12)
 
-**Step P1 — Hardening.**
+**Step P1 — Hardening.** *(partially complete — see status below)*
 Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
 `26-performance.md` §1.2, §4
 - Remove settings key-mutation endpoints; secrets enforcement; PyJWT migration;
@@ -114,6 +114,12 @@ Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
   deletion/export. Add `scripts/check_module_coverage.py`, `tests/security/`
   skeleton with the route-authorization matrix, and `tests/perf/` skeleton
   with the query-count/N+1 guard over existing list endpoints.
+  - ✅ Shipped 2026-07-12: secrets enforcement (P1.2), PyJWT migration (P1.3),
+    httpOnly refresh-token cookie (P1.4), IP rate limiting (P1.6), consent
+    recording (P1.9), account deletion/export (P1.10).
+  - ⬜ Deferred, still open: DeepL translation swap (P1.7), List-Unsubscribe,
+    `scripts/check_module_coverage.py`, `tests/security/test_route_matrix.py`,
+    `tests/perf/test_query_counts.py`, root `SECURITY.md`.
 
 **Step P2 — PostgreSQL.**
 Read: `16-postgres-migration.md`, `01-database-schemas.md`
