@@ -26,6 +26,17 @@ export function offsetDate(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// NASA hosts some APOD "videos" as a direct media file (mp4/webm/…) rather
+// than an embeddable page. apod.nasa.gov sends `X-Frame-Options: sameorigin`
+// on those files, so putting them in an <iframe> is silently blocked by every
+// standards-compliant browser (Firefox refuses to render anything at all and
+// logs a security error) — the fix is a native <video> element instead of an
+// iframe. Third-party embeds (e.g. YouTube) don't send that header and still
+// work fine framed.
+export function isDirectVideoFile(url: string): boolean {
+  return /\.(mp4|webm|ogv|ogg|mov|m4v)(?:[?#].*)?$/i.test(url);
+}
+
 export default function ApodPage() {
   const today = todayUtc();
   const [date, setDate] = useState<string>(today);
@@ -35,8 +46,8 @@ export default function ApodPage() {
   if (isLoading) {
     return (
       <div className="apod-page">
-        <div role="status" aria-label="Loading">
-          <span className="sr-only">Loading</span>
+        <div role="status" aria-label={t("common.loading")}>
+          <span className="sr-only">{t("common.loading")}</span>
           <Skeleton height="2rem" />
           <Skeleton height="400px" />
           <Skeleton height="1.5rem" width="60%" />
@@ -95,12 +106,16 @@ export default function ApodPage() {
 
         <div className="apod-hero">
           {apod.media_type === "video" ? (
-            <iframe
-              src={apod.url}
-              title={apod.title}
-              allow="fullscreen"
-              aria-label={apod.title}
-            />
+            isDirectVideoFile(apod.url) ? (
+              <video src={apod.url} controls aria-label={apod.title} />
+            ) : (
+              <iframe
+                src={apod.url}
+                title={apod.title}
+                allow="fullscreen"
+                aria-label={apod.title}
+              />
+            )
           ) : apod.url ? (
             <img src={apod.hdurl ?? apod.url} alt={apod.title} />
           ) : (

@@ -11,7 +11,9 @@
     "myAccount": "Mon compte",
     "logout": "Se déconnecter",
     "solarSystem": "Système solaire",
-    "missions": "Missions"
+    "missions": "Missions",
+    "changeLanguage": "Changer de langue",
+    "userMenu": "Menu utilisateur"
   },
   "apod": {
     "title": "Image astronomique du jour",
@@ -108,7 +110,9 @@
     "loadingLaunches": "Chargement des lancements…",
     "failedToLoad": "Impossible de charger les lancements",
     "showMore": "Afficher plus",
-    "showLess": "Afficher moins"
+    "showLess": "Afficher moins",
+    "statusLabel": "Statut",
+    "rocketPlaceholder": "Espace réservé fusée"
   },
   "auth": {
     "registerTitle": "Créer un compte",

@@ -11,7 +11,9 @@
     "myAccount": "Mein Konto",
     "logout": "Abmelden",
     "solarSystem": "Sonnensystem",
-    "missions": "Missionen"
+    "missions": "Missionen",
+    "changeLanguage": "Sprache ändern",
+    "userMenu": "Benutzermenü"
   },
   "apod": {
     "title": "Astronomisches Bild des Tages",
@@ -108,7 +110,9 @@
     "loadingLaunches": "Starts werden geladen…",
     "failedToLoad": "Starts konnten nicht geladen werden",
     "showMore": "Mehr anzeigen",
-    "showLess": "Weniger anzeigen"
+    "showLess": "Weniger anzeigen",
+    "statusLabel": "Status",
+    "rocketPlaceholder": "Raketen-Platzhalter"
   },
   "auth": {
     "registerTitle": "Konto erstellen",

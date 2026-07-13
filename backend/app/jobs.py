@@ -160,5 +160,11 @@ def register_jobs(scheduler: AsyncIOScheduler, settings: Settings, clients: Any)
         scheduler.add_job(
             _make_runner(job.name, _bound_body),
             trigger=job.trigger,
+            # APScheduler's IntervalTrigger otherwise waits a full interval
+            # before its first run — on a fresh deploy/dev boot that leaves
+            # launches_sync (interval: 30min) with an empty launches table
+            # for half an hour before anyone sees a rocket launch. Fire once
+            # immediately, then follow the configured interval as usual.
+            next_run_time=datetime.now(timezone.utc),
             **job.kwargs,
         )

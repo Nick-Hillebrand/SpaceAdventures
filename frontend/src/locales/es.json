@@ -11,7 +11,9 @@
     "myAccount": "Mi cuenta",
     "logout": "Cerrar sesión",
     "solarSystem": "Sistema solar",
-    "missions": "Misiones"
+    "missions": "Misiones",
+    "changeLanguage": "Cambiar idioma",
+    "userMenu": "Menú de usuario"
   },
   "apod": {
     "title": "Imagen astronómica del día",
@@ -108,7 +110,9 @@
     "loadingLaunches": "Cargando lanzamientos…",
     "failedToLoad": "Error al cargar los lanzamientos",
     "showMore": "Mostrar más",
-    "showLess": "Mostrar menos"
+    "showLess": "Mostrar menos",
+    "statusLabel": "Estado",
+    "rocketPlaceholder": "Marcador de posición de cohete"
   },
   "auth": {
     "registerTitle": "Crear cuenta",

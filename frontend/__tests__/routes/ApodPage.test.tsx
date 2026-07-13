@@ -2,7 +2,7 @@ import { screen, waitFor, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, it, expect, afterEach } from "vitest";
-import ApodPage, { offsetDate, todayUtc } from "@/routes/ApodPage";
+import ApodPage, { offsetDate, todayUtc, isDirectVideoFile } from "@/routes/ApodPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
 import i18n from "@/i18n";
@@ -94,6 +94,39 @@ describe("ApodPage", () => {
     await waitFor(() => {
       expect(screen.getByTitle("Great APOD")).toBeInTheDocument();
     });
+  });
+
+  it("renders video APOD hosted as a direct NASA media file as a native <video>, not an iframe", async () => {
+    // apod.nasa.gov sends X-Frame-Options: sameorigin on files like this, so
+    // an <iframe> is blocked by the browser (verified against real Firefox).
+    const videoPayload = {
+      ...apodPayload,
+      data: {
+        ...apodPayload.data,
+        media_type: "video",
+        url: "https://apod.nasa.gov/apod/image/2607/Auroras_Esa.mp4",
+      },
+    };
+    server.use(http.get("/api/v1/apod", () => HttpResponse.json(videoPayload)));
+
+    renderWithProviders(<ApodPage />);
+    const video = await screen.findByLabelText("Great APOD");
+    expect(video.tagName).toBe("VIDEO");
+    expect(screen.queryByTitle("Great APOD")).not.toBeInTheDocument();
+  });
+
+  it("renders loading state with translated status text", async () => {
+    server.use(
+      http.get("/api/v1/apod", async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return HttpResponse.json(apodPayload);
+      }),
+    );
+
+    renderWithProviders(<ApodPage />);
+    await act(async () => { await i18n.changeLanguage("de"); });
+    expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Wird geladen…");
+    expect(screen.getByRole("status")).toHaveTextContent("Wird geladen…");
   });
 
   it("renders empty state when no image URL", async () => {
@@ -254,6 +287,29 @@ describe("ApodPage", () => {
 
     await act(async () => { await i18n.changeLanguage("de"); });
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Astronomisches Bild des Tages");
+  });
+});
+
+describe("isDirectVideoFile helper", () => {
+  it("detects a direct NASA-hosted mp4 file", () => {
+    expect(isDirectVideoFile("https://apod.nasa.gov/apod/image/2607/Auroras_Esa.mp4")).toBe(true);
+  });
+
+  it("detects other direct video extensions", () => {
+    expect(isDirectVideoFile("https://example.com/clip.webm")).toBe(true);
+    expect(isDirectVideoFile("https://example.com/clip.mov")).toBe(true);
+  });
+
+  it("handles a query string after the extension", () => {
+    expect(isDirectVideoFile("https://example.com/clip.mp4?token=abc")).toBe(true);
+  });
+
+  it("returns false for an embeddable third-party page like YouTube", () => {
+    expect(isDirectVideoFile("https://youtube.com/embed/x")).toBe(false);
+  });
+
+  it("returns false for a plain image URL", () => {
+    expect(isDirectVideoFile("https://example.com/image.jpg")).toBe(false);
   });
 });
 

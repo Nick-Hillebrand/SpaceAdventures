@@ -75,7 +75,7 @@ export default function Navbar() {
           <button
             type="button"
             className="lang-btn"
-            aria-label="Change language"
+            aria-label={t("nav.changeLanguage")}
             aria-expanded={langOpen}
             aria-haspopup="true"
             onClick={() => setLangOpen((v) => !v)}
@@ -106,7 +106,7 @@ export default function Navbar() {
             <button
               type="button"
               className="avatar-button"
-              aria-label="User menu"
+              aria-label={t("nav.userMenu")}
               onClick={() => setDropdownOpen((open) => !open)}
             >
               {initials}

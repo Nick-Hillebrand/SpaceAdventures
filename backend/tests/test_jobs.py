@@ -224,6 +224,24 @@ def test_register_jobs_registers_all_four_jobs():
     assert triggers == {"interval"}
 
 
+def test_register_jobs_fires_immediately_on_registration():
+    """Regression test: without an explicit `next_run_time`, APScheduler's
+    IntervalTrigger waits a full interval before its first run, leaving
+    launches_sync (interval: 30min) with an empty launches table for half an
+    hour after every fresh deploy/dev boot."""
+    scheduler = MagicMock()
+    settings = MagicMock(ll2_sync_interval_minutes=30)
+    clients = SimpleNamespace(ll2_client=MagicMock(), translator=MagicMock())
+
+    before = datetime.now(timezone.utc)
+    jobs.register_jobs(scheduler, settings, clients)
+    after = datetime.now(timezone.utc)
+
+    for call in scheduler.add_job.call_args_list:
+        next_run_time = call.kwargs["next_run_time"]
+        assert before <= next_run_time <= after
+
+
 def test_register_jobs_uses_configured_sync_interval():
     scheduler = MagicMock()
     settings = MagicMock(ll2_sync_interval_minutes=45)

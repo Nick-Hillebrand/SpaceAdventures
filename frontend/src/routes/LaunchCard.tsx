@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { LaunchData } from "@/types/api";
 import { formatDateTime } from "@/lib/dateTime";
 import { SubscribeModal } from "@/components/SubscribeModal";
@@ -18,13 +19,13 @@ function statusColor(abbrev: string): string {
   }
 }
 
-function formatCountdown(net: string, statusAbbrev: string): string {
+function formatCountdown(net: string, statusAbbrev: string, t: TFunction): string {
   if (statusAbbrev === "TBD" || statusAbbrev === "Hold") {
-    return `NET: ${formatDateTime(net)}`;
+    return `${t("launches.netLabel")}: ${formatDateTime(net)}`;
   }
   const diff = new Date(net).getTime() - Date.now();
   const abs = Math.abs(diff);
-  const sign = diff >= 0 ? "T−" : "T+";
+  const sign = diff >= 0 ? t("launches.countdownPrefix") : t("launches.countdownPostfix");
   const totalSec = Math.floor(abs / 1000);
   const days = Math.floor(totalSec / 86400);
   const hours = Math.floor((totalSec % 86400) / 3600);
@@ -41,7 +42,7 @@ interface LaunchCardProps {
 export function LaunchCard({ launch }: LaunchCardProps) {
   const { t } = useTranslation();
   const [countdown, setCountdown] = useState(() =>
-    formatCountdown(launch.net, launch.status_abbrev)
+    formatCountdown(launch.net, launch.status_abbrev, t)
   );
   const [expanded, setExpanded] = useState(false);
   const [streamOpen, setStreamOpen] = useState(false);
@@ -56,11 +57,15 @@ export function LaunchCard({ launch }: LaunchCardProps) {
   ) ?? false;
 
   useEffect(() => {
+    // Recompute right away too — not just on the next tick — so a language
+    // switch updates the visible countdown immediately instead of up to a
+    // second later.
+    setCountdown(formatCountdown(launch.net, launch.status_abbrev, t));
     const interval = setInterval(() => {
-      setCountdown(formatCountdown(launch.net, launch.status_abbrev));
+      setCountdown(formatCountdown(launch.net, launch.status_abbrev, t));
     }, 1000);
     return () => clearInterval(interval);
-  }, [launch.net, launch.status_abbrev]);
+  }, [launch.net, launch.status_abbrev, t]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -95,7 +100,7 @@ export function LaunchCard({ launch }: LaunchCardProps) {
           />
         ) : (
           <svg
-            aria-label="Rocket placeholder"
+            aria-label={t("launches.rocketPlaceholder")}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -129,7 +134,7 @@ export function LaunchCard({ launch }: LaunchCardProps) {
         <span
           className={`launch-card__status ${statusColor(launch.status_abbrev)}`}
           data-testid="launch-status"
-          aria-label={`Status: ${launch.status_name}`}
+          aria-label={`${t("launches.statusLabel")}: ${launch.status_name}`}
         >
           {launch.status_abbrev}
         </span>

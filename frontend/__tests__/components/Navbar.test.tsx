@@ -134,7 +134,9 @@ describe("Navbar", () => {
     await user.click(screen.getByRole("menuitem", { name: /Deutsch/i }));
 
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-    await waitFor(() => expect(screen.getByRole("button", { name: /Change language/i })).toHaveTextContent("DE"));
+    // aria-label is now translated too (that's the i18n fix), so after
+    // switching to German the button's accessible name is "Sprache ändern".
+    await waitFor(() => expect(screen.getByRole("button", { name: /Sprache ändern/i })).toHaveTextContent("DE"));
   });
 
   it("closes the language menu on blur when focus leaves the switcher", async () => {

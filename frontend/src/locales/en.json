@@ -11,7 +11,9 @@
     "myAccount": "My Account",
     "logout": "Log Out",
     "solarSystem": "Solar System",
-    "missions": "Missions"
+    "missions": "Missions",
+    "changeLanguage": "Change language",
+    "userMenu": "User menu"
   },
   "apod": {
     "title": "Astronomy Picture of the Day",
@@ -108,7 +110,9 @@
     "loadingLaunches": "Loading launches…",
     "failedToLoad": "Failed to load launches",
     "showMore": "Show more",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "statusLabel": "Status",
+    "rocketPlaceholder": "Rocket placeholder"
   },
   "auth": {
     "registerTitle": "Create Account",

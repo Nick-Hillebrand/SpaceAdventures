@@ -11,7 +11,9 @@
     "myAccount": "Мой аккаунт",
     "logout": "Выйти",
     "solarSystem": "Солнечная система",
-    "missions": "Миссии"
+    "missions": "Миссии",
+    "changeLanguage": "Изменить язык",
+    "userMenu": "Меню пользователя"
   },
   "apod": {
     "title": "Астрономическое фото дня",
@@ -108,7 +110,9 @@
     "loadingLaunches": "Загрузка запусков…",
     "failedToLoad": "Не удалось загрузить запуски",
     "showMore": "Показать больше",
-    "showLess": "Показать меньше"
+    "showLess": "Показать меньше",
+    "statusLabel": "Статус",
+    "rocketPlaceholder": "Заглушка ракеты"
   },
   "auth": {
     "registerTitle": "Создать аккаунт",
