@@ -200,7 +200,9 @@
     "verifyEmailButton": "Verify Email",
     "verifyPhoneButton": "Verify Phone",
     "loginFailed": "Login failed. Please check your credentials.",
-    "consentNotifications": "I agree to receive email/SMS notifications about launches and mission updates."
+    "consentNotifications": "I agree to receive email/SMS notifications about launches and mission updates.",
+    "hidePassword": "Hide password",
+    "showPassword": "Show password"
   },
   "account": {
     "title": "My Account",
@@ -230,7 +232,12 @@
     "deleteAccountPasswordLabel": "Current password",
     "deleteAccountConfirmButton": "Permanently delete my account",
     "deleteAccountCancel": "Cancel",
-    "deleteFailed": "Failed to delete account. Check your password and try again."
+    "deleteFailed": "Failed to delete account. Check your password and try again.",
+    "otpSent": "OTP sent!",
+    "otpSendFailed": "Failed to send OTP.",
+    "subLaunchLabel": "Launch: {{id}}",
+    "subAgencyLabel": "Agency: {{name}}",
+    "noChannels": "No channels"
   },
   "subscriptions": {
     "subscribeButton": "Subscribe",

@@ -200,7 +200,9 @@
     "verifyEmailButton": "メールを確認",
     "verifyPhoneButton": "電話を確認",
     "loginFailed": "ログインに失敗しました。認証情報を確認してください。",
-    "consentNotifications": "打ち上げやミッションの最新情報に関するメール/SMS通知の受信に同意します。"
+    "consentNotifications": "打ち上げやミッションの最新情報に関するメール/SMS通知の受信に同意します。",
+    "hidePassword": "パスワードを隠す",
+    "showPassword": "パスワードを表示"
   },
   "account": {
     "title": "マイアカウント",
@@ -230,7 +232,12 @@
     "deleteAccountPasswordLabel": "現在のパスワード",
     "deleteAccountConfirmButton": "アカウントを完全に削除する",
     "deleteAccountCancel": "キャンセル",
-    "deleteFailed": "アカウントの削除に失敗しました。パスワードを確認してもう一度お試しください。"
+    "deleteFailed": "アカウントの削除に失敗しました。パスワードを確認してもう一度お試しください。",
+    "otpSent": "OTPを送信しました！",
+    "otpSendFailed": "OTPの送信に失敗しました。",
+    "subLaunchLabel": "打ち上げ: {{id}}",
+    "subAgencyLabel": "機関: {{name}}",
+    "noChannels": "チャンネルなし"
   },
   "subscriptions": {
     "subscribeButton": "購読",

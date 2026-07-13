@@ -205,7 +205,7 @@ export default function RegisterPage() {
               type="button"
               className="password-toggle-btn"
               onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
               tabIndex={-1}
             >
               <EyeIcon open={showPassword} />
@@ -226,7 +226,7 @@ export default function RegisterPage() {
               type="button"
               className="password-toggle-btn"
               onClick={() => setShowConfirmPassword((v) => !v)}
-              aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+              aria-label={showConfirmPassword ? t("auth.hidePassword") : t("auth.showPassword")}
               tabIndex={-1}
             >
               <EyeIcon open={showConfirmPassword} />

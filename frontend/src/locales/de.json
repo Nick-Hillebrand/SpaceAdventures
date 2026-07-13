@@ -200,7 +200,9 @@
     "verifyEmailButton": "E-Mail bestätigen",
     "verifyPhoneButton": "Telefon bestätigen",
     "loginFailed": "Anmeldung fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.",
-    "consentNotifications": "Ich stimme zu, E-Mail-/SMS-Benachrichtigungen über Starts und Missions-Updates zu erhalten."
+    "consentNotifications": "Ich stimme zu, E-Mail-/SMS-Benachrichtigungen über Starts und Missions-Updates zu erhalten.",
+    "hidePassword": "Passwort ausblenden",
+    "showPassword": "Passwort anzeigen"
   },
   "account": {
     "title": "Mein Konto",
@@ -230,7 +232,12 @@
     "deleteAccountPasswordLabel": "Aktuelles Passwort",
     "deleteAccountConfirmButton": "Mein Konto endgültig löschen",
     "deleteAccountCancel": "Abbrechen",
-    "deleteFailed": "Konto konnte nicht gelöscht werden. Überprüfen Sie Ihr Passwort und versuchen Sie es erneut."
+    "deleteFailed": "Konto konnte nicht gelöscht werden. Überprüfen Sie Ihr Passwort und versuchen Sie es erneut.",
+    "otpSent": "OTP gesendet!",
+    "otpSendFailed": "OTP konnte nicht gesendet werden.",
+    "subLaunchLabel": "Start: {{id}}",
+    "subAgencyLabel": "Agentur: {{name}}",
+    "noChannels": "Keine Kanäle"
   },
   "subscriptions": {
     "subscribeButton": "Abonnieren",

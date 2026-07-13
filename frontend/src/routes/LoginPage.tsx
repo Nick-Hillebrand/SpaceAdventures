@@ -85,7 +85,7 @@ export default function LoginPage() {
               type="button"
               className="password-toggle-btn"
               onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
               tabIndex={-1}
             >
               <EyeIcon open={showPassword} />

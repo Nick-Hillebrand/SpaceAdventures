@@ -148,7 +148,7 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
                 />
                 {" "}{t("subscriptions.thisLaunch")}: <strong>{launch.name}</strong>
                 <br />
-                <small>NET: {formatDateTime(launch.net)}</small>
+                <small>{t("launches.netLabel")}: {formatDateTime(launch.net)}</small>
               </label>
               <br />
               <label>

@@ -200,7 +200,9 @@
     "verifyEmailButton": "Подтвердить email",
     "verifyPhoneButton": "Подтвердить телефон",
     "loginFailed": "Ошибка входа. Проверьте ваши данные.",
-    "consentNotifications": "Я согласен(на) получать уведомления по email/SMS о запусках и обновлениях миссий."
+    "consentNotifications": "Я согласен(на) получать уведомления по email/SMS о запусках и обновлениях миссий.",
+    "hidePassword": "Скрыть пароль",
+    "showPassword": "Показать пароль"
   },
   "account": {
     "title": "Мой аккаунт",
@@ -230,7 +232,12 @@
     "deleteAccountPasswordLabel": "Текущий пароль",
     "deleteAccountConfirmButton": "Безвозвратно удалить мой аккаунт",
     "deleteAccountCancel": "Отмена",
-    "deleteFailed": "Не удалось удалить аккаунт. Проверьте пароль и попробуйте снова."
+    "deleteFailed": "Не удалось удалить аккаунт. Проверьте пароль и попробуйте снова.",
+    "otpSent": "OTP отправлен!",
+    "otpSendFailed": "Не удалось отправить OTP.",
+    "subLaunchLabel": "Запуск: {{id}}",
+    "subAgencyLabel": "Агентство: {{name}}",
+    "noChannels": "Нет каналов"
   },
   "subscriptions": {
     "subscribeButton": "Подписаться",

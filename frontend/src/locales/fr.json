@@ -200,7 +200,9 @@
     "verifyEmailButton": "Vérifier l'e-mail",
     "verifyPhoneButton": "Vérifier le téléphone",
     "loginFailed": "Échec de la connexion. Veuillez vérifier vos identifiants.",
-    "consentNotifications": "J'accepte de recevoir des notifications par e-mail/SMS concernant les lancements et les mises à jour de mission."
+    "consentNotifications": "J'accepte de recevoir des notifications par e-mail/SMS concernant les lancements et les mises à jour de mission.",
+    "hidePassword": "Masquer le mot de passe",
+    "showPassword": "Afficher le mot de passe"
   },
   "account": {
     "title": "Mon compte",
@@ -230,7 +232,12 @@
     "deleteAccountPasswordLabel": "Mot de passe actuel",
     "deleteAccountConfirmButton": "Supprimer définitivement mon compte",
     "deleteAccountCancel": "Annuler",
-    "deleteFailed": "Échec de la suppression du compte. Vérifiez votre mot de passe et réessayez."
+    "deleteFailed": "Échec de la suppression du compte. Vérifiez votre mot de passe et réessayez.",
+    "otpSent": "OTP envoyé !",
+    "otpSendFailed": "Échec de l'envoi de l'OTP.",
+    "subLaunchLabel": "Lancement : {{id}}",
+    "subAgencyLabel": "Agence : {{name}}",
+    "noChannels": "Aucun canal"
   },
   "subscriptions": {
     "subscribeButton": "S'abonner",

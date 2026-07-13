@@ -18,7 +18,7 @@ export default function AccountPage() {
   const deleteAccount = useDeleteAccount();
   const exportAccount = useExportAccount();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
-  const [resendStatus, setResendStatus] = useState<Record<string, string>>({});
+  const [resendStatus, setResendStatus] = useState<Record<string, "sent" | "failed">>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
@@ -41,9 +41,9 @@ export default function AccountPage() {
   async function handleResend(channel: "email" | "phone") {
     try {
       await apiPost("/api/v1/auth/verify/resend", { channel });
-      setResendStatus((prev) => ({ ...prev, [channel]: "OTP sent!" }));
+      setResendStatus((prev) => ({ ...prev, [channel]: "sent" }));
     } catch {
-      setResendStatus((prev) => ({ ...prev, [channel]: "Failed to send OTP." }));
+      setResendStatus((prev) => ({ ...prev, [channel]: "failed" }));
     }
   }
 
@@ -112,7 +112,11 @@ export default function AccountPage() {
                   <button type="button" onClick={() => handleResend("email")}>
                     {t("account.resendOtp")}
                   </button>
-                  {resendStatus.email && <span>{resendStatus.email}</span>}
+                  {resendStatus.email && (
+                    <span>
+                      {resendStatus.email === "sent" ? t("account.otpSent") : t("account.otpSendFailed")}
+                    </span>
+                  )}
                 </>
               )}
             </p>
@@ -128,7 +132,11 @@ export default function AccountPage() {
                   <button type="button" onClick={() => handleResend("phone")}>
                     {t("account.resendOtp")}
                   </button>
-                  {resendStatus.phone && <span>{resendStatus.phone}</span>}
+                  {resendStatus.phone && (
+                    <span>
+                      {resendStatus.phone === "sent" ? t("account.otpSent") : t("account.otpSendFailed")}
+                    </span>
+                  )}
                 </>
               )}
             </p>
@@ -235,8 +243,8 @@ export default function AccountPage() {
                 <li key={sub.id} data-testid={`subscription-${sub.id}`}>
                   <strong>
                     {sub.type === "launch"
-                      ? `Launch: ${sub.ll2_id ?? "—"}`
-                      : `Agency: ${sub.agency_name ?? "—"}`}
+                      ? t("account.subLaunchLabel", { id: sub.ll2_id ?? "—" })
+                      : t("account.subAgencyLabel", { name: sub.agency_name ?? "—" })}
                   </strong>{" "}
                   <span>
                     {[
@@ -244,7 +252,7 @@ export default function AccountPage() {
                       sub.notify_sms && t("account.channelSms"),
                     ]
                       .filter(Boolean)
-                      .join(", ") || "No channels"}
+                      .join(", ") || t("account.noChannels")}
                   </span>{" "}
                   <button
                     type="button"

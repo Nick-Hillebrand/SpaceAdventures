@@ -200,7 +200,9 @@
     "verifyEmailButton": "Verificar correo electrónico",
     "verifyPhoneButton": "Verificar teléfono",
     "loginFailed": "Error al iniciar sesión. Por favor, verifique sus credenciales.",
-    "consentNotifications": "Acepto recibir notificaciones por correo electrónico/SMS sobre lanzamientos y actualizaciones de misiones."
+    "consentNotifications": "Acepto recibir notificaciones por correo electrónico/SMS sobre lanzamientos y actualizaciones de misiones.",
+    "hidePassword": "Ocultar contraseña",
+    "showPassword": "Mostrar contraseña"
   },
   "account": {
     "title": "Mi cuenta",
@@ -230,7 +232,12 @@
     "deleteAccountPasswordLabel": "Contraseña actual",
     "deleteAccountConfirmButton": "Eliminar mi cuenta permanentemente",
     "deleteAccountCancel": "Cancelar",
-    "deleteFailed": "No se pudo eliminar la cuenta. Verifica tu contraseña e inténtalo de nuevo."
+    "deleteFailed": "No se pudo eliminar la cuenta. Verifica tu contraseña e inténtalo de nuevo.",
+    "otpSent": "¡OTP enviado!",
+    "otpSendFailed": "Error al enviar el OTP.",
+    "subLaunchLabel": "Lanzamiento: {{id}}",
+    "subAgencyLabel": "Agencia: {{name}}",
+    "noChannels": "Sin canales"
   },
   "subscriptions": {
     "subscribeButton": "Suscribirse",
