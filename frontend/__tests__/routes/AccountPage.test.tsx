@@ -1,7 +1,7 @@
 import { screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import AccountPage from "@/routes/AccountPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
@@ -13,6 +13,10 @@ afterEach(async () => {
 
 // P28: use vi.hoisted() for variables referenced in mock factories
 const mockNavigate = vi.hoisted(() => vi.fn());
+
+beforeEach(() => {
+  mockNavigate.mockClear();
+});
 
 vi.mock("react-router-dom", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-router-dom")>();
@@ -222,6 +226,40 @@ describe("AccountPage", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Mein Konto");
   });
 
+  it("consent toggle reflects current state and calls consent endpoint on change", async () => {
+    let lastConsentBody: { granted: boolean } | null = null;
+    server.use(
+      http.post("/api/v1/auth/consent", async ({ request }) => {
+        lastConsentBody = (await request.json()) as { granted: boolean };
+        return HttpResponse.json({
+          id: 1,
+          first_name: "Alice",
+          last_name: "Liddell",
+          email: "alice@example.com",
+          phone: null,
+          email_verified: true,
+          phone_verified: false,
+          created_at: "2024-01-01T00:00:00Z",
+          consent_notifications_at: lastConsentBody.granted ? "2026-01-01T00:00:00Z" : null,
+        });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+
+    await screen.findByText(/Alice Liddell/i);
+
+    const toggle = screen.getByTestId("consent-toggle");
+    expect(toggle).toBeChecked();
+
+    await user.click(toggle);
+
+    await waitFor(() => {
+      expect(lastConsentBody).toEqual({ granted: false });
+    });
+  });
+
   it("delete button calls DELETE endpoint", async () => {
     let deleteCalledId: string | null = null;
     server.use(
@@ -256,5 +294,120 @@ describe("AccountPage", () => {
     await waitFor(() => {
       expect(deleteCalledId).toBe("sub-del-001");
     });
+  });
+
+  it("export data — button triggers download of exported JSON", async () => {
+    let exportCalled = false;
+    URL.createObjectURL = vi.fn().mockReturnValue("blob:mock-url");
+    URL.revokeObjectURL = vi.fn();
+    const createObjectURLSpy = vi.mocked(URL.createObjectURL);
+    const revokeObjectURLSpy = vi.mocked(URL.revokeObjectURL);
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    server.use(
+      http.get("/api/v1/auth/me/export", () => {
+        exportCalled = true;
+        return HttpResponse.json({ user: { id: 1 }, subscriptions: [] });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    await user.click(screen.getByRole("button", { name: /Download my data/i }));
+
+    await waitFor(() => {
+      expect(exportCalled).toBe(true);
+    });
+    expect(createObjectURLSpy).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURLSpy).toHaveBeenCalled();
+
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+    clickSpy.mockRestore();
+  });
+
+  it("export data — shows error status on failure", async () => {
+    server.use(
+      http.get("/api/v1/auth/me/export", () =>
+        HttpResponse.json({ error: { code: "SERVER_ERROR", message: "boom" } }, { status: 500 }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    await user.click(screen.getByRole("button", { name: /Download my data/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Failed to export/i);
+  });
+
+  it("delete account — confirm submit disabled until typed identifier matches, then deletes and navigates home", async () => {
+    let deleteBody: { password?: string } | null = null;
+    server.use(
+      http.delete("/api/v1/auth/me", async ({ request }) => {
+        deleteBody = (await request.json()) as { password?: string };
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    await user.click(screen.getByTestId("delete-account-button"));
+    expect(await screen.findByTestId("delete-account-confirm")).toBeInTheDocument();
+
+    const submitBtn = screen.getByTestId("delete-confirm-submit");
+    expect(submitBtn).toBeDisabled();
+
+    await user.type(screen.getByTestId("delete-confirm-identifier"), "alice@example.com");
+    await user.type(screen.getByTestId("delete-confirm-password"), "correct horse battery staple");
+
+    expect(submitBtn).not.toBeDisabled();
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(deleteBody).toEqual({ password: "correct horse battery staple" });
+    });
+    expect(mockNavigate).toHaveBeenCalledWith("/");
+  });
+
+  it("delete account — wrong password shows error and does not navigate", async () => {
+    server.use(
+      http.delete("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          { error: { code: "INVALID_PASSWORD", message: "Wrong password" } },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    await user.click(screen.getByTestId("delete-account-button"));
+    await user.type(screen.getByTestId("delete-confirm-identifier"), "alice@example.com");
+    await user.type(screen.getByTestId("delete-confirm-password"), "wrong password");
+    await user.click(screen.getByTestId("delete-confirm-submit"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Failed to delete/i);
+    expect(mockNavigate).not.toHaveBeenCalledWith("/");
+  });
+
+  it("delete account — cancel hides the confirm fieldset and clears typed state", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    await user.click(screen.getByTestId("delete-account-button"));
+    await user.type(screen.getByTestId("delete-confirm-identifier"), "some text");
+    await user.click(screen.getByRole("button", { name: /Cancel/i }));
+
+    expect(screen.queryByTestId("delete-account-confirm")).not.toBeInTheDocument();
   });
 });

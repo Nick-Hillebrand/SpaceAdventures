@@ -9,6 +9,7 @@ const mockUser = {
   email_verified: true,
   phone_verified: false,
   created_at: "2024-01-01T00:00:00Z",
+  consent_notifications_at: "2024-01-01T00:00:00Z",
 };
 
 export const handlers = [
@@ -18,13 +19,9 @@ export const handlers = [
     HttpResponse.json({ id: 1, message: "Registration successful. Please check your OTP(s)." }, { status: 201 }),
   ),
 
-  http.post("/api/v1/auth/login", () =>
-    HttpResponse.json({ access_token: "test-access-token", refresh_token: "test-refresh-token" }),
-  ),
+  http.post("/api/v1/auth/login", () => HttpResponse.json({ access_token: "test-access-token" })),
 
-  http.post("/api/v1/auth/refresh", () =>
-    HttpResponse.json({ access_token: "new-access-token", refresh_token: "new-refresh-token" }),
-  ),
+  http.post("/api/v1/auth/refresh", () => HttpResponse.json({ access_token: "new-access-token" })),
 
   http.post("/api/v1/auth/logout", () => HttpResponse.json({ message: "Logged out" })),
 

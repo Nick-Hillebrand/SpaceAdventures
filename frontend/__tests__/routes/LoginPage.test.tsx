@@ -6,6 +6,7 @@ import LoginPage from "@/routes/LoginPage";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
 import i18n from "@/i18n";
+import { getAccessToken, setAccessToken } from "@/lib/api";
 
 // P28: use vi.hoisted() for variables referenced in mock factories
 const { mockNavigate, mockLocation } = vi.hoisted(() => ({
@@ -26,6 +27,7 @@ beforeEach(() => {
   mockNavigate.mockClear();
   mockLocation.mockReturnValue({ search: "" });
   localStorage.clear();
+  setAccessToken(null);
 });
 
 afterEach(async () => {
@@ -33,7 +35,7 @@ afterEach(async () => {
 });
 
 describe("LoginPage", () => {
-  it("happy path — renders form, submits, stores tokens, redirects", async () => {
+  it("happy path — renders form, submits, stores the access token in memory, redirects", async () => {
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />);
 
@@ -45,8 +47,12 @@ describe("LoginPage", () => {
       expect(mockNavigate).toHaveBeenCalledWith("/");
     });
 
-    expect(localStorage.getItem("space-adventures-access-token")).toBe("test-access-token");
-    expect(localStorage.getItem("space-adventures-refresh-token")).toBe("test-refresh-token");
+    // Access token lives in memory only; the refresh token rides in a
+    // server-set httpOnly cookie invisible to JS — neither touches
+    // localStorage (P1.4).
+    expect(getAccessToken()).toBe("test-access-token");
+    expect(localStorage.getItem("space-adventures-access-token")).toBeNull();
+    expect(localStorage.getItem("space-adventures-refresh-token")).toBeNull();
   });
 
   it("loading state — submit button shows loading text while submitting", async () => {

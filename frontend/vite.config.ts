@@ -28,10 +28,13 @@ export default defineConfig({
     setupFiles: ["./src/msw/setup.ts"],
     coverage: {
       provider: "v8",
-      branches: 80,
       reporter: ["text", "lcov"],
       include: ["src/**"],
       exclude: ["src/msw/**", "src/types/**", "src/locales/**", "src/main.tsx"],
+      thresholds: {
+        perFile: true,
+        branches: 80,
+      },
     },
   },
 });

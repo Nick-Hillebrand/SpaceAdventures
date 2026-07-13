@@ -45,6 +45,9 @@ async def settings() -> Settings:
     return Settings(  # type: ignore[call-arg]
         require_secrets=False,
         admin_api_key="",
+        # Test transport is plain HTTP (ASGITransport over "http://test");
+        # a Secure cookie would never round-trip through httpx's cookie jar.
+        cookie_secure=False,
         nasa_api_key="TEST_KEY",
         nasa_base_url="https://api.nasa.example",
         n2yo_api_key="TEST_N2YO",

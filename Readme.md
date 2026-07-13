@@ -16,7 +16,8 @@ A multilingual web application that fetches, caches, and visualises NASA data an
   and as an in-context panel on the Solar System page. Key milestones (Apollo 11 landing/first EVA, Pathfinder
   EDL/rover deployment) can open a close-up 3D "vignette" — the real NASA/JPL glTF model, staged with an
   orbit camera and narration
-- **User accounts** — JWT auth with email/SMS OTP verification and launch notification subscriptions
+- **User accounts** — JWT auth (httpOnly-cookie refresh tokens) with email/SMS OTP verification, launch
+  notification subscriptions, notification-consent recording, and self-service account data export/deletion
 
 ---
 
@@ -26,7 +27,7 @@ A multilingual web application that fetches, caches, and visualises NASA data an
 |---|---|
 | Frontend | React 18, TypeScript, Vite, React Query, React Router, i18next |
 | Backend | Python 3.12, FastAPI, SQLAlchemy (async), Alembic, SQLite |
-| Auth | JWT (python-jose), bcrypt (passlib), OTP via email (aiosmtplib) or SMS (Twilio) |
+| Auth | JWT (PyJWT), httpOnly-cookie refresh tokens, bcrypt (passlib), OTP via email (aiosmtplib) or SMS (Twilio) |
 | Testing | Vitest + Testing Library + MSW (frontend), pytest + pytest-asyncio + respx (backend) |
 | Reverse proxy (prod) | Caddy |
 
@@ -92,8 +93,13 @@ cp .env.example backend/.env
 | `FRONTEND_ORIGIN` | No | CORS allowed origin. Defaults to `http://localhost:5173`. |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | No | Leave blank to disable email sending in dev. |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | No | Leave blank to disable SMS in dev. |
+| `COOKIE_SECURE` | No | `Secure` attribute on the refresh-token cookie. Defaults to `true`; set to `false` only for plain-HTTP local dev. |
+| `TRUST_PROXY_HEADERS` | No | Honor `X-Forwarded-For` for IP-based rate limiting. Defaults to `false`; set to `true` only when running behind a proxy you control (Caddy in prod) — trusting it otherwise lets clients spoof their rate-limit bucket. |
+| `EXPOSE_DOCS` | No | Serve `/docs` and `/openapi.json`. Defaults to `false`; enable only in non-prod deploys. |
 
-> **Note:** The backend starts without the three required secrets when `APP_REQUIRE_SECRETS` is not set to `1` (the default for dev). Auth endpoints still work; JWT tokens are signed with whatever key is configured.
+> **Note:** The backend starts without the three required secrets (`JWT_SECRET_KEY`, `UNSUBSCRIBE_SECRET_KEY`, `ADMIN_API_KEY`) when `APP_REQUIRE_SECRETS` is not set to `1` (the default for dev). When required, each must be at least 32 characters. Auth endpoints still work without them in dev; JWT tokens are signed with whatever key is configured.
+>
+> **Note:** Refresh tokens are issued as an httpOnly `Secure` cookie (not returned in the response body), and `/login`, `/refresh`, `/verify/resend` are IP rate-limited (sliding window, backed by `rate_limit_events` so it works correctly across multiple web workers) — see `app/rate_limit.py`.
 
 ---
 

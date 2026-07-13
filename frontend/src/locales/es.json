@@ -140,7 +140,8 @@
     "phoneOtpSection": "OTP de teléfono",
     "verifyEmailButton": "Verificar correo electrónico",
     "verifyPhoneButton": "Verificar teléfono",
-    "loginFailed": "Error al iniciar sesión. Por favor, verifique sus credenciales."
+    "loginFailed": "Error al iniciar sesión. Por favor, verifique sus credenciales.",
+    "consentNotifications": "Acepto recibir notificaciones por correo electrónico/SMS sobre lanzamientos y actualizaciones de misiones."
   },
   "account": {
     "title": "Mi cuenta",
@@ -160,7 +161,17 @@
     "name": "Nombre",
     "email": "Correo electrónico",
     "phone": "Teléfono",
-    "loadingSubscriptions": "Cargando suscripciones…"
+    "loadingSubscriptions": "Cargando suscripciones…",
+    "dangerZone": "Zona de peligro",
+    "downloadData": "Descargar mis datos",
+    "exportFailed": "Error al exportar los datos. Inténtalo de nuevo.",
+    "deleteAccount": "Eliminar cuenta",
+    "deleteAccountWarning": "Esto eliminará permanentemente tu cuenta y todos sus datos. Esta acción no se puede deshacer.",
+    "deleteAccountConfirmLabel": "Escribe {{identifier}} para confirmar",
+    "deleteAccountPasswordLabel": "Contraseña actual",
+    "deleteAccountConfirmButton": "Eliminar mi cuenta permanentemente",
+    "deleteAccountCancel": "Cancelar",
+    "deleteFailed": "No se pudo eliminar la cuenta. Verifica tu contraseña e inténtalo de nuevo."
   },
   "subscriptions": {
     "subscribeButton": "Suscribirse",
@@ -185,7 +196,9 @@
     "confirmUnsubscribeText": "Haz clic en el botón de abajo para confirmar que deseas cancelar la suscripción a las notificaciones de lanzamiento.",
     "confirmButton": "Confirmar cancelación",
     "unsubscribedTitle": "Suscripción cancelada",
-    "unsubscribedSuccess": "Has cancelado tu suscripción correctamente."
+    "unsubscribedSuccess": "Has cancelado tu suscripción correctamente.",
+    "consentRequiredTitle": "Se requiere consentimiento de notificación",
+    "consentRequiredPrompt": "Debes aceptar recibir notificaciones antes de suscribirte."
   },
   "settings": {
     "title": "Configuración",

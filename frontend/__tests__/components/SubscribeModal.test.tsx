@@ -181,12 +181,159 @@ describe("SubscribeModal", () => {
     });
   });
 
+  it("verified phone — SMS checkbox enabled and toggles notify_sms in POST body", async () => {
+    const user = userEvent.setup();
+    let postBody: unknown = null;
+
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json({
+          id: 1,
+          first_name: "Alice",
+          last_name: "Liddell",
+          email: "alice@example.com",
+          phone: "+15551234567",
+          email_verified: true,
+          phone_verified: true,
+          created_at: "2024-01-01T00:00:00Z",
+          consent_notifications_at: "2024-01-01T00:00:00Z",
+        }),
+      ),
+      http.post("/api/v1/subscriptions", async ({ request }) => {
+        postBody = await request.json();
+        return HttpResponse.json(
+          {
+            id: "sub-003",
+            type: "launch",
+            ll2_id: "launch-001",
+            agency_name: null,
+            notify_email: false,
+            notify_sms: true,
+            created_at: "2026-01-01T00:00:00Z",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderModal();
+
+    const smsCheckbox = await screen.findByTestId("checkbox-sms");
+    expect(smsCheckbox).not.toBeDisabled();
+
+    await user.click(screen.getByTestId("checkbox-launch"));
+    await user.click(smsCheckbox);
+    await user.click(screen.getByTestId("confirm-subscribe"));
+
+    await waitFor(() => {
+      expect(postBody).toMatchObject({ notify_sms: true, notify_email: false });
+    });
+  });
+
+  it("subscribe failure — shows failed-to-subscribe status", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.post("/api/v1/subscriptions", () =>
+        HttpResponse.json(
+          { error: { code: "SERVER_ERROR", message: "boom" } },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    renderModal();
+
+    await screen.findByTestId("checkbox-launch");
+    await user.click(screen.getByTestId("checkbox-launch"));
+    await user.click(screen.getByTestId("checkbox-email"));
+    await user.click(screen.getByTestId("confirm-subscribe"));
+
+    expect(await screen.findByTestId("subscribe-status")).toHaveTextContent(
+      /Failed to subscribe/i,
+    );
+  });
+
   it("locale switching — German modal title appears after changing language to de", async () => {
     renderModal();
     expect(await screen.findByRole("heading", { name: /Subscribe to Updates/i })).toBeInTheDocument();
 
     await act(async () => { await i18n.changeLanguage("de"); });
     expect(screen.getByRole("heading", { name: /Updates abonnieren/i })).toBeInTheDocument();
+  });
+
+  it("no consent yet — shows consent prompt and grants consent before subscribing", async () => {
+    const user = userEvent.setup();
+    let postBody: unknown = null;
+    let consentGranted = false;
+
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json({
+          id: 1,
+          first_name: "Alice",
+          last_name: "Liddell",
+          email: "alice@example.com",
+          phone: null,
+          email_verified: true,
+          phone_verified: false,
+          created_at: "2024-01-01T00:00:00Z",
+          consent_notifications_at: null,
+        }),
+      ),
+      http.post("/api/v1/auth/consent", async ({ request }) => {
+        const body = (await request.json()) as { granted: boolean };
+        consentGranted = body.granted;
+        return HttpResponse.json({
+          id: 1,
+          first_name: "Alice",
+          last_name: "Liddell",
+          email: "alice@example.com",
+          phone: null,
+          email_verified: true,
+          phone_verified: false,
+          created_at: "2024-01-01T00:00:00Z",
+          consent_notifications_at: "2026-01-01T00:00:00Z",
+        });
+      }),
+      http.post("/api/v1/subscriptions", async ({ request }) => {
+        postBody = await request.json();
+        return HttpResponse.json(
+          {
+            id: "sub-001",
+            type: "launch",
+            ll2_id: "launch-001",
+            agency_name: null,
+            notify_email: true,
+            notify_sms: false,
+            created_at: "2026-01-01T00:00:00Z",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderModal();
+
+    await screen.findByTestId("checkbox-launch");
+    expect(screen.getByTestId("consent-prompt")).toBeInTheDocument();
+
+    // Confirm is disabled until consent is granted
+    expect(screen.getByTestId("confirm-subscribe")).toBeDisabled();
+
+    await user.click(screen.getByTestId("checkbox-launch"));
+    await user.click(screen.getByTestId("checkbox-email"));
+    await user.click(screen.getByTestId("checkbox-consent"));
+    await user.click(screen.getByTestId("confirm-subscribe"));
+
+    await waitFor(() => {
+      expect(consentGranted).toBe(true);
+      expect(postBody).toMatchObject({
+        type: "launch",
+        ll2_id: "launch-001",
+        notify_email: true,
+      });
+    });
   });
 
   it("filled bell state when already subscribed", async () => {

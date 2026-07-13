@@ -29,6 +29,11 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
+    # P1.9: CASL/PIPEDA/GDPR — express consent to notification alerting.
+    # consent_notifications_at is cleared back to null on withdrawal, which
+    # is what subscription creation gates on (see subscription_service).
+    consent_notifications_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    consent_source: Mapped[str | None] = mapped_column(String, nullable=True)
 
     otps: Mapped[list["Otp"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

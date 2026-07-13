@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { apiPost, setAccessToken, setRefreshToken } from "@/lib/api";
+import { apiPost, setAccessToken } from "@/lib/api";
 import type { TokenResponse } from "@/types/api";
 import type { ApiError } from "@/lib/api";
 
@@ -43,7 +43,6 @@ export default function LoginPage() {
         password,
       });
       setAccessToken(data.access_token);
-      setRefreshToken(data.refresh_token);
       navigate(safeReturnUrl(location.search));
     } catch (err) {
       setError(err as ApiError);

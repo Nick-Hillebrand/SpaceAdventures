@@ -1,0 +1,20 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env.prod
+    environment:
+      # Unconditional: production must never start on unenforced/missing
+      # secrets, regardless of what .env.prod does or doesn't set (15-…, P1.2).
+      - APP_REQUIRE_SECRETS=1
+    volumes:
+      - backend-data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    restart: unless-stopped
+
+volumes:
+  backend-data:

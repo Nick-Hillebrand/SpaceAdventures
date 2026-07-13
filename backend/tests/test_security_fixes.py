@@ -312,9 +312,9 @@ def test_register_rejects_overlong_email_and_phone():
 def _prod_settings() -> Settings:
     return Settings(  # type: ignore[call-arg]
         require_secrets=True,
-        jwt_secret_key="test-jwt-secret",
-        unsubscribe_secret_key="test-unsub-secret",
-        admin_api_key="test-admin-key",
+        jwt_secret_key="test-jwt-secret-that-is-long-enough",
+        unsubscribe_secret_key="test-unsub-secret-that-is-long-enough",
+        admin_api_key="test-admin-key-that-is-long-enough",
     )
 
 

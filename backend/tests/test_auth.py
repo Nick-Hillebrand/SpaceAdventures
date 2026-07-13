@@ -341,7 +341,14 @@ async def test_login_success(client):
     assert r.status_code == 200
     body = r.json()
     assert "access_token" in body
-    assert "refresh_token" in body
+    assert "refresh_token" not in body
+
+    cookie = r.cookies.get("sa_refresh")
+    assert cookie is not None
+    set_cookie_header = r.headers.get("set-cookie", "")
+    assert "httponly" in set_cookie_header.lower()
+    assert "samesite=strict" in set_cookie_header.lower()
+    assert "path=/api/v1/auth" in set_cookie_header.lower()
 
 
 async def test_login_wrong_password(client):
@@ -392,14 +399,30 @@ async def test_login_nonexistent_user(client):
 async def test_refresh_success(client):
     await _register(client)
     r = await _login(client)
-    old_refresh = r.json()["refresh_token"]
+    old_refresh = r.cookies.get("sa_refresh")
 
-    r = await client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+    # Cookie rides along automatically via the client's cookie jar.
+    r = await client.post("/api/v1/auth/refresh")
     assert r.status_code == 200
     body = r.json()
     assert "access_token" in body
-    assert "refresh_token" in body
-    assert body["refresh_token"] != old_refresh
+    assert "refresh_token" not in body
+
+    new_refresh = r.cookies.get("sa_refresh")
+    assert new_refresh is not None
+    assert new_refresh != old_refresh
+
+
+async def test_refresh_via_body_fallback(client):
+    """Back-compat: body-supplied refresh_token still works for one release."""
+    await _register(client)
+    r = await _login(client)
+    old_refresh = r.cookies.get("sa_refresh")
+    client.cookies.clear()
+
+    r = await client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+    assert r.status_code == 200
+    assert r.cookies.get("sa_refresh") is not None
 
 
 async def test_refresh_invalid_token(client):
@@ -407,15 +430,23 @@ async def test_refresh_invalid_token(client):
     assert r.status_code == 401
 
 
+async def test_refresh_no_token_at_all(client):
+    r = await client.post("/api/v1/auth/refresh")
+    assert r.status_code == 401
+
+
 async def test_refresh_revoked_token(client):
     await _register(client)
     r = await _login(client)
-    old_refresh = r.json()["refresh_token"]
+    old_refresh = r.cookies.get("sa_refresh")
 
     # Rotate — this revokes the old token
-    await client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+    await client.post("/api/v1/auth/refresh")
 
-    # Attempt to use old token again
+    # Attempt to use old (now-revoked) token again explicitly via body; clear
+    # the jar first since the cookie (now holding the rotated token) takes
+    # precedence over the body when both are present.
+    client.cookies.clear()
     r = await client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
     assert r.status_code == 401
 
@@ -423,7 +454,7 @@ async def test_refresh_revoked_token(client):
 async def test_refresh_expired_token(client, db_session):
     await _register(client)
     r = await _login(client)
-    raw_refresh = r.json()["refresh_token"]
+    raw_refresh = r.cookies.get("sa_refresh")
     token_hash = auth_service.hash_refresh_token(raw_refresh)
 
     # Expire the token
@@ -434,7 +465,7 @@ async def test_refresh_expired_token(client, db_session):
     token_row.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
     await db_session.commit()
 
-    r = await client.post("/api/v1/auth/refresh", json={"refresh_token": raw_refresh})
+    r = await client.post("/api/v1/auth/refresh")
     assert r.status_code == 401
 
 
@@ -446,10 +477,16 @@ async def test_refresh_expired_token(client, db_session):
 async def test_logout_success(client, db_session):
     await _register(client)
     r = await _login(client)
-    raw_refresh = r.json()["refresh_token"]
+    raw_refresh = r.cookies.get("sa_refresh")
 
-    r = await client.post("/api/v1/auth/logout", json={"refresh_token": raw_refresh})
+    r = await client.post("/api/v1/auth/logout")
     assert r.status_code == 200
+
+    # Cookie should be cleared (Max-Age=0 / expired)
+    set_cookie_headers = r.headers.get_list("set-cookie")
+    matches = [h for h in set_cookie_headers if h.startswith("sa_refresh=")]
+    assert matches, set_cookie_headers
+    assert ("max-age=0" in matches[0].lower()) or ("1970" in matches[0])
 
     # Token should be revoked
     token_hash = auth_service.hash_refresh_token(raw_refresh)
@@ -487,14 +524,14 @@ async def test_me_expired_access_token(client, settings):
     await _register(client)
     # Create an expired token manually
     from datetime import timedelta
-    from jose import jwt as jose_jwt
+    import jwt as pyjwt
 
     payload = {
         "sub": "1",
         "exp": datetime.now(timezone.utc) - timedelta(seconds=1),
         "iat": datetime.now(timezone.utc) - timedelta(seconds=901),
     }
-    expired_token = jose_jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    expired_token = pyjwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
     r = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {expired_token}"})
     assert r.status_code == 401
@@ -502,6 +539,60 @@ async def test_me_expired_access_token(client, settings):
 
 async def test_me_invalid_token(client):
     r = await client.get("/api/v1/auth/me", headers={"Authorization": "Bearer notavalidtoken"})
+    assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# P1.3 — PyJWT migration: reject non-conforming/forged tokens
+# ---------------------------------------------------------------------------
+
+
+async def test_me_token_without_exp_claim_rejected(client, settings):
+    import jwt as pyjwt
+
+    await _register(client)
+    payload = {"sub": "1"}  # no exp claim
+    token = pyjwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+    r = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
+async def test_me_token_signed_with_wrong_key_rejected(client, settings):
+    import jwt as pyjwt
+
+    await _register(client)
+    payload = {
+        "sub": "1",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
+    }
+    token = pyjwt.encode(payload, "a-completely-different-key", algorithm=settings.jwt_algorithm)
+
+    r = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
+async def test_me_token_alg_none_rejected(client):
+    import jwt as pyjwt
+
+    await _register(client)
+    payload = {
+        "sub": "1",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
+    }
+    # PyJWT refuses to even encode with alg "none" unless the key is None;
+    # construct the classic unsigned "alg: none" token by hand instead.
+    import base64
+    import json
+
+    def _b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+    header = _b64(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+    body = _b64(json.dumps(payload, default=str).encode())
+    forged_token = f"{header}.{body}."
+
+    r = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {forged_token}"})
     assert r.status_code == 401
 
 
@@ -514,7 +605,7 @@ async def test_concurrent_refresh_only_one_succeeds(client):
     """Two simultaneous refresh calls with the same token — only one should succeed."""
     await _register(client)
     r = await _login(client)
-    raw_refresh = r.json()["refresh_token"]
+    raw_refresh = r.cookies.get("sa_refresh")
 
     async def do_refresh():
         return await client.post("/api/v1/auth/refresh", json={"refresh_token": raw_refresh})
@@ -528,13 +619,174 @@ async def test_concurrent_refresh_only_one_succeeds(client):
 
 
 # ---------------------------------------------------------------------------
+# Consent recording (P1.9)
+# ---------------------------------------------------------------------------
+
+
+async def test_register_without_consent_leaves_it_null(client, db_session):
+    body = await _register(client)
+    user = await db_session.get(User, body["id"])
+    assert user.consent_notifications_at is None
+    assert user.consent_source is None
+
+
+async def test_register_with_consent_records_timestamp_and_source(client, db_session):
+    payload = {**REGISTER_PAYLOAD, "email": "consent@example.com", "consent_notifications": True}
+    r = await client.post("/api/v1/auth/register", json=payload)
+    assert r.status_code == 201, r.text
+    user = await db_session.get(User, r.json()["id"])
+    assert user.consent_notifications_at is not None
+    assert user.consent_source == "register-form-v1"
+
+
+async def test_consent_endpoint_grant_and_withdraw(client):
+    headers = await _auth_headers(client)
+
+    r = await client.post("/api/v1/auth/consent", json={"granted": True}, headers=headers)
+    assert r.status_code == 200
+    assert r.json()["consent_notifications_at"] is not None
+
+    r2 = await client.post("/api/v1/auth/consent", json={"granted": False}, headers=headers)
+    assert r2.status_code == 200
+    assert r2.json()["consent_notifications_at"] is None
+
+
+async def test_consent_endpoint_unauthenticated(client):
+    r = await client.post("/api/v1/auth/consent", json={"granted": True})
+    assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Account deletion & data export (P1.10)
+# ---------------------------------------------------------------------------
+
+
+async def test_delete_account_wrong_password_returns_403_no_deletion(client, db_session):
+    headers = await _auth_headers(client)
+
+    r = await client.request(
+        "DELETE", "/api/v1/auth/me", json={"password": "wrongpassword"}, headers=headers
+    )
+    assert r.status_code == 403
+    assert r.json()["detail"]["error"]["code"] == "INVALID_PASSWORD"
+
+    db_session.expire_all()
+    result = await db_session.execute(select(User).where(User.email == "alice@example.com"))
+    assert result.scalar_one_or_none() is not None
+
+
+async def test_delete_account_unauthenticated(client):
+    r = await client.request("DELETE", "/api/v1/auth/me", json={"password": "whatever"})
+    assert r.status_code == 401
+
+
+async def test_delete_account_success_cascades_and_clears_cookie(client, db_session):
+    from app.models.notification_log import NotificationLog
+    from app.models.subscription import Subscription
+
+    await _register(client)
+    login_r = await _login(client)
+    old_refresh = login_r.cookies.get("sa_refresh")
+    token = login_r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    me = await client.get("/api/v1/auth/me", headers=headers)
+    user_id = me.json()["id"]
+
+    # Grant consent and create a subscription to exercise its cascade.
+    await client.post("/api/v1/auth/consent", json={"granted": True}, headers=headers)
+    sub_r = await client.post(
+        "/api/v1/subscriptions",
+        json={"type": "agency", "agency_name": "SpaceX", "notify_email": True, "notify_sms": False},
+        headers=headers,
+    )
+    assert sub_r.status_code == 201, sub_r.text
+
+    # A notification_log row referencing this user (billing/audit record).
+    db_session.add(
+        NotificationLog(
+            user_id=user_id,
+            ll2_id="launch-1",
+            change_type="STATUS_CHANGE",
+            channel="email",
+            delivery_status="sent",
+        )
+    )
+    await db_session.commit()
+
+    r = await client.request(
+        "DELETE", "/api/v1/auth/me", json={"password": "securepassword"}, headers=headers
+    )
+    assert r.status_code == 204
+
+    set_cookie_headers = r.headers.get_list("set-cookie")
+    matches = [h for h in set_cookie_headers if h.startswith("sa_refresh=")]
+    assert matches
+    assert ("max-age=0" in matches[0].lower()) or ("1970" in matches[0])
+
+    db_session.expire_all()
+
+    assert await db_session.get(User, user_id) is None
+
+    otp_result = await db_session.execute(select(Otp).where(Otp.user_id == user_id))
+    assert otp_result.scalars().all() == []
+
+    rt_result = await db_session.execute(select(RefreshToken).where(RefreshToken.user_id == user_id))
+    assert rt_result.scalars().all() == []
+
+    sub_result = await db_session.execute(select(Subscription).where(Subscription.user_id == user_id))
+    assert sub_result.scalars().all() == []
+
+    # notification_log row survives, anonymized (user_id -> NULL), not deleted.
+    log_result = await db_session.execute(
+        select(NotificationLog).where(NotificationLog.ll2_id == "launch-1")
+    )
+    log_rows = log_result.scalars().all()
+    assert len(log_rows) == 1
+    assert log_rows[0].user_id is None
+
+    # The deleted user's refresh cookie can no longer mint access tokens.
+    r2 = await client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+    assert r2.status_code == 401
+
+
+async def test_export_account_contains_no_sensitive_fields(client):
+    headers = await _auth_headers(client)
+    await client.post("/api/v1/auth/consent", json={"granted": True}, headers=headers)
+    await client.post(
+        "/api/v1/subscriptions",
+        json={"type": "agency", "agency_name": "SpaceX", "notify_email": True, "notify_sms": False},
+        headers=headers,
+    )
+
+    r = await client.get("/api/v1/auth/me/export", headers=headers)
+    assert r.status_code == 200
+    body = r.json()
+
+    assert body["profile"]["email"] == "alice@example.com"
+    assert "password_hash" not in body["profile"]
+    assert len(body["subscriptions"]) == 1
+    assert body["subscriptions"][0]["agency_name"] == "SpaceX"
+    assert body["notification_history"] == []
+
+    body_str = str(body)
+    assert "password" not in body_str.lower()
+    assert "token_hash" not in body_str.lower()
+
+
+async def test_export_account_unauthenticated(client):
+    r = await client.get("/api/v1/auth/me/export")
+    assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
 # Helper: decode JWT without verification for test introspection
 # ---------------------------------------------------------------------------
 
 
 def jwt_payload(token: str, settings) -> dict:
-    from jose import jwt as jose_jwt
-    return jose_jwt.decode(
+    import jwt as pyjwt
+    return pyjwt.decode(
         token,
         settings.jwt_secret_key,
         algorithms=[settings.jwt_algorithm],
@@ -581,6 +833,28 @@ async def test_service_register_duplicate_raises(db_session, settings):
     await auth_service.register_user(db_session, data, settings)
     with pytest.raises(ValueError, match="REGISTRATION_FAILED"):
         await auth_service.register_user(db_session, data, settings)
+
+
+async def test_service_set_consent_grant_then_withdraw(db_session):
+    user = await _make_svc_user(db_session, "svc_consent@example.com")
+    assert user.consent_notifications_at is None
+
+    granted = await auth_service.set_consent(db_session, user, True)
+    assert granted.consent_notifications_at is not None
+    assert granted.consent_source == "account-settings-v1"
+
+    withdrawn = await auth_service.set_consent(db_session, user, False)
+    assert withdrawn.consent_notifications_at is None
+    assert withdrawn.consent_source is None
+
+
+async def test_service_delete_account_wrong_password_raises(db_session):
+    user = await _make_svc_user(db_session, "svc_del_wrong@example.com")
+    with pytest.raises(ValueError, match="INVALID_PASSWORD"):
+        await auth_service.delete_account(db_session, user, "not-the-password")
+
+    still_there = await db_session.get(User, user.id)
+    assert still_there is not None
 
 
 async def test_service_verify_otp_not_found_returns_false(db_session, settings):
@@ -747,17 +1021,17 @@ async def test_service_logout_not_found(db_session, settings):
 
 
 async def test_service_get_current_user_invalid_sub(db_session, settings):
-    from jose import jwt as jose_jwt
+    import jwt as pyjwt
     payload = {"exp": datetime.now(timezone.utc) + timedelta(hours=1)}
-    token = jose_jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    token = pyjwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
     with pytest.raises(ValueError, match="INVALID_TOKEN"):
         await auth_service.get_current_user(db_session, token, settings)
 
 
 async def test_service_get_current_user_non_integer_sub(db_session, settings):
-    from jose import jwt as jose_jwt
+    import jwt as pyjwt
     payload = {"sub": "not-a-number", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
-    token = jose_jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    token = pyjwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
     with pytest.raises(ValueError, match="INVALID_TOKEN"):
         await auth_service.get_current_user(db_session, token, settings)
 

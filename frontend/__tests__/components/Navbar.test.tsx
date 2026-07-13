@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
 import i18n from "@/i18n";
+import { getAccessToken, setAccessToken } from "@/lib/api";
 
 // P28: use vi.hoisted() for variables referenced in mock factories
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -22,6 +23,7 @@ vi.mock("react-router-dom", async (importOriginal) => {
 beforeEach(() => {
   mockNavigate.mockClear();
   localStorage.clear();
+  setAccessToken(null);
 });
 
 afterEach(async () => {
@@ -51,9 +53,15 @@ describe("Navbar", () => {
     expect(await screen.findByRole("button", { name: /User menu/i })).toHaveTextContent("AL");
   });
 
-  it('clicking "Log Out" clears tokens and navigates home', async () => {
-    localStorage.setItem("space-adventures-access-token", "some-token");
-    localStorage.setItem("space-adventures-refresh-token", "some-refresh");
+  it('clicking "Log Out" clears the in-memory token, revokes server-side, and navigates home', async () => {
+    setAccessToken("some-token");
+    let logoutCalled = false;
+    server.use(
+      http.post("/api/v1/auth/logout", () => {
+        logoutCalled = true;
+        return HttpResponse.json({ message: "Logged out" });
+      }),
+    );
 
     const user = userEvent.setup();
     renderWithProviders(<Navbar />);
@@ -66,9 +74,11 @@ describe("Navbar", () => {
     const logoutBtn = await screen.findByRole("menuitem", { name: /Log Out/i });
     await user.click(logoutBtn);
 
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/"));
+    expect(getAccessToken()).toBeNull();
+    expect(logoutCalled).toBe(true);
     expect(localStorage.getItem("space-adventures-access-token")).toBeNull();
     expect(localStorage.getItem("space-adventures-refresh-token")).toBeNull();
-    expect(mockNavigate).toHaveBeenCalledWith("/");
   });
 
   it("locale switching — German Log In link appears after changing language to de", async () => {

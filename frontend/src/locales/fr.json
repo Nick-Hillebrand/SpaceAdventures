@@ -140,7 +140,8 @@
     "phoneOtpSection": "OTP téléphone",
     "verifyEmailButton": "Vérifier l'e-mail",
     "verifyPhoneButton": "Vérifier le téléphone",
-    "loginFailed": "Échec de la connexion. Veuillez vérifier vos identifiants."
+    "loginFailed": "Échec de la connexion. Veuillez vérifier vos identifiants.",
+    "consentNotifications": "J'accepte de recevoir des notifications par e-mail/SMS concernant les lancements et les mises à jour de mission."
   },
   "account": {
     "title": "Mon compte",
@@ -160,7 +161,17 @@
     "name": "Nom",
     "email": "E-mail",
     "phone": "Téléphone",
-    "loadingSubscriptions": "Chargement des abonnements…"
+    "loadingSubscriptions": "Chargement des abonnements…",
+    "dangerZone": "Zone de danger",
+    "downloadData": "Télécharger mes données",
+    "exportFailed": "Échec de l'exportation des données. Veuillez réessayer.",
+    "deleteAccount": "Supprimer le compte",
+    "deleteAccountWarning": "Cela supprime définitivement votre compte et toutes ses données. Cette action est irréversible.",
+    "deleteAccountConfirmLabel": "Saisissez {{identifier}} pour confirmer",
+    "deleteAccountPasswordLabel": "Mot de passe actuel",
+    "deleteAccountConfirmButton": "Supprimer définitivement mon compte",
+    "deleteAccountCancel": "Annuler",
+    "deleteFailed": "Échec de la suppression du compte. Vérifiez votre mot de passe et réessayez."
   },
   "subscriptions": {
     "subscribeButton": "S'abonner",
@@ -185,7 +196,9 @@
     "confirmUnsubscribeText": "Cliquez sur le bouton ci-dessous pour confirmer que vous souhaitez vous désabonner des notifications de lancement.",
     "confirmButton": "Confirmer le désabonnement",
     "unsubscribedTitle": "Désabonné",
-    "unsubscribedSuccess": "Vous avez été désabonné avec succès."
+    "unsubscribedSuccess": "Vous avez été désabonné avec succès.",
+    "consentRequiredTitle": "Consentement aux notifications requis",
+    "consentRequiredPrompt": "Vous devez accepter de recevoir des notifications avant de vous abonner."
   },
   "settings": {
     "title": "Paramètres",

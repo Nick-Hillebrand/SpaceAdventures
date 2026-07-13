@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import jwt
 from fastapi import HTTPException
-from jose import JWTError
-from jose import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.models.subscription import Subscription
+from app.models.user import User
 from app.schemas.subscription import CreateSubscriptionRequest
 
 
@@ -21,11 +21,20 @@ async def get_subscriptions(session: AsyncSession, user_id: int) -> list[Subscri
 
 
 async def create_subscription(
-    session: AsyncSession, user_id: int, data: CreateSubscriptionRequest
+    session: AsyncSession, user: User, data: CreateSubscriptionRequest
 ) -> Subscription:
-    """Create and persist a new subscription."""
+    """Create and persist a new subscription.
+
+    P1.9: gated on notification consent — takes the already-loaded `User`
+    (not just its id) so this check costs no extra SQL statement.
+    """
+    if user.consent_notifications_at is None:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": {"code": "CONSENT_REQUIRED", "message": "Notification consent is required before subscribing"}},
+        )
     sub = Subscription(
-        user_id=user_id,
+        user_id=user.id,
         type=data.type,
         ll2_id=data.ll2_id,
         agency_name=data.agency_name,
@@ -66,9 +75,9 @@ async def unsubscribe_by_token(
             token,
             settings.unsubscribe_secret_key,
             algorithms=["HS256"],
-            options={"verify_exp": True},
+            options={"require": ["exp"]},
         )
-    except JWTError as exc:
+    except jwt.PyJWTError as exc:
         raise HTTPException(
             status_code=400,
             detail={"error": {"code": "INVALID_TOKEN", "message": "Invalid or expired unsubscribe token"}},

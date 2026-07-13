@@ -26,6 +26,7 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [consentNotifications, setConsentNotifications] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,10 +61,11 @@ export default function RegisterPage() {
         email: email || undefined,
         phone: phone || undefined,
         password,
+        consent_notifications: consentNotifications,
       });
       setUserId(data.id);
 
-      const tokenData = await apiPost<{ access_token: string; refresh_token: string }>(
+      const tokenData = await apiPost<{ access_token: string }>(
         "/api/v1/auth/login",
         { email_or_phone: email || phone, password }
       );
@@ -230,6 +232,15 @@ export default function RegisterPage() {
               <EyeIcon open={showConfirmPassword} />
             </button>
           </div>
+        </label>
+        <label htmlFor="consent_notifications" className="consent-checkbox-label">
+          <input
+            id="consent_notifications"
+            type="checkbox"
+            checked={consentNotifications}
+            onChange={(e) => setConsentNotifications(e.target.checked)}
+          />
+          {" "}{t("auth.consentNotifications")}
         </label>
         <button type="submit" disabled={isLoading}>
           {isLoading ? t("auth.creatingAccount") : t("auth.register")}

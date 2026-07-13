@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 import aiosmtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from jose import jwt as _jwt
+import jwt as _jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload

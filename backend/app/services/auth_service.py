@@ -7,12 +7,14 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
+from app.models.notification_log import NotificationLog
+from app.models.subscription import Subscription
 from app.models.user import LoginAttempt, Otp, RefreshToken, User
 
 logger = logging.getLogger(__name__)
@@ -86,13 +88,14 @@ def hash_refresh_token(raw: str) -> str:
 
 
 def decode_access_token(token: str, settings: Settings) -> dict:
-    """Decode and verify an access token. Raises JWTError on any failure."""
-    # P8: ALWAYS pass options={"verify_exp": True} explicitly
+    """Decode and verify an access token. Raises jwt.PyJWTError on any failure."""
+    # P8/P1.3: verify_exp is on by default, but require exp+sub explicitly —
+    # a token missing either claim must be rejected, not silently accepted.
     return jwt.decode(
         token,
         settings.jwt_secret_key,
         algorithms=[settings.jwt_algorithm],
-        options={"verify_exp": True},
+        options={"require": ["exp", "sub"]},
     )
 
 
@@ -138,6 +141,9 @@ async def register_user(session: AsyncSession, data: dict, settings: Settings) -
         phone=data.get("phone"),
         password_hash=password_hash,
     )
+    if data.get("consent_notifications"):
+        user.consent_notifications_at = datetime.now(timezone.utc)
+        user.consent_source = "register-form-v1"
     session.add(user)
     try:
         await session.flush()  # get user.id; will raise on unique violation
@@ -174,6 +180,96 @@ async def register_user(session: AsyncSession, data: dict, settings: Settings) -
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def set_consent(session: AsyncSession, user: User, granted: bool) -> User:
+    """Grant or withdraw notification consent (P1.9, AccountPage toggle)."""
+    if granted:
+        user.consent_notifications_at = datetime.now(timezone.utc)
+        user.consent_source = "account-settings-v1"
+    else:
+        user.consent_notifications_at = None
+        user.consent_source = None
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def delete_account(session: AsyncSession, user: User, password: str) -> None:
+    """Hard-delete a user's account (P1.10, GDPR/PIPEDA).
+
+    Raises ValueError("INVALID_PASSWORD") without deleting anything.
+    notification_log rows are anonymized (user_id -> NULL), not deleted —
+    they are billing/audit records; this must happen before the user row is
+    deleted so the FK's ON DELETE CASCADE never touches them.
+    """
+    if not verify_password(password, user.password_hash):
+        raise ValueError("INVALID_PASSWORD")
+
+    await session.execute(
+        update(NotificationLog)
+        .where(NotificationLog.user_id == user.id)
+        .values(user_id=None)
+    )
+    await session.delete(user)
+    await session.commit()
+
+
+async def export_account(session: AsyncSession, user: User) -> dict:
+    """Return a JSON-serializable export of a user's data (P1.10).
+
+    No password hash, no refresh-token hashes — only what the export spec
+    calls for: profile, subscriptions, notification history.
+    """
+    sub_result = await session.execute(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    subscriptions = list(sub_result.scalars().all())
+
+    log_result = await session.execute(
+        select(NotificationLog).where(NotificationLog.user_id == user.id)
+    )
+    notification_history = list(log_result.scalars().all())
+
+    return {
+        "profile": {
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "phone": user.phone,
+            "email_verified": user.email_verified,
+            "phone_verified": user.phone_verified,
+            "created_at": user.created_at.isoformat(),
+            "consent_notifications_at": (
+                user.consent_notifications_at.isoformat()
+                if user.consent_notifications_at
+                else None
+            ),
+        },
+        "subscriptions": [
+            {
+                "id": s.id,
+                "type": s.type,
+                "ll2_id": s.ll2_id,
+                "agency_name": s.agency_name,
+                "notify_email": s.notify_email,
+                "notify_sms": s.notify_sms,
+                "created_at": s.created_at.isoformat(),
+            }
+            for s in subscriptions
+        ],
+        "notification_history": [
+            {
+                "ll2_id": n.ll2_id,
+                "change_type": n.change_type,
+                "channel": n.channel,
+                "delivery_status": n.delivery_status,
+                "sent_at": n.sent_at.isoformat(),
+            }
+            for n in notification_history
+        ],
+    }
 
 
 async def verify_otp(
@@ -415,7 +511,7 @@ async def get_current_user(
     """
     try:
         payload = decode_access_token(token, settings)
-    except JWTError as exc:
+    except jwt.PyJWTError as exc:
         raise ValueError("INVALID_TOKEN") from exc
 
     user_id_str = payload.get("sub")

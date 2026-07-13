@@ -1,13 +1,16 @@
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import delete
 
 from app.config import Settings
 from app.database import AsyncSessionLocal
+from app.models.rate_limit import RateLimitEvent
 from app.routers import apod as apod_router
 from app.routers import iss as iss_router
 from app.routers import mars as mars_router
@@ -23,6 +26,8 @@ from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
 from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient, NasaClientError
+
+_RATE_LIMIT_EVENT_RETENTION_HOURS = 24
 
 
 @asynccontextmanager
@@ -47,6 +52,18 @@ async def lifespan(app: FastAPI):
         _sync_job,
         trigger="interval",
         minutes=settings.ll2_sync_interval_minutes,
+    )
+
+    async def _purge_rate_limit_events_job() -> None:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=_RATE_LIMIT_EVENT_RETENTION_HOURS)
+        async with AsyncSessionLocal() as session:
+            await session.execute(delete(RateLimitEvent).where(RateLimitEvent.created_at < cutoff))
+            await session.commit()
+
+    scheduler.add_job(
+        _purge_rate_limit_events_job,
+        trigger="interval",
+        hours=_RATE_LIMIT_EVENT_RETENTION_HOURS,
     )
     scheduler.start()
 

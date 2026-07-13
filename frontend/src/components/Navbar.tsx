@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/hooks/useAuth";
-import { setAccessToken, setRefreshToken } from "@/lib/api";
+import { apiPost, setAccessToken } from "@/lib/api";
 
 const LANGUAGES = [
   { code: "en", label: "English" },
@@ -25,14 +26,20 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const { data: user } = useMe();
+  const queryClient = useQueryClient();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
 
   const currentLang = (i18n.resolvedLanguage ?? "en").toUpperCase();
 
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      await apiPost("/api/v1/auth/logout", {});
+    } catch {
+      // Best-effort server-side revoke — clear local state regardless.
+    }
     setAccessToken(null);
-    setRefreshToken(null);
+    queryClient.removeQueries({ queryKey: ["auth", "me"] });
     setDropdownOpen(false);
     navigate("/");
   }

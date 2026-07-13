@@ -140,7 +140,8 @@
     "phoneOtpSection": "Telefon OTP",
     "verifyEmailButton": "E-Mail bestätigen",
     "verifyPhoneButton": "Telefon bestätigen",
-    "loginFailed": "Anmeldung fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten."
+    "loginFailed": "Anmeldung fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.",
+    "consentNotifications": "Ich stimme zu, E-Mail-/SMS-Benachrichtigungen über Starts und Missions-Updates zu erhalten."
   },
   "account": {
     "title": "Mein Konto",
@@ -160,7 +161,17 @@
     "name": "Name",
     "email": "E-Mail",
     "phone": "Telefon",
-    "loadingSubscriptions": "Abonnements werden geladen…"
+    "loadingSubscriptions": "Abonnements werden geladen…",
+    "dangerZone": "Gefahrenzone",
+    "downloadData": "Meine Daten herunterladen",
+    "exportFailed": "Datenexport fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "deleteAccount": "Konto löschen",
+    "deleteAccountWarning": "Dies löscht Ihr Konto und alle zugehörigen Daten dauerhaft. Dies kann nicht rückgängig gemacht werden.",
+    "deleteAccountConfirmLabel": "Geben Sie {{identifier}} ein, um zu bestätigen",
+    "deleteAccountPasswordLabel": "Aktuelles Passwort",
+    "deleteAccountConfirmButton": "Mein Konto endgültig löschen",
+    "deleteAccountCancel": "Abbrechen",
+    "deleteFailed": "Konto konnte nicht gelöscht werden. Überprüfen Sie Ihr Passwort und versuchen Sie es erneut."
   },
   "subscriptions": {
     "subscribeButton": "Abonnieren",
@@ -185,7 +196,9 @@
     "confirmUnsubscribeText": "Klicken Sie auf die Schaltfläche unten, um zu bestätigen, dass Sie sich von Startbenachrichtigungen abmelden möchten.",
     "confirmButton": "Abmeldung bestätigen",
     "unsubscribedTitle": "Abgemeldet",
-    "unsubscribedSuccess": "Sie wurden erfolgreich abgemeldet."
+    "unsubscribedSuccess": "Sie wurden erfolgreich abgemeldet.",
+    "consentRequiredTitle": "Benachrichtigungseinwilligung erforderlich",
+    "consentRequiredPrompt": "Sie müssen der Benachrichtigung zustimmen, bevor Sie sich anmelden können."
   },
   "settings": {
     "title": "Einstellungen",

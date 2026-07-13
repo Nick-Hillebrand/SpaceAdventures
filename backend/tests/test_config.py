@@ -30,8 +30,19 @@ def test_missing_secrets_raise_in_strict_mode():
 def test_all_secrets_present_in_strict_mode():
     settings = Settings(  # type: ignore[call-arg]
         require_secrets=True,
-        jwt_secret_key="j",
-        unsubscribe_secret_key="u",
-        admin_api_key="a",
+        jwt_secret_key="j" * 32,
+        unsubscribe_secret_key="u" * 32,
+        admin_api_key="a" * 32,
     )
-    assert settings.admin_api_key == "a"
+    assert settings.admin_api_key == "a" * 32
+
+
+def test_short_secrets_raise_in_strict_mode():
+    with pytest.raises(ValueError) as exc_info:
+        Settings(  # type: ignore[call-arg]
+            require_secrets=True,
+            jwt_secret_key="too-short",
+            unsubscribe_secret_key="u" * 32,
+            admin_api_key="a" * 32,
+        )
+    assert "JWT_SECRET_KEY" in str(exc_info.value)

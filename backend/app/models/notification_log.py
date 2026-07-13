@@ -55,8 +55,10 @@ class NotificationLog(Base):
     __tablename__ = "notification_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    # P1.10: nullable — account deletion anonymizes these rows (user_id set
+    # NULL) rather than deleting them, since they are billing/audit records.
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
     ll2_id: Mapped[str] = mapped_column(String, nullable=False)
     change_type: Mapped[str] = mapped_column(String, nullable=False)

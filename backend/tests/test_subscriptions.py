@@ -21,6 +21,7 @@ REGISTER_PAYLOAD = {
     "last_name": "Liddell",
     "email": "alice@example.com",
     "password": "securepassword",
+    "consent_notifications": True,
 }
 
 REGISTER_PAYLOAD_BOB = {
@@ -28,6 +29,7 @@ REGISTER_PAYLOAD_BOB = {
     "last_name": "Builder",
     "email": "bob@example.com",
     "password": "securepassword2",
+    "consent_notifications": True,
 }
 
 
@@ -121,6 +123,58 @@ async def test_create_subscription_unauthenticated(client):
     body = {"type": "launch", "ll2_id": "xyz-999", "notify_email": True, "notify_sms": False}
     r = await client.post("/api/v1/subscriptions", json=body)
     assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# P1.9 — consent gating
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_subscription_without_consent_is_403(client):
+    payload = {**REGISTER_PAYLOAD, "consent_notifications": False}
+    _, headers = await _register_and_login(client, payload)
+    body = {"type": "launch", "ll2_id": "consent-001", "notify_email": True, "notify_sms": False}
+    r = await _create_sub(client, headers, body)
+    assert r.status_code == 403
+    assert r.json()["detail"]["error"]["code"] == "CONSENT_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_grant_consent_then_subscribe_succeeds(client):
+    payload = {**REGISTER_PAYLOAD, "consent_notifications": False}
+    _, headers = await _register_and_login(client, payload)
+    body = {"type": "launch", "ll2_id": "consent-002", "notify_email": True, "notify_sms": False}
+    r = await _create_sub(client, headers, body)
+    assert r.status_code == 403
+
+    r2 = await client.post("/api/v1/auth/consent", json={"granted": True}, headers=headers)
+    assert r2.status_code == 200
+    assert r2.json()["consent_notifications_at"] is not None
+
+    r3 = await _create_sub(client, headers, body)
+    assert r3.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_withdraw_consent_blocks_new_subscriptions_but_keeps_account(client):
+    _, headers = await _register_and_login(client)
+    body = {"type": "launch", "ll2_id": "consent-003", "notify_email": True, "notify_sms": False}
+    r = await _create_sub(client, headers, body)
+    assert r.status_code == 201
+
+    r2 = await client.post("/api/v1/auth/consent", json={"granted": False}, headers=headers)
+    assert r2.status_code == 200
+    assert r2.json()["consent_notifications_at"] is None
+
+    # Account still intact — /me still works, prior subscription untouched.
+    r3 = await client.get("/api/v1/auth/me", headers=headers)
+    assert r3.status_code == 200
+
+    body2 = {"type": "agency", "agency_name": "SpaceX", "notify_email": True, "notify_sms": False}
+    r4 = await _create_sub(client, headers, body2)
+    assert r4.status_code == 403
+    assert r4.json()["detail"]["error"]["code"] == "CONSENT_REQUIRED"
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +282,7 @@ async def test_unsubscribe_by_token_wrong_user(client, settings):
 @pytest.mark.asyncio
 async def test_unsubscribe_by_token_expired(client, settings):
     from datetime import datetime, timedelta, timezone
-    from jose import jwt
+    import jwt
 
     # Manually create an expired token
     payload = {
@@ -248,13 +302,18 @@ async def test_unsubscribe_by_token_expired(client, settings):
 # ---------------------------------------------------------------------------
 
 
-async def _make_user(session: AsyncSession, email: str) -> User:
+async def _make_user(session: AsyncSession, email: str, *, consent: bool = True) -> User:
+    from datetime import datetime, timezone
+
     user = User(
         first_name="Svc",
         last_name="Test",
         email=email,
         password_hash=auth_service.hash_password("pass"),
     )
+    if consent:
+        user.consent_notifications_at = datetime.now(timezone.utc)
+        user.consent_source = "test-fixture"
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -277,7 +336,7 @@ async def test_service_create_and_get_subscription(db_session):
 
     user = await _make_user(db_session, "svc_create@example.com")
     req = CreateSubscriptionRequest(type="launch", ll2_id="svc-001", notify_email=True, notify_sms=False)
-    sub = await create_subscription(db_session, user.id, req)
+    sub = await create_subscription(db_session, user, req)
     assert sub.id is not None
     assert sub.ll2_id == "svc-001"
 
@@ -303,7 +362,7 @@ async def test_service_delete_subscription_success(db_session):
 
     user = await _make_user(db_session, "svc_del@example.com")
     req = CreateSubscriptionRequest(type="agency", agency_name="NASA", notify_email=False, notify_sms=True)
-    sub = await create_subscription(db_session, user.id, req)
+    sub = await create_subscription(db_session, user, req)
     await delete_subscription(db_session, sub.id, user.id)
 
     result = await db_session.execute(select(Subscription).where(Subscription.id == sub.id))
@@ -317,7 +376,7 @@ async def test_service_unsubscribe_by_token_success(db_session, settings):
 
     user = await _make_user(db_session, "svc_unsub@example.com")
     req = CreateSubscriptionRequest(type="launch", ll2_id="svc-tok-001", notify_email=True, notify_sms=False)
-    sub = await create_subscription(db_session, user.id, req)
+    sub = await create_subscription(db_session, user, req)
 
     token = create_unsubscribe_token(sub.id, user.id, settings)
     await unsubscribe_by_token(db_session, token, settings)
@@ -334,7 +393,7 @@ async def test_service_unsubscribe_by_token_wrong_user(db_session, settings):
 
     user = await _make_user(db_session, "svc_wrong@example.com")
     req = CreateSubscriptionRequest(type="launch", ll2_id="svc-tok-002", notify_email=True, notify_sms=False)
-    sub = await create_subscription(db_session, user.id, req)
+    sub = await create_subscription(db_session, user, req)
 
     token = create_unsubscribe_token(sub.id, 9999, settings)
     with pytest.raises(HTTPException) as exc_info:
@@ -346,7 +405,7 @@ async def test_service_unsubscribe_by_token_wrong_user(db_session, settings):
 async def test_service_unsubscribe_malformed_token(db_session, settings):
     from datetime import datetime, timedelta, timezone
     from fastapi import HTTPException
-    from jose import jwt
+    import jwt
     from app.services.subscription_service import unsubscribe_by_token
 
     payload = {

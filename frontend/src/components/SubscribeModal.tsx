@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMe } from "@/hooks/useAuth";
+import { useMe, useSetConsent } from "@/hooks/useAuth";
 import {
   useCreateSubscription,
   useSubscriptions,
@@ -19,16 +19,19 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
   const { data: user, isError: isMeError, error: meError } = useMe();
   const { data: subscriptions } = useSubscriptions();
   const createSubscription = useCreateSubscription();
+  const setConsent = useSetConsent();
 
   const [subscribeLaunch, setSubscribeLaunch] = useState(false);
   const [subscribeAgency, setSubscribeAgency] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState(false);
   const [notifySms, setNotifySms] = useState(false);
+  const [grantConsent, setGrantConsent] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const isUnauthenticated = isMeError && meError && meError.status === 401;
+  const hasConsent = !!user?.consent_notifications_at;
 
   const isLaunchSubscribed = subscriptions?.some(
     (s) => s.type === "launch" && s.ll2_id === launch.ll2_id
@@ -40,6 +43,15 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
 
   async function handleConfirm() {
     if (!user) return;
+    if (!hasConsent) {
+      if (!grantConsent) return;
+      try {
+        await setConsent.mutateAsync(true);
+      } catch {
+        setStatus(t("subscriptions.failedSubscribe"));
+        return;
+      }
+    }
     const tasks = [];
 
     if (subscribeLaunch && !isLaunchSubscribed) {
@@ -191,6 +203,22 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
               </p>
             )}
 
+            {!hasConsent && (
+              <fieldset data-testid="consent-prompt">
+                <legend>{t("subscriptions.consentRequiredTitle")}</legend>
+                <p>{t("subscriptions.consentRequiredPrompt")}</p>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={grantConsent}
+                    onChange={(e) => setGrantConsent(e.target.checked)}
+                    data-testid="checkbox-consent"
+                  />
+                  {" "}{t("auth.consentNotifications")}
+                </label>
+              </fieldset>
+            )}
+
             {status && <p data-testid="subscribe-status">{status}</p>}
 
             <div className="modal-actions">
@@ -198,7 +226,7 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
                 type="button"
                 onClick={handleConfirm}
                 data-testid="confirm-subscribe"
-                disabled={createSubscription.isPending}
+                disabled={createSubscription.isPending || setConsent.isPending || (!hasConsent && !grantConsent)}
               >
                 {t("subscriptions.confirm")}
               </button>

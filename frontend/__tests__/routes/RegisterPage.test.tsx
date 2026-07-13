@@ -14,7 +14,7 @@ afterEach(async () => {
 async function fillBaseForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/First Name/i), "Alice");
   await user.type(screen.getByLabelText(/Last Name/i), "Liddell");
-  await user.type(screen.getByLabelText(/Email/i), "alice@example.com");
+  await user.type(screen.getByLabelText(/^Email/i), "alice@example.com");
   await user.type(screen.getByLabelText(/^Password$/i), "securepassword");
   await user.type(screen.getByLabelText(/Confirm Password/i), "securepassword");
 }
@@ -53,6 +53,35 @@ describe("RegisterPage", () => {
     expect(screen.getByRole("button", { name: /Creating account/i })).toBeInTheDocument();
   });
 
+  it("consent checkbox — unticked by default, sent as true when checked", async () => {
+    let postBody: { consent_notifications?: boolean } | null = null;
+    server.use(
+      http.post("/api/v1/auth/register", async ({ request }) => {
+        postBody = (await request.json()) as { consent_notifications?: boolean };
+        return HttpResponse.json(
+          { id: 1, message: "Registration successful." },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<RegisterPage />);
+
+    const consentCheckbox = screen.getByLabelText(/email\/SMS notifications/i);
+    expect(consentCheckbox).not.toBeChecked();
+
+    await fillBaseForm(user);
+    await user.click(consentCheckbox);
+    expect(consentCheckbox).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: /Register/i }));
+
+    await waitFor(() => {
+      expect(postBody).toMatchObject({ consent_notifications: true });
+    });
+  });
+
   it("error state — shows registration error from API", async () => {
     server.use(
       http.post("/api/v1/auth/register", () =>
@@ -79,7 +108,7 @@ describe("RegisterPage", () => {
 
     await user.type(screen.getByLabelText(/First Name/i), "Alice");
     await user.type(screen.getByLabelText(/Last Name/i), "Liddell");
-    await user.type(screen.getByLabelText(/Email/i), "alice@example.com");
+    await user.type(screen.getByLabelText(/^Email/i), "alice@example.com");
     await user.type(screen.getByLabelText(/^Password$/i), "short");
     await user.type(screen.getByLabelText(/Confirm Password/i), "short");
     await user.click(screen.getByRole("button", { name: /Register/i }));
@@ -94,7 +123,7 @@ describe("RegisterPage", () => {
 
     await user.type(screen.getByLabelText(/First Name/i), "Alice");
     await user.type(screen.getByLabelText(/Last Name/i), "Liddell");
-    await user.type(screen.getByLabelText(/Email/i), "alice@example.com");
+    await user.type(screen.getByLabelText(/^Email/i), "alice@example.com");
     await user.type(screen.getByLabelText(/^Password$/i), "securepassword");
     await user.type(screen.getByLabelText(/Confirm Password/i), "differentpassword");
     await user.click(screen.getByRole("button", { name: /Register/i }));

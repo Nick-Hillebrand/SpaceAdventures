@@ -190,7 +190,6 @@ export interface CreateSubscriptionRequest {
 
 export interface TokenResponse {
   access_token: string;
-  refresh_token: string;
 }
 
 export interface UserResponse {
@@ -202,6 +201,7 @@ export interface UserResponse {
   email_verified: boolean;
   phone_verified: boolean;
   created_at: string;
+  consent_notifications_at: string | null;
 }
 
 export interface SettingsStatus {

@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -168,9 +168,10 @@ async def test_login_route_wrong_password(db_session, settings):
     request = MagicMock()
     request.client = MagicMock()
     request.client.host = "127.0.0.1"
+    response = Response()
 
     with pytest.raises(HTTPException) as exc_info:
-        await login(body=body, request=request, session=db_session, settings=settings)
+        await login(body=body, request=request, response=response, session=db_session, settings=settings)
     assert exc_info.value.status_code == 401
 
 
@@ -190,6 +191,7 @@ async def test_login_route_rate_limited(db_session, settings):
     request = MagicMock()
     request.client = MagicMock()
     request.client.host = "127.0.0.1"
+    response = Response()
 
     # Exhaust rate limit via service (faster than HTTP)
     for _ in range(5):
@@ -198,9 +200,9 @@ async def test_login_route_rate_limited(db_session, settings):
         except ValueError:
             pass
 
-    response = await login(body=body, request=request, session=db_session, settings=settings)
-    assert isinstance(response, JSONResponse)
-    assert response.status_code == 429
+    result = await login(body=body, request=request, response=response, session=db_session, settings=settings)
+    assert isinstance(result, JSONResponse)
+    assert result.status_code == 429
 
 
 async def test_refresh_route_invalid_token(db_session, settings):
@@ -209,8 +211,11 @@ async def test_refresh_route_invalid_token(db_session, settings):
     from app.schemas.auth import RefreshRequest
 
     body = RefreshRequest(refresh_token="notavalidtoken")
+    request = MagicMock()
+    request.cookies = {}
+    response = Response()
     with pytest.raises(HTTPException) as exc_info:
-        await refresh(body=body, session=db_session, settings=settings)
+        await refresh(request=request, response=response, session=db_session, settings=settings, body=body)
     assert exc_info.value.status_code == 401
 
 
@@ -220,8 +225,11 @@ async def test_logout_route_invalid_token(db_session, settings):
     from app.schemas.auth import LogoutRequest
 
     body = LogoutRequest(refresh_token="notavalidtoken")
+    request = MagicMock()
+    request.cookies = {}
+    response = Response()
     with pytest.raises(HTTPException) as exc_info:
-        await logout(body=body, session=db_session)
+        await logout(request=request, response=response, session=db_session, settings=settings, body=body)
     assert exc_info.value.status_code == 401
 
 

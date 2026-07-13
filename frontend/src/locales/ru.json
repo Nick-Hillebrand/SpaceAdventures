@@ -140,7 +140,8 @@
     "phoneOtpSection": "OTP по телефону",
     "verifyEmailButton": "Подтвердить email",
     "verifyPhoneButton": "Подтвердить телефон",
-    "loginFailed": "Ошибка входа. Проверьте ваши данные."
+    "loginFailed": "Ошибка входа. Проверьте ваши данные.",
+    "consentNotifications": "Я согласен(на) получать уведомления по email/SMS о запусках и обновлениях миссий."
   },
   "account": {
     "title": "Мой аккаунт",
@@ -160,7 +161,17 @@
     "name": "Имя",
     "email": "Email",
     "phone": "Телефон",
-    "loadingSubscriptions": "Загрузка подписок…"
+    "loadingSubscriptions": "Загрузка подписок…",
+    "dangerZone": "Опасная зона",
+    "downloadData": "Скачать мои данные",
+    "exportFailed": "Не удалось экспортировать данные. Попробуйте ещё раз.",
+    "deleteAccount": "Удалить аккаунт",
+    "deleteAccountWarning": "Это безвозвратно удалит ваш аккаунт и все данные. Это действие нельзя отменить.",
+    "deleteAccountConfirmLabel": "Введите {{identifier}} для подтверждения",
+    "deleteAccountPasswordLabel": "Текущий пароль",
+    "deleteAccountConfirmButton": "Безвозвратно удалить мой аккаунт",
+    "deleteAccountCancel": "Отмена",
+    "deleteFailed": "Не удалось удалить аккаунт. Проверьте пароль и попробуйте снова."
   },
   "subscriptions": {
     "subscribeButton": "Подписаться",
@@ -185,7 +196,9 @@
     "confirmUnsubscribeText": "Нажмите кнопку ниже, чтобы подтвердить отписку от уведомлений о запусках.",
     "confirmButton": "Подтвердить отписку",
     "unsubscribedTitle": "Отписан",
-    "unsubscribedSuccess": "Вы успешно отписались."
+    "unsubscribedSuccess": "Вы успешно отписались.",
+    "consentRequiredTitle": "Требуется согласие на уведомления",
+    "consentRequiredPrompt": "Прежде чем подписаться, необходимо дать согласие на получение уведомлений."
   },
   "settings": {
     "title": "Настройки",

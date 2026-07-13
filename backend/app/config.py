@@ -3,6 +3,8 @@ from __future__ import annotations
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_MIN_SECRET_LENGTH = 32
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -53,6 +55,22 @@ class Settings(BaseSettings):
     # HTTP client
     http_timeout_seconds: float = 10.0
 
+    # Cookies (P1.4) — Secure attribute on the refresh-token cookie; True in
+    # prod, disabled only for plain-HTTP local dev.
+    cookie_secure: bool = Field(default=True)
+
+    # Rate limiting (P1.6) — only trust X-Forwarded-For when behind a proxy
+    # we control (Caddy in prod); never in dev, to prevent IP spoofing.
+    trust_proxy_headers: bool = Field(default=False)
+
+    # DeepL (P1.7)
+    deepl_api_key: str = ""
+    deepl_base_url: str = "https://api-free.deepl.com"
+
+    # API docs (25-security-testing.md §5) — disabled by default, only
+    # enabled explicitly in non-prod deploys.
+    expose_docs: bool = Field(default=False)
+
     # Feature flags for tests (allow bypass of secret requirements in dev/test)
     require_secrets: bool = Field(default=True)
 
@@ -60,18 +78,23 @@ class Settings(BaseSettings):
     def _validate_secrets(self) -> "Settings":
         if not self.require_secrets:
             return self
-        missing = [
-            name
-            for name, value in (
-                ("JWT_SECRET_KEY", self.jwt_secret_key),
-                ("UNSUBSCRIBE_SECRET_KEY", self.unsubscribe_secret_key),
-                ("ADMIN_API_KEY", self.admin_api_key),
-            )
-            if not value
-        ]
+        secret_fields = (
+            ("JWT_SECRET_KEY", self.jwt_secret_key),
+            ("UNSUBSCRIBE_SECRET_KEY", self.unsubscribe_secret_key),
+            ("ADMIN_API_KEY", self.admin_api_key),
+        )
+        missing = [name for name, value in secret_fields if not value]
         if missing:
             raise ValueError(
                 "Missing required environment variables: " + ", ".join(missing)
+            )
+        too_short = [
+            name for name, value in secret_fields if len(value) < _MIN_SECRET_LENGTH
+        ]
+        if too_short:
+            raise ValueError(
+                f"Environment variables must be at least {_MIN_SECRET_LENGTH} "
+                "characters long: " + ", ".join(too_short)
             )
         return self
 

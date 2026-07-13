@@ -13,6 +13,10 @@ class RegisterRequest(BaseModel):
     email: str | None = Field(default=None, max_length=254)
     phone: str | None = Field(default=None, max_length=32)
     password: str
+    # P1.9: unticked by default in the UI — registering without it still
+    # creates the account, it just can't create notification subscriptions
+    # until consent is granted.
+    consent_notifications: bool = False
 
     @field_validator("email")
     @classmethod
@@ -47,15 +51,25 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # P1.4: the refresh token normally rides in the `sa_refresh` httpOnly
+    # cookie, not the body. Body token accepted for one release only, for
+    # clients mid-migration; remove once no such clients remain.
+    refresh_token: str | None = None
 
 
 class LogoutRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str | None = None
+
+
+class ConsentRequest(BaseModel):
+    granted: bool
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str
 
 
 class UserResponse(BaseModel):
@@ -67,5 +81,6 @@ class UserResponse(BaseModel):
     email_verified: bool
     phone_verified: bool
     created_at: datetime
+    consent_notifications_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)

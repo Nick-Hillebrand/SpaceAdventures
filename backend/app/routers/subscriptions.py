@@ -46,7 +46,7 @@ async def create_subscription(
     current_user: User = Depends(get_current_user_dep),
     session: AsyncSession = Depends(get_db),
 ) -> SubscriptionOut:
-    sub = await subscription_service.create_subscription(session, current_user.id, body)
+    sub = await subscription_service.create_subscription(session, current_user, body)
     return SubscriptionOut.model_validate(sub)
 
 

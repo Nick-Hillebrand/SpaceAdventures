@@ -364,7 +364,7 @@ def test_sms_truncated_to_160_chars():
 
 def test_unsubscribe_token_uses_correct_key(settings):
     """Unsubscribe token should be signed with UNSUBSCRIBE_SECRET_KEY, not JWT_SECRET_KEY."""
-    from jose import jwt
+    import jwt
 
     settings2 = settings.model_copy(
         update={
@@ -380,8 +380,7 @@ def test_unsubscribe_token_uses_correct_key(settings):
 
     # Should NOT decode with JWT key
     import pytest as _pytest
-    from jose import JWTError
-    with _pytest.raises(JWTError):
+    with _pytest.raises(jwt.PyJWTError):
         jwt.decode(token, "jwt-test-key", algorithms=["HS256"])
 
 

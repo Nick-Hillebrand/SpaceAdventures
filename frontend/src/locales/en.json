@@ -140,7 +140,8 @@
     "phoneOtpSection": "Phone OTP",
     "verifyEmailButton": "Verify Email",
     "verifyPhoneButton": "Verify Phone",
-    "loginFailed": "Login failed. Please check your credentials."
+    "loginFailed": "Login failed. Please check your credentials.",
+    "consentNotifications": "I agree to receive email/SMS notifications about launches and mission updates."
   },
   "account": {
     "title": "My Account",
@@ -160,7 +161,17 @@
     "name": "Name",
     "email": "Email",
     "phone": "Phone",
-    "loadingSubscriptions": "Loading subscriptions…"
+    "loadingSubscriptions": "Loading subscriptions…",
+    "dangerZone": "Danger Zone",
+    "downloadData": "Download my data",
+    "exportFailed": "Failed to export data. Please try again.",
+    "deleteAccount": "Delete account",
+    "deleteAccountWarning": "This permanently deletes your account and all its data. This cannot be undone.",
+    "deleteAccountConfirmLabel": "Type {{identifier}} to confirm",
+    "deleteAccountPasswordLabel": "Current password",
+    "deleteAccountConfirmButton": "Permanently delete my account",
+    "deleteAccountCancel": "Cancel",
+    "deleteFailed": "Failed to delete account. Check your password and try again."
   },
   "subscriptions": {
     "subscribeButton": "Subscribe",
@@ -185,7 +196,9 @@
     "confirmUnsubscribeText": "Click the button below to confirm that you want to unsubscribe from launch notifications.",
     "confirmButton": "Confirm Unsubscribe",
     "unsubscribedTitle": "Unsubscribed",
-    "unsubscribedSuccess": "You have been unsubscribed successfully."
+    "unsubscribedSuccess": "You have been unsubscribed successfully.",
+    "consentRequiredTitle": "Notification Consent Required",
+    "consentRequiredPrompt": "You need to consent to receive notifications before subscribing."
   },
   "settings": {
     "title": "Settings",
