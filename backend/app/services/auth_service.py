@@ -1,7 +1,6 @@
 """Authentication service — passwords, JWTs, OTPs, login rate-limiting."""
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import secrets
@@ -21,12 +20,6 @@ logger = logging.getLogger(__name__)
 
 # P7: CryptContext defined ONCE at module level — never inside a function
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
-
-# P10: module-level lock for refresh token rotation
-_REFRESH_LOCK: asyncio.Lock = asyncio.Lock()
-
-# P9: module-level lock for OTP rate-limit check
-_OTP_LOCK: asyncio.Lock = asyncio.Lock()
 
 # Dummy hash used for constant-time verification when user not found
 _DUMMY_HASH = pwd_context.hash("dummy-password-for-timing")
@@ -282,45 +275,52 @@ async def verify_otp(
 
     Returns True on success, False on failure.
     Increments failed_attempts; deletes OTP row after _MAX_OTP_FAILURES wrong tries.
+
+    # CONCURRENCY: requires Postgres row lock in multi-worker deployments —
+    # locks the user row (a no-op on SQLite) as the serialization point for
+    # concurrent verification attempts (17-worker-and-scheduling.md P3.3).
     """
-    async with _OTP_LOCK:
-        result = await session.execute(
-            select(Otp).where(
-                Otp.user_id == user_id,
-                Otp.channel == channel,
-                Otp.used == False,  # noqa: E712
-            ).order_by(Otp.created_at.desc()).limit(1)
-        )
-        otp = result.scalar_one_or_none()
+    user_result = await session.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    user = user_result.scalar_one_or_none()
 
-        if otp is None:
-            return False
+    result = await session.execute(
+        select(Otp).where(
+            Otp.user_id == user_id,
+            Otp.channel == channel,
+            Otp.used == False,  # noqa: E712
+        ).order_by(Otp.created_at.desc()).limit(1)
+    )
+    otp = result.scalar_one_or_none()
 
-        now = datetime.now(timezone.utc)
-        otp_expires = otp.expires_at
-        # Ensure timezone-aware comparison
-        if otp_expires.tzinfo is None:
-            otp_expires = otp_expires.replace(tzinfo=timezone.utc)
-        if otp_expires < now:
-            return False
+    if otp is None:
+        return False
 
-        if not verify_otp_code(code, otp.code_hash):
-            otp.failed_attempts += 1
-            if otp.failed_attempts >= _MAX_OTP_FAILURES:
-                await session.delete(otp)
-            await session.commit()
-            return False
+    now = datetime.now(timezone.utc)
+    otp_expires = otp.expires_at
+    # Ensure timezone-aware comparison
+    if otp_expires.tzinfo is None:
+        otp_expires = otp_expires.replace(tzinfo=timezone.utc)
+    if otp_expires < now:
+        return False
 
-        # Success
-        otp.used = True
-        user = await session.get(User, user_id)
-        if user is not None:
-            if channel == "email":
-                user.email_verified = True
-            elif channel == "phone":
-                user.phone_verified = True
+    if not verify_otp_code(code, otp.code_hash):
+        otp.failed_attempts += 1
+        if otp.failed_attempts >= _MAX_OTP_FAILURES:
+            await session.delete(otp)
         await session.commit()
-        return True
+        return False
+
+    # Success
+    otp.used = True
+    if user is not None:
+        if channel == "email":
+            user.email_verified = True
+        elif channel == "phone":
+            user.phone_verified = True
+    await session.commit()
+    return True
 
 
 async def resend_otp(
@@ -329,33 +329,38 @@ async def resend_otp(
     channel: str,
     settings: Settings,
 ) -> None:
-    """Rate-limited OTP resend. Raises ValueError("OTP_RATE_LIMIT") if exceeded."""
-    # P9: atomic check under lock
-    async with _OTP_LOCK:
-        window_start = datetime.now(timezone.utc) - timedelta(seconds=_OTP_RESEND_WINDOW_SECONDS)
-        result = await session.execute(
-            select(func.count()).select_from(Otp).where(
-                Otp.user_id == user_id,
-                Otp.channel == channel,
-                Otp.created_at >= window_start,
-            )
-        )
-        count = result.scalar_one()
-        if count > _MAX_OTP_RESENDS:
-            raise ValueError("OTP_RATE_LIMIT")
+    """Rate-limited OTP resend. Raises ValueError("OTP_RATE_LIMIT") if exceeded.
 
-        now = datetime.now(timezone.utc)
-        expires = now + timedelta(seconds=_OTP_TTL_SECONDS)
-        code = generate_otp()
-        otp = Otp(
-            user_id=user_id,
-            channel=channel,
-            code_hash=hash_otp(code),
-            expires_at=expires,
+    # CONCURRENCY: requires Postgres row lock in multi-worker deployments —
+    # locks the user row (a no-op on SQLite) as the serialization point for
+    # the rate-limit count check (17-worker-and-scheduling.md P3.3).
+    """
+    await session.execute(select(User).where(User.id == user_id).with_for_update())
+
+    window_start = datetime.now(timezone.utc) - timedelta(seconds=_OTP_RESEND_WINDOW_SECONDS)
+    result = await session.execute(
+        select(func.count()).select_from(Otp).where(
+            Otp.user_id == user_id,
+            Otp.channel == channel,
+            Otp.created_at >= window_start,
         )
-        session.add(otp)
-        await session.commit()
-        _log_otp_stub(user_id, channel, code, settings)
+    )
+    count = result.scalar_one()
+    if count > _MAX_OTP_RESENDS:
+        raise ValueError("OTP_RATE_LIMIT")
+
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(seconds=_OTP_TTL_SECONDS)
+    code = generate_otp()
+    otp = Otp(
+        user_id=user_id,
+        channel=channel,
+        code_hash=hash_otp(code),
+        expires_at=expires,
+    )
+    session.add(otp)
+    await session.commit()
+    _log_otp_stub(user_id, channel, code, settings)
 
 
 async def login(
@@ -442,49 +447,53 @@ async def refresh_tokens(
     raw_refresh_token: str,
     settings: Settings,
 ) -> tuple[str, str]:
-    """Rotate refresh tokens (P10: uses _REFRESH_LOCK).
+    """Rotate refresh tokens.
 
     Raises ValueError on invalid/revoked/expired token.
+
+    # CONCURRENCY: requires Postgres row lock in multi-worker deployments —
+    # SELECT ... FOR UPDATE on the refresh-token row (a no-op on SQLite) is
+    # the only mechanism serializing concurrent rotation attempts
+    # (17-worker-and-scheduling.md P3.3).
     """
     token_hash = hash_refresh_token(raw_refresh_token)
 
-    async with _REFRESH_LOCK:
-        result = await session.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-        )
-        token_row = result.scalar_one_or_none()
+    result = await session.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash).with_for_update()
+    )
+    token_row = result.scalar_one_or_none()
 
-        if token_row is None:
-            raise ValueError("INVALID_REFRESH_TOKEN")
+    if token_row is None:
+        raise ValueError("INVALID_REFRESH_TOKEN")
 
-        if token_row.revoked:
-            raise ValueError("REVOKED_REFRESH_TOKEN")
+    if token_row.revoked:
+        raise ValueError("REVOKED_REFRESH_TOKEN")
 
-        now = datetime.now(timezone.utc)
-        expires = token_row.expires_at
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        if expires < now:
-            raise ValueError("EXPIRED_REFRESH_TOKEN")
+    now = datetime.now(timezone.utc)
+    expires = token_row.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < now:
+        raise ValueError("EXPIRED_REFRESH_TOKEN")
 
-        # Revoke old token
-        token_row.revoked = True
+    # Revoke old token
+    token_row.revoked = True
 
-        # Issue new tokens
-        access_token = create_access_token(token_row.user_id, settings)
-        new_raw = create_refresh_token_raw()
-        new_hash = hash_refresh_token(new_raw)
-        new_expires = now + timedelta(seconds=settings.refresh_token_ttl_seconds)
+    # Issue new tokens
+    access_token = create_access_token(token_row.user_id, settings)
+    new_raw = create_refresh_token_raw()
+    new_hash = hash_refresh_token(new_raw)
+    new_expires = now + timedelta(seconds=settings.refresh_token_ttl_seconds)
 
-        new_token_row = RefreshToken(
-            user_id=token_row.user_id,
-            token_hash=new_hash,
-            expires_at=new_expires,
-        )
-        session.add(new_token_row)
-        await session.commit()
+    new_token_row = RefreshToken(
+        user_id=token_row.user_id,
+        token_hash=new_hash,
+        expires_at=new_expires,
+    )
+    session.add(new_token_row)
+    await session.commit()
 
-        return access_token, new_raw
+    return access_token, new_raw
 
 
 async def logout(session: AsyncSession, raw_refresh_token: str) -> None:

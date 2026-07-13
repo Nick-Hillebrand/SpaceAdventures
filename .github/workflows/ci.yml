@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+
+jobs:
+  # 16-postgres-migration.md P2.5: the suite runs on both dialects. SQLite
+  # is dev parity; Postgres is the production dialect and the only one
+  # where FOR UPDATE row locks (17-worker-and-scheduling.md P3.3) are
+  # actually exercised -- `postgres_only`-marked tests only run here.
+  backend-sqlite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pytest --cov=app --cov-branch --cov-report=json
+      - run: python scripts/check_module_coverage.py
+
+  backend-postgres:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: space_adventures_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/space_adventures_test
+      DATABASE_URL_SYNC: postgresql+psycopg://postgres:postgres@localhost:5432/space_adventures_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      # Smoke-checks that the squashed migration actually applies to a real
+      # Postgres server (10-…/16-… rule: migrations are explicit deploy
+      # steps, never implicit at startup -- CI is where drift would surface).
+      - run: alembic upgrade head
+      - run: pytest --cov=app --cov-branch --cov-report=json
+      - run: python scripts/check_module_coverage.py
+
+  backend-security:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      # flake8-bandit (S codes) -- 25-security-testing.md §4. Confirmed
+      # false positives are silenced inline with `# noqa: S### -- reason`
+      # (see pyproject.toml); any new hit fails the build.
+      - run: ruff check --select S .
+      # pip-audit has no built-in severity filter (unlike `npm audit
+      # --audit-level`), so this fails on any known advisory rather than
+      # only high/critical -- stricter than the §4 table, deliberately.
+      - run: pip-audit -r requirements.txt
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run test:coverage
+      - run: npm run validate:missions
+      # tsc -b (type-check) + vite build; produces dist/ + the manifest
+      # that check:bundle and the Lighthouse job below both read.
+      - run: npm run build
+      - run: npm run check:bundle
+      - run: npm audit --omit=dev --audit-level=high
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  # 26-performance.md §2.2 / §4: web-vitals budget gate. Runs against the
+  # same build the frontend job already produced (kept as a separate job so
+  # a flaky Lighthouse run doesn't block the pass/fail signal of the build
+  # and unit-test job above). lighthouserc.json's `staticDistDir` serves
+  # `dist/` itself -- these three routes render without a live backend
+  # (loading/error states still paint), so no API mocking is wired up here.
+  # The SEO launch page (Step B2) and /embed/next-launch (Step L3) are
+  # deliberately excluded until those routes exist.
+  frontend-lighthouse:
+    runs-on: ubuntu-latest
+    needs: frontend
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+      - run: npx lhci autorun
+
+  # 25-security-testing.md §4: full-history scan on main, diff-only on PRs.
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

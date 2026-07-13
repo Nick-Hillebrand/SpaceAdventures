@@ -1,8 +1,8 @@
 # Worker Process, Scheduling & Multi-Worker Web Tier (v2 Step P3)
 
-Removes the `--workers 1` constraint (CLAUDE.md v1 rule 7 — **deleted** once
-this step is done). After this step: the web tier runs 4–8 stateless Uvicorn
-workers; ALL background jobs run in one dedicated worker container.
+Removes the `--workers 1` constraint that used to govern the web tier. The
+web tier now runs 4–8 stateless Uvicorn workers; ALL background jobs run in
+one dedicated worker container.
 
 Requires `16-postgres-migration.md` complete.
 

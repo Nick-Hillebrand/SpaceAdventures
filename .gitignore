@@ -15,6 +15,7 @@ dist/
 coverage/
 .vite/
 *.tsbuildinfo
+.lighthouseci/
 
 # Env
 .env

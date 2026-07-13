@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import AsyncIterator
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
@@ -95,3 +96,17 @@ async def client(db_engine, settings) -> AsyncIterator[AsyncClient]:
         await app.state.n2yo_client.close()
         await app.state.ll2_client.close()
         await app.state.mars_raw_images_client.close()
+
+
+def pytest_collection_modifyitems(config, items):
+    # 17-worker-and-scheduling.md P3.3: on SQLite, `with_for_update()` is a
+    # silent no-op — these tests would only prove single-writer serialization,
+    # not the Postgres row-locking they exist to verify. CI runs the full
+    # suite a second time with DATABASE_URL pointed at a postgres service,
+    # where they actually execute.
+    if _TEST_DATABASE_URL.startswith("postgresql"):
+        return
+    skip_postgres_only = pytest.mark.skip(reason="requires Postgres (DATABASE_URL is SQLite)")
+    for item in items:
+        if "postgres_only" in item.keywords:
+            item.add_marker(skip_postgres_only)

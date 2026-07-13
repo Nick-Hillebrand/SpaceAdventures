@@ -303,46 +303,40 @@ async def test_iss_quota_direct(db_session):
 # ---------------------------------------------------------------------------
 
 
-async def test_lifespan_initial_sync_when_empty(settings):
-    """Lifespan runs initial sync when table is empty."""
+async def test_lifespan_scheduler_disabled_by_default(settings):
+    """The web tier never schedules jobs unless SCHEDULER_IN_APP is set
+    (17-worker-and-scheduling.md P3.1) — all recurring work lives in
+    `app/worker.py`."""
     from app.main import lifespan, create_app
 
     app = create_app(settings=settings)
 
-    mock_session = AsyncMock(spec=AsyncSession)
-    mock_ctx = AsyncMock()
-    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_ctx.__aexit__ = AsyncMock(return_value=False)
-
-    with patch("app.main.get_sessionmaker", return_value=lambda: mock_ctx), \
-         patch("app.main.launches_service.is_launches_table_empty", return_value=True) as mock_empty, \
-         patch("app.main.launches_service.sync_launches") as mock_sync:
-
-        async with lifespan(app):
-            pass  # app is "running"
-
-    mock_sync.assert_called()
-
-
-async def test_lifespan_skips_sync_when_populated(settings):
-    """Lifespan skips initial sync when launches table is not empty."""
-    from app.main import lifespan, create_app
-
-    app = create_app(settings=settings)
-
-    mock_session = AsyncMock(spec=AsyncSession)
-    mock_ctx = AsyncMock()
-    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_ctx.__aexit__ = AsyncMock(return_value=False)
-
-    with patch("app.main.get_sessionmaker", return_value=lambda: mock_ctx), \
-         patch("app.main.launches_service.is_launches_table_empty", return_value=False) as mock_empty, \
-         patch("app.main.launches_service.sync_launches") as mock_sync:
-
+    with patch("app.main.register_jobs") as mock_register, \
+         patch("app.main.AsyncIOScheduler") as mock_scheduler_cls:
         async with lifespan(app):
             pass
 
-    mock_sync.assert_not_called()
+    mock_register.assert_not_called()
+    mock_scheduler_cls.assert_not_called()
+
+
+async def test_lifespan_scheduler_in_app_registers_jobs(settings):
+    """SCHEDULER_IN_APP=1 (single-container SQLite dev compose) runs the same
+    job registry in-process instead of a dedicated worker container."""
+    from app.main import lifespan, create_app
+
+    dev_settings = settings.model_copy(update={"scheduler_in_app": True})
+    app = create_app(settings=dev_settings)
+
+    mock_scheduler = MagicMock()
+    with patch("app.main.register_jobs") as mock_register, \
+         patch("app.main.AsyncIOScheduler", return_value=mock_scheduler):
+        async with lifespan(app):
+            pass
+
+    mock_register.assert_called_once()
+    mock_scheduler.start.assert_called_once()
+    mock_scheduler.shutdown.assert_called_once_with(wait=False)
 
 
 def test_default_settings_no_secrets():
@@ -353,3 +347,132 @@ def test_default_settings_no_secrets():
     with patch.dict(os.environ, {"APP_REQUIRE_SECRETS": "0"}):
         s = _default_settings()
     assert s is not None
+
+
+# ---------------------------------------------------------------------------
+# main.py — health endpoint helpers direct-call coverage
+#
+# pytest-cov attributes lines inside a route handler poorly when the route is
+# only ever exercised over ASGI transport (see module docstring). `health` is
+# defined as a closure inside `create_app`, so it isn't importable directly —
+# pull it off the built app's routes instead.
+# ---------------------------------------------------------------------------
+
+
+def _get_health_endpoint(app):
+    route = next(r for r in app.routes if r.path == "/api/v1/health")
+    return route.endpoint
+
+
+def test_quota_status_unconfigured_without_api_key(settings):
+    from app.main import _quota_status
+
+    no_key_settings = settings.model_copy(update={"n2yo_api_key": ""})
+    assert _quota_status(no_key_settings, None) == "unconfigured"
+
+
+def test_quota_status_ok_when_no_row_yet(settings):
+    from app.main import _quota_status
+
+    assert _quota_status(settings, None) == "ok"
+
+
+def test_quota_status_ok_below_warning_threshold(settings):
+    from app.main import _quota_status
+    from app.models.n2yo_quota import N2yoQuota
+
+    row = N2yoQuota(id=1, used=1)
+    assert _quota_status(settings, row) == "ok"
+
+
+def test_quota_status_warning_above_90_percent(settings):
+    from app.main import _quota_status
+    from app.models.n2yo_quota import N2yoQuota
+
+    row = N2yoQuota(id=1, used=int(settings.n2yo_hourly_cap * 0.95))
+    assert _quota_status(settings, row) == "warning"
+
+
+def test_quota_status_exhausted_at_cap(settings):
+    from app.main import _quota_status
+    from app.models.n2yo_quota import N2yoQuota
+
+    row = N2yoQuota(id=1, used=settings.n2yo_hourly_cap)
+    assert _quota_status(settings, row) == "exhausted"
+
+
+async def test_health_snapshot_ok_path(db_session):
+    from app.main import _health_snapshot
+
+    status, job_rows, quota_row = await _health_snapshot(db_session)
+    assert status == "ok"
+    assert job_rows == []
+    assert quota_row is None
+
+
+async def test_health_snapshot_error_path_never_raises():
+    from app.main import _health_snapshot
+
+    broken_session = AsyncMock()
+    broken_session.execute.side_effect = RuntimeError("db is down")
+
+    status, job_rows, quota_row = await _health_snapshot(broken_session)
+    assert status == "error"
+    assert job_rows == []
+    assert quota_row is None
+
+
+async def test_health_route_direct_public_degraded_no_heartbeat(db_session, settings):
+    from app.main import create_app
+
+    app = create_app(settings=settings)
+    health = _get_health_endpoint(app)
+
+    request = MagicMock()
+    request.app.state.settings = settings
+
+    result = await health(request=request, credentials=None, session=db_session)
+    assert result == {"status": "degraded"}
+
+
+async def test_health_route_direct_admin_full_response(db_session, settings):
+    from app.main import create_app
+    from app.models.job_status import JobStatus
+
+    admin_settings = settings.model_copy(update={"admin_api_key": "secret"})
+    db_session.add(
+        JobStatus(job_name="worker_heartbeat", last_success_at=datetime.now(timezone.utc))
+    )
+    await db_session.commit()
+
+    app = create_app(settings=admin_settings)
+    health = _get_health_endpoint(app)
+
+    request = MagicMock()
+    request.app.state.settings = admin_settings
+    credentials = MagicMock()
+    credentials.credentials = "secret"
+
+    result = await health(request=request, credentials=credentials, session=db_session)
+    assert result["status"] == "ok"
+    assert result["db"] == "ok"
+    assert "jobs" in result
+    assert result["jobs"]["worker_heartbeat"] == "ok"
+
+
+async def test_health_route_direct_stale_job_marks_degraded(db_session, settings):
+    from app.main import create_app
+    from app.models.job_status import JobStatus
+
+    stale = datetime.now(timezone.utc) - timedelta(days=1)
+    db_session.add(JobStatus(job_name="worker_heartbeat", last_success_at=stale))
+    await db_session.commit()
+
+    app = create_app(settings=settings)
+    health = _get_health_endpoint(app)
+
+    request = MagicMock()
+    request.app.state.settings = settings
+
+    result = await health(request=request, credentials=None, session=db_session)
+    assert result == {"status": "degraded"}

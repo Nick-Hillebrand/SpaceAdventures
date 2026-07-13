@@ -1,16 +1,24 @@
 import os
+import secrets
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import delete
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import observability
 from app.config import Settings
-from app.database import dispose_engine, get_sessionmaker, init_engine
-from app.models.rate_limit import RateLimitEvent
+from app.database import dispose_engine, get_db, init_engine
+from app.jobs import JOB_STALENESS_SECONDS, register_jobs
+from app.models.job_status import JobStatus
+from app.models.n2yo_quota import N2yoQuota
 from app.routers import apod as apod_router
 from app.routers import iss as iss_router
 from app.routers import mars as mars_router
@@ -20,14 +28,13 @@ from app.routers import auth as auth_router
 from app.routers import launches as launches_router
 from app.routers import subscriptions as subscriptions_router
 from app.routers import settings as settings_router
-from app.services import launches_service
 from app.services import translation_service
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
 from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient, NasaClientError
 
-_RATE_LIMIT_EVENT_RETENTION_HOURS = 24
+_health_bearer = HTTPBearer(auto_error=False)
 
 
 @asynccontextmanager
@@ -40,46 +47,26 @@ async def lifespan(app: FastAPI):
     app.state.mars_raw_images_client = MarsRawImagesClient(settings)
     app.state.translator = translation_service.translate_fields
 
-    scheduler = AsyncIOScheduler()
-
-    async def _sync_job() -> None:
-        async with get_sessionmaker()() as session:
-            await launches_service.sync_launches(
-                session, app.state.ll2_client, settings,
-                translator=app.state.translator,
-            )
-
-    scheduler.add_job(
-        _sync_job,
-        trigger="interval",
-        minutes=settings.ll2_sync_interval_minutes,
-    )
-
-    async def _purge_rate_limit_events_job() -> None:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=_RATE_LIMIT_EVENT_RETENTION_HOURS)
-        async with get_sessionmaker()() as session:
-            await session.execute(delete(RateLimitEvent).where(RateLimitEvent.created_at < cutoff))
-            await session.commit()
-
-    scheduler.add_job(
-        _purge_rate_limit_events_job,
-        trigger="interval",
-        hours=_RATE_LIMIT_EVENT_RETENTION_HOURS,
-    )
-    scheduler.start()
-
-    # Startup: immediate sync if table is empty
-    async with get_sessionmaker()() as session:
-        if await launches_service.is_launches_table_empty(session):
-            await launches_service.sync_launches(
-                session, app.state.ll2_client, settings,
-                translator=app.state.translator,
-            )
+    # The web tier never schedules background work (CLAUDE.md rule 7) — ALL
+    # recurring jobs run in the dedicated `app/worker.py` process. The one
+    # exception is dev convenience: SCHEDULER_IN_APP=1 lets a single-container
+    # SQLite dev compose run the same job registry in-process. Prod compose
+    # never sets this (17-worker-and-scheduling.md P3.1).
+    scheduler: AsyncIOScheduler | None = None
+    if settings.scheduler_in_app:
+        clients = SimpleNamespace(
+            ll2_client=app.state.ll2_client,
+            translator=app.state.translator,
+        )
+        scheduler = AsyncIOScheduler()
+        register_jobs(scheduler, settings, clients)
+        scheduler.start()
 
     try:
         yield
     finally:
-        scheduler.shutdown(wait=False)
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
         await app.state.nasa_client.close()
         await app.state.n2yo_client.close()
         await app.state.ll2_client.close()
@@ -93,8 +80,53 @@ def _default_settings() -> Settings:
     return Settings(require_secrets=require_secrets)  # type: ignore[call-arg]
 
 
+def _is_admin_health_request(
+    settings: Settings, credentials: HTTPAuthorizationCredentials | None
+) -> bool:
+    if not settings.admin_api_key or credentials is None:
+        return False
+    # Constant-time comparison — a plain != leaks key prefixes via timing.
+    return secrets.compare_digest(credentials.credentials.encode(), settings.admin_api_key.encode())
+
+
+def _smtp_status(settings: Settings) -> str:
+    return "ok" if settings.smtp_host else "unconfigured"
+
+
+def _quota_status(settings: Settings, quota_row: N2yoQuota | None) -> str:
+    if not settings.n2yo_api_key:
+        return "unconfigured"
+    if quota_row is None:
+        return "ok"
+    if quota_row.used >= settings.n2yo_hourly_cap:
+        return "exhausted"
+    if quota_row.used >= settings.n2yo_hourly_cap * 0.9:
+        return "warning"
+    return "ok"
+
+
+async def _health_snapshot(
+    session: AsyncSession,
+) -> tuple[str, list[JobStatus], N2yoQuota | None]:
+    """Read of everything the health endpoint needs, on the request's own
+    session (so tests exercising `get_db` overrides see real data).
+
+    Never raises — a DB outage must degrade the health check, not crash it.
+    """
+    try:
+        await session.execute(text("SELECT 1"))
+        job_rows = list((await session.execute(select(JobStatus))).scalars().all())
+        quota_row = await session.get(N2yoQuota, 1)
+        return "ok", job_rows, quota_row
+    except Exception:  # noqa: BLE001 — health check must never propagate a raw DB error
+        return "error", [], None
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or _default_settings()
+
+    observability.configure_logging()
+    observability.init_sentry(settings, component="web")
 
     app = FastAPI(title="Space Adventures API", lifespan=lifespan)
     app.state.settings = settings
@@ -115,8 +147,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     @app.get("/api/v1/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
+    async def health(
+        request: Request,
+        credentials: HTTPAuthorizationCredentials | None = Depends(_health_bearer),
+        session: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        db_status, job_rows, quota_row = await _health_snapshot(session)
+        now = datetime.now(timezone.utc)
+
+        job_staleness: dict[str, str] = {}
+        for name, budget_seconds in JOB_STALENESS_SECONDS.items():
+            row = next((r for r in job_rows if r.job_name == name), None)
+            if row is None or row.last_success_at is None:
+                job_staleness[name] = "stale"
+            else:
+                age = (now - row.last_success_at).total_seconds()
+                job_staleness[name] = "ok" if age <= budget_seconds else "stale"
+
+        heartbeat_fresh = job_staleness.get("worker_heartbeat") == "ok"
+        public_status = "ok" if db_status == "ok" and heartbeat_fresh else "degraded"
+
+        if not _is_admin_health_request(request.app.state.settings, credentials):
+            return {"status": public_status}
+
+        return {
+            "status": public_status,
+            "db": db_status,
+            "smtp": _smtp_status(request.app.state.settings),
+            "n2yo_quota": {"status": _quota_status(request.app.state.settings, quota_row)},
+            "jobs": job_staleness,
+        }
 
     app.include_router(apod_router.router)
     app.include_router(neo_router.router)

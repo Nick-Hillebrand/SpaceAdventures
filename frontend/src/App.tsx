@@ -9,17 +9,18 @@ import AccountPage from "@/routes/AccountPage";
 import ConfirmUnsubscribePage from "@/routes/ConfirmUnsubscribePage";
 import SettingsPage from "@/routes/SettingsPage";
 import ApodPage from "@/routes/ApodPage";
-import IssPage from "@/routes/IssPage";
 import LaunchesPage from "@/routes/LaunchesPage";
-import MarsPage from "@/routes/MarsPage";
 import NeoPage from "@/routes/NeoPage";
 import SpaceWeatherPage from "@/routes/SpaceWeatherPage";
-import SolarSystemPage from "@/routes/SolarSystemPage";
 
-// Mission replay routes pull in the three.js-backed scene engine; lazy-load
-// their chunk so /apod et al. don't pay for it (26-performance.md bundle budget).
+// Mission replay and the 3D/live-tracking routes pull in the three.js-backed
+// scene engine; lazy-load their chunks so /apod et al. don't pay for it
+// (26-performance.md bundle budget).
 const MissionsIndexPage = lazy(() => import("@/routes/MissionsIndexPage"));
 const MissionPage = lazy(() => import("@/routes/MissionPage"));
+const IssPage = lazy(() => import("@/routes/IssPage"));
+const MarsPage = lazy(() => import("@/routes/MarsPage"));
+const SolarSystemPage = lazy(() => import("@/routes/SolarSystemPage"));
 
 const EMBED_PATH = /^\/missions\/[^/]+\/embed\/?$/;
 

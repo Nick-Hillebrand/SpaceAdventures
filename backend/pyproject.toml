@@ -1,0 +1,16 @@
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# CI's security gate runs `ruff check --select S` (flake8-bandit) per
+# Architecture/25-security-testing.md §4 -- this section only needs to
+# configure that rule set. Confirmed false positives are silenced inline
+# with `# noqa: S### -- reason` rather than disabled here, so new hits in
+# other files still fail CI.
+extend-select = ["S"]
+
+[tool.ruff.lint.per-file-ignores]
+# `assert` is the standard pytest idiom (S101 exists to flag asserts left in
+# shipped/optimized code, not test files), and test fixtures pass literal
+# strings as password/token arguments (S106) -- neither is a real finding.
+"tests/**" = ["S101", "S105", "S106", "S107"]

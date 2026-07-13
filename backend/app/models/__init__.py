@@ -1,5 +1,6 @@
 from app.models.apod import Apod
 from app.models.iss import IssPassSet, IssPositionBatch, IssTle
+from app.models.job_status import JobStatus
 from app.models.launches import Launch
 from app.models.mars import MarsPhoto
 from app.models.n2yo_quota import N2yoQuota
@@ -15,6 +16,7 @@ __all__ = [
     "IssPassSet",
     "IssPositionBatch",
     "IssTle",
+    "JobStatus",
     "Launch",
     "LoginAttempt",
     "MarsPhoto",

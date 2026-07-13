@@ -10,6 +10,7 @@ import unicodedata  # noqa: F401
 from datetime import datetime, timedelta, timezone
 
 import aiosmtplib
+import structlog
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import jwt as _jwt
@@ -23,6 +24,10 @@ from app.models.notification_log import NotificationLog, PendingNotification
 from app.models.subscription import Subscription
 
 logger = logging.getLogger(__name__)
+# Structured events (`notification.sent|failed`) feed the delivery-rate KPI —
+# distinct from `logger` above, which stays plain-text for local dev reading
+# (17-worker-and-scheduling.md P3.6).
+struct_logger = structlog.get_logger(__name__)
 
 _BASE_URL = "https://spaceadventures.app"  # used in unsubscribe links
 
@@ -257,9 +262,13 @@ async def drain_queue(session: AsyncSession, settings: Settings) -> None:
                 )
                 session.add(log)
                 success = True
+                struct_logger.info("notification.sent", channel="email", ll2_id=pending.ll2_id)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Email delivery failed for pending %d: %s", pending.id, exc)
                 error_detail = scrub_error(exc)
+                struct_logger.warning(
+                    "notification.failed", channel="email", reason=error_detail, ll2_id=pending.ll2_id
+                )
 
         # --- SMS ---
         if subscription.notify_sms and user.phone_verified and user.phone:
@@ -274,12 +283,17 @@ async def drain_queue(session: AsyncSession, settings: Settings) -> None:
                 )
                 session.add(log)
                 success = True
+                struct_logger.info("notification.sent", channel="sms", ll2_id=pending.ll2_id)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("SMS delivery failed for pending %d: %s", pending.id, exc)
+                sms_reason = scrub_error(exc)
                 if error_detail is None:
-                    error_detail = scrub_error(exc)
+                    error_detail = sms_reason
                 else:
-                    error_detail = (error_detail + " | " + scrub_error(exc))[:500]
+                    error_detail = (error_detail + " | " + sms_reason)[:500]
+                struct_logger.warning(
+                    "notification.failed", channel="sms", reason=sms_reason, ll2_id=pending.ll2_id
+                )
 
         # --- Post-delivery logic ---
         if success or (not subscription.notify_email and not subscription.notify_sms):

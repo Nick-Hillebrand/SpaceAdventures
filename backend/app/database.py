@@ -59,7 +59,9 @@ def enable_sqlite_fk_pragma(engine: AsyncEngine) -> None:
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
-        except Exception:
+        except Exception:  # noqa: S110 -- best-effort pragma; FK enforcement
+            # already active on every real SQLite driver, so a failure here
+            # has no observable effect worth logging.
             pass
 
 

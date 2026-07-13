@@ -105,6 +105,9 @@ cp .env.example backend/.env
 | `COOKIE_SECURE` | No | `Secure` attribute on the refresh-token cookie. Defaults to `true`; set to `false` only for plain-HTTP local dev. |
 | `TRUST_PROXY_HEADERS` | No | Honor `X-Forwarded-For` for IP-based rate limiting. Defaults to `false`; set to `true` only when running behind a proxy you control (Caddy in prod) — trusting it otherwise lets clients spoof their rate-limit bucket. |
 | `EXPOSE_DOCS` | No | Serve `/docs` and `/openapi.json`. Defaults to `false`; enable only in non-prod deploys. |
+| `SCHEDULER_IN_APP` | No | Run the APScheduler job registry inside this process. Defaults to `false`. `docker-compose.yml` sets this for the dev backend container; set it in your own `.env` too if you run `uvicorn` directly instead of via docker compose. Never set in prod — the dedicated `worker` service (`python -m app.worker`) runs jobs there instead. |
+| `WEB_CONCURRENCY` | No | Uvicorn worker process count for the backend service in production (`docker-compose.prod.yml`). Defaults to `4`. Safe to scale — the web tier is stateless and never schedules jobs. Not used in dev (dev pins `--workers 1`). |
+| `SENTRY_DSN` | No | Sentry error reporting DSN, read by both the `backend` and `worker` processes. Leave blank to disable — Sentry is never a hard dependency. |
 
 > **Note:** The backend starts without the three required secrets (`JWT_SECRET_KEY`, `UNSUBSCRIBE_SECRET_KEY`, `ADMIN_API_KEY`) when `APP_REQUIRE_SECRETS` is not set to `1` (the default for dev). When required, each must be at least 32 characters. Auth endpoints still work without them in dev; JWT tokens are signed with whatever key is configured.
 >
@@ -135,8 +138,18 @@ cp ../.env.example .env
 # Run database migrations
 alembic upgrade head
 
-# Start with hot reload
+# Start with hot reload (single worker — see SCHEDULER_IN_APP below)
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --workers 1
+```
+
+Set `SCHEDULER_IN_APP=1` in your `.env` if you want background jobs (LL2 sync,
+notifications, etc.) to run locally when starting the backend this way. Two
+`--workers` would both run the scheduler with nothing to serialize them under
+SQLite (`FOR UPDATE` is a no-op there), so keep `--workers 1` whenever
+`SCHEDULER_IN_APP=1`. Alternatively, run the worker as its own process:
+
+```bash
+python -m app.worker
 ```
 
 The API is now available at `http://localhost:8000`.  
@@ -181,10 +194,11 @@ Log in at `http://localhost:5173/login`.
 
 ## Production Deployment
 
-The production setup runs the backend behind **Caddy** as a reverse proxy, backed by a **PostgreSQL 17** `db`
-service (see `docker-compose.prod.yml`). Uvicorn must always use `--workers 1` because the APScheduler
-launch-sync job is process-local. Full first-deploy runbook, environment file template, and the
-backup/restore procedure: `Architecture/12-deployment.md`.
+The production stack is **4 containers** (see `docker-compose.prod.yml`): **Caddy** (reverse proxy + TLS),
+**backend** (stateless Uvicorn web tier, `WEB_CONCURRENCY` workers — safe to scale, it never schedules jobs),
+**worker** (dedicated `python -m app.worker` process — the only process that runs scheduled jobs, each job
+guarded by a Postgres advisory lock), and **db** (PostgreSQL 17). Full first-deploy runbook, environment file
+template, and the backup/restore procedure: `Architecture/12-deployment.md`.
 
 ### 1 — Backend
 
@@ -213,10 +227,12 @@ Build the static bundle and serve it from Caddy:
 ```bash
 cd frontend
 npm ci
-npm run build          # outputs to frontend/dist/
+VITE_SENTRY_DSN=<your-frontend-dsn> npm run build   # outputs to frontend/dist/
 ```
 
-Copy `frontend/dist/` to your server (e.g. `/srv/space-adventures/`).
+`VITE_SENTRY_DSN` is optional — leave it unset to skip Sentry entirely (the SDK
+is lazily imported and never lands in the bundle when unset). Copy
+`frontend/dist/` to your server (e.g. `/srv/space-adventures/`).
 
 ### 3 — Caddy
 

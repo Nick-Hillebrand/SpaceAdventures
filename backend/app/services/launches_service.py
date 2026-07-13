@@ -10,7 +10,6 @@ from dateutil.parser import isoparse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
 from app.models.launches import Launch
 from app.models.notification_log import PendingNotification
 from app.models.subscription import Subscription
@@ -166,10 +165,14 @@ async def _insert_pending_notifications(
 async def sync_launches(
     session: AsyncSession,
     client: LL2Client,
-    settings: Settings | None = None,
     translator: _Translator = None,
 ) -> None:
-    """Fetch upcoming launches from LL2 and upsert into the DB."""
+    """Fetch upcoming launches from LL2 and upsert into the DB.
+
+    Only enqueues `PendingNotification` rows — delivery is drained by the
+    dedicated `notification_drain` job (17-worker-and-scheduling.md P3.2),
+    never inline here, so a Twilio/SMTP outage can never delay a sync.
+    """
     try:
         raw_launches = await client.fetch_upcoming()
     except LL2ClientError as exc:
@@ -270,11 +273,6 @@ async def sync_launches(
             gone_launch.status_abbrev = "Gone"
 
     await session.commit()
-
-    # Drain notification queue if settings provided
-    if settings is not None:
-        from app.services import notification_service  # noqa: PLC0415
-        await notification_service.drain_queue(session, settings)
 
 
 async def get_upcoming_launches(

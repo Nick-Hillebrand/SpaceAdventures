@@ -106,9 +106,13 @@ async def test_quota_not_exceeded_at_cap_minus_one(db_session):
 # ── concurrent boundary: two simultaneous calls at used=899 ──────────────────
 
 
+@pytest.mark.postgres_only
 async def test_concurrent_calls_at_boundary(db_session):
     """Only one of two concurrent calls at used=899 should succeed; the other
-    should see quota exhausted."""
+    should see quota exhausted.
+
+    Requires Postgres row locking (`FOR UPDATE` is a no-op on SQLite) —
+    17-worker-and-scheduling.md P3.3."""
     row = N2yoQuota(
         id=1,
         window_start=datetime.now(timezone.utc),

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from sqlalchemy import select
 
 from app.models.launches import Launch
-from app.services import launches_service
 from app.services.launches_service import (
     _extract_image_url,
     _translate_launch,
@@ -223,15 +222,6 @@ async def test_sync_missing_launches_marked_gone(db_session):
     kept = await db_session.get(Launch, "l-2")
     assert gone.status_abbrev == "Gone"
     assert kept.status_abbrev == "Go"
-
-
-async def test_sync_with_settings_drains_queue(db_session, settings):
-    drain = AsyncMock()
-    with patch.object(launches_service.notification_service, "drain_queue", drain) if hasattr(
-        launches_service, "notification_service"
-    ) else patch("app.services.notification_service.drain_queue", drain):
-        await sync_launches(db_session, FakeLL2Client([_raw()]), settings=settings)
-    drain.assert_awaited_once()
 
 
 async def test_is_launches_table_empty(db_session):

@@ -74,6 +74,15 @@ class Settings(BaseSettings):
     # enabled explicitly in non-prod deploys.
     expose_docs: bool = Field(default=False)
 
+    # Worker & scheduling (17-worker-and-scheduling.md P3)
+    # Dev-only convenience: run the scheduler inside the web process instead
+    # of the dedicated worker container (single-container SQLite dev compose).
+    # Prod compose never sets this.
+    scheduler_in_app: bool = Field(default=False)
+
+    # Observability (P3.6) — empty DSN disables Sentry entirely.
+    sentry_dsn: str = ""
+
     # Feature flags for tests (allow bypass of secret requirements in dev/test)
     require_secrets: bool = Field(default=True)
 

@@ -72,7 +72,6 @@ describe("dateTime formatters", () => {
       try {
         expect(formatDate("2024-07-04T12:00:00Z")).not.toBe("");
       } finally {
-        // @ts-expect-error test restore
         Intl.DateTimeFormat = originalDtf;
       }
     });

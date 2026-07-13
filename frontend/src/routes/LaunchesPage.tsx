@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
+import type { EventClickArg } from "@fullcalendar/core";
 import { useLaunches } from "@/hooks/useLaunches";
 import { LaunchCard } from "./LaunchCard";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -95,7 +96,7 @@ export default function LaunchesPage() {
     extendedProps: launch,
   }));
 
-  function handleCalendarEventClick(info: { event: { id: string; extendedProps: LaunchData & Record<string, unknown> } }) {
+  function handleCalendarEventClick(info: EventClickArg) {
     const launch = filtered.find((l) => l.ll2_id === info.event.id);
     if (launch) setSelectedLaunch(launch);
   }

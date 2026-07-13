@@ -49,8 +49,6 @@ spec).
    never in the web tier. Every job takes a Postgres advisory lock. Web
    processes are stateless: no process-local locks, no mutable module/app
    state, no in-process schedulers (dev-only exception: `SCHEDULER_IN_APP=1`).
-   *(Replaces v1 rule 7 "`--workers 1` always" from Step P3 onward; until P3
-   is complete, v1 rule 7 still holds.)*
 8. **CPU-bound computation (SGP4, transits, grid scans) runs only in worker
    jobs** — request handlers read precomputed rows. See `20-…`/`21-…`.
 9. **Upstream data is untrusted input.** Everything from LL2, NASA, N2YO,
@@ -158,14 +156,53 @@ Read: `16-postgres-migration.md`, `01-database-schemas.md`
     sources this step).
   - Step P2 is now complete. Next: Step P3 (Worker & scale).
 
-**Step P3 — Worker & scale.**
+**Step P3 — Worker & scale.** ✅ complete (shipped 2026-07-13)
 Read: `17-worker-and-scheduling.md`, `12-deployment.md`, `26-performance.md`
 - `app/worker.py`, job registry, advisory locks, delete process-local locks,
   multi-worker web tier, prod compose (caddy/backend/worker/db + `encode zstd
   gzip`), heartbeat + health, structlog + Sentry (incl. job-duration fields).
   CI/CD pipeline per `16-…` P2.5 + `25-…` §4 + `26-…` §4 (bundle-budget
   script, Lighthouse CI, route-chunk splitting with three.js lazy-only, lazy
-  locale loading). After this step, delete v1 rule 7 references from docs.
+  locale loading).
+  - ✅ Shipped 2026-07-13: `app/jobs.py` job registry + `app/worker.py`
+    dedicated worker entrypoint (AsyncIOScheduler, signal-driven graceful
+    shutdown); process-local locks replaced with Postgres advisory locks
+    (`app/services/advisory_lock.py`) and `SELECT … FOR UPDATE` row locks
+    (N2YO quota in `iss_service.py`, refresh-token rotation + OTP
+    rate-count in `auth_service.py`) — both `postgres_only`-marked where
+    SQLite would only prove single-writer serialization; `main.py` lifespan
+    rewritten around `SCHEDULER_IN_APP` (dev-only in-process scheduler) with
+    a tiered/degraded `/api/v1/health` endpoint backed by a new
+    `job_status` table (heartbeat per job); `app/observability.py`
+    (structlog JSON logging + Sentry SDK) wired into both the web and
+    worker processes, plus structured `notification.sent|failed` events in
+    `notification_service.py`. Multi-worker web tier: `backend/Dockerfile`
+    defaults to `--workers 4`, `docker-compose.prod.yml` adds a dedicated
+    `worker` service (same image, `python -m app.worker` entrypoint) beside
+    Caddy/Backend/db — 4 containers in prod; dev stays single-container
+    SQLite with `SCHEDULER_IN_APP=1`. Frontend: `@sentry/react` lazy-loaded
+    behind `VITE_SENTRY_DSN` (never a hard dependency); `IssPage`/
+    `MarsPage`/`SolarSystemPage` routes and 5 of 6 locales (`en` stays
+    bundled) lazy-loaded via `React.lazy`/dynamic `import()`;
+    `scripts/check-bundle.mjs` walks the Vite manifest's real chunk graph
+    (three.js/globe.gl family detected via the `WebGLRenderer` string
+    marker, since globe.gl inlines into `IssPage`'s own chunk) to gate the
+    26-performance.md §2.1 budgets; `lighthouserc.json` gates §2.2 web
+    vitals on `/apod`, `/launches`, `/missions/apollo-11` (the SEO launch
+    page and `/embed/next-launch` are deferred to Steps B2/L3, which don't
+    exist yet). `.github/workflows/ci.yml`: backend suite runs twice
+    (SQLite + a `postgres:17-alpine` service container, the latter also
+    smoke-checking `alembic upgrade head`), frontend job runs
+    build+test+bundle-check, a separate job runs Lighthouse CI against the
+    build artifact, plus dependency/static scanning (`ruff check --select
+    S`, `pip-audit`, `npm audit --omit=dev --audit-level=high`, gitleaks).
+    579 backend tests green, per-module branch coverage gate passed (31
+    modules with branches, all ≥ 80%), 409 frontend tests green with
+    per-file branch coverage ≥ 80%. Route-authorization matrix and
+    injection-fixture suites unaffected (no new routes or external data
+    sources this step — the new `/api/v1/health` route was already in the
+    matrix pre-P3).
+  - Step P3 is now complete. Next: Step P4 (Slip-history recording).
 
 **Step P4 — Slip-history recording.**
 Read: `18-slip-history-and-reliability.md` (Stage 1 only)

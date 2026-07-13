@@ -37,7 +37,11 @@ describe("SettingsPage", () => {
 
     await user.click(screen.getByTestId("lang-button-de"));
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Einstellungen");
+    // "de" is lazy-loaded via i18n.ts's dynamic-import backend, so the
+    // translated text only lands after that chunk resolves.
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Einstellungen");
+    });
   });
 
   it("shows Not configured when nasa_key_set is false", async () => {

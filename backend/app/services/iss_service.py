@@ -57,9 +57,17 @@ async def _check_and_increment_quota(
     """Check quota and pre-increment.
 
     Returns (quota_row, quota_exceeded).
-    Must be called while holding _QUOTA_LOCK.
+
+    # CONCURRENCY: requires Postgres row lock in multi-worker deployments —
+    # the SELECT ... FOR UPDATE below (a no-op on SQLite) is the actual
+    # correctness mechanism (17-worker-and-scheduling.md P3.3); the
+    # asyncio.Lock held by call sites is only a same-process fast-path
+    # courtesy and must not be relied on for correctness.
     """
-    row = await _get_or_create_quota(session, cap)
+    await _get_or_create_quota(session, cap)
+    stmt = select(N2yoQuota).where(N2yoQuota.id == 1).with_for_update()
+    result = await session.execute(stmt)
+    row = result.scalar_one()
 
     # Reset window if >= 1 hour has elapsed
     if _age_seconds(row.window_start) >= 3600:
@@ -234,7 +242,8 @@ async def get_passes(
             raise N2YOError("N2YO_QUOTA_EXHAUSTED", "N2YO quota exhausted", 429)
 
         try:
-            if pass_type == "visual":
+            if pass_type == "visual":  # noqa: S105 -- pass_type is a request
+                # parameter enum ("visual"/"radio"), not a credential.
                 data = await client.get_visual_passes(lat, lng, alt)
             else:
                 data = await client.get_radio_passes(lat, lng, alt)

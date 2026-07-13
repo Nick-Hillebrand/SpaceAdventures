@@ -5,6 +5,11 @@ services:
       dockerfile: Dockerfile
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./data/app.db
+      # Single-container SQLite dev — runs the job registry in-process
+      # instead of a dedicated worker container (17-…md P3.1). Requires
+      # --workers 1: two dev workers would both run the scheduler with no
+      # advisory lock to serialize them (SQLite locking is a no-op).
+      - SCHEDULER_IN_APP=1
     volumes:
       - ./backend/app:/app/app
       - backend-data:/app/data

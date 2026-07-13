@@ -12,6 +12,9 @@ export default defineConfig({
   },
   build: {
     sourcemap: false,
+    // Read by scripts/check-bundle.mjs to walk the real chunk graph rather
+    // than guess from filenames (26-performance.md §2.1 bundle budget gate).
+    manifest: true,
   },
   server: {
     port: 5173,

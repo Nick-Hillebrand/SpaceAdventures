@@ -18,9 +18,20 @@ Internet
                    │ Docker internal network
                    ▼
 ┌──────────────────────────────────────────┐
-│  Backend (Uvicorn, --workers 1)          │
+│  Backend (Uvicorn, --workers               │
+│  ${WEB_CONCURRENCY:-4}) — stateless web    │
+│  tier, schedules no jobs                   │
 │  port 8000 — NOT exposed externally      │
 └──────────────────┬───────────────────────┘
+                   │
+┌──────────────────┴───────────────────────┐
+│  Worker (`python -m app.worker`)           │
+│  Runs the APScheduler job registry —       │
+│  every job takes a Postgres advisory lock  │
+│  before it runs (17-worker-and-scheduling  │
+│  .md). No HTTP server, no exposed port.    │
+└──────────────────┬───────────────────────┘
+                   │ Both connect to the same Postgres over the
                    │ Docker internal network
                    ▼
 ┌──────────────────────────────────────────┐
@@ -35,7 +46,7 @@ Internet
 SQLite remains the local-dev default (zero-setup) — see `16-postgres-migration.md`.
 Production and CI run Postgres.
 
-The frontend is **not a running container**. It is built to static files (`npm run build`) and served directly by Caddy. Only 2 containers run in production: **Caddy** and **Backend**.
+The frontend is **not a running container**. It is built to static files (`npm run build`) and served directly by Caddy. **4 containers** run in production: **Caddy**, **Backend** (stateless web tier, `WEB_CONCURRENCY` workers), **Worker** (dedicated background-job process — the only process that ever runs scheduled jobs), and **db** (Postgres). Local dev stays single-container (`SCHEDULER_IN_APP=1`, `--workers 1`).
 
 ---
 
@@ -46,23 +57,34 @@ The frontend is **not a running container**. It is built to static files (`npm r
 ```dockerfile
 FROM python:3.12-slim
 
+# Build tooling required for bcrypt / cryptography wheels (P35); curl for the
+# backend service healthcheck (17-worker-and-scheduling.md P3.4).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libffi-dev \
+    python3-dev \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Required for bcrypt C extension (P35)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libffi-dev python3-dev gcc curl && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/ app/
-COPY alembic/ alembic/
-COPY alembic.ini .
+COPY app ./app
+COPY alembic.ini ./
+COPY alembic ./alembic
 
 RUN mkdir -p /app/data  # P31 — SQLite data directory must exist
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Default standalone entrypoint (workers hardcoded for a bare `docker run`).
+# Both compose files override `command:` — dev pins --workers 1 (see
+# SCHEDULER_IN_APP), prod uses WEB_CONCURRENCY, and the dedicated worker
+# service overrides it entirely to `python -m app.worker`
+# (17-worker-and-scheduling.md P3.4).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
 ```
 
 ### `frontend/Dockerfile` (multi-stage, for CI builds)
@@ -160,30 +182,42 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports: ["8000:8000"]
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --reload
-    env_file: .env
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/app.db
+      # Single-container SQLite dev — runs the job registry in-process
+      # instead of a dedicated worker container (17-…md P3.1). Requires
+      # --workers 1: two dev workers would both run the scheduler with no
+      # advisory lock to serialize them (SQLite locking is a no-op).
+      - SCHEDULER_IN_APP=1
     volumes:
       - ./backend/app:/app/app    # source only — does NOT overwrite site-packages (P30)
-      - sa_db_data:/app/data
+      - backend-data:/app/data
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --reload
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-    ports: ["5173:5173"]
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_API_BASE_URL=http://backend:8000
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
-    depends_on: [backend]
+      - ./frontend/index.html:/app/index.html
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
 
 volumes:
-  sa_db_data:
+  backend-data:
 ```
 
-Localhost is exempt from HTTPS — Geolocation API works in dev without TLS.
+Localhost is exempt from HTTPS — Geolocation API works in dev without TLS. Dev
+stays single-container SQLite with `SCHEDULER_IN_APP=1` — no separate worker
+service needed for a single-process, single-writer setup.
 
 ---
 
@@ -214,13 +248,15 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
-    env_file: .env.prod
+    env_file:
+      - .env.prod
     environment:
-      # Built here, not left as a literal ${POSTGRES_PASSWORD} inside
-      # .env.prod — env_file: values are passed through verbatim, docker
-      # compose only expands ${...} in the compose file itself.
+      # Unconditional: production must never start on unenforced/missing
+      # secrets, regardless of what .env.prod does or doesn't set (15-…, P1.2).
+      - APP_REQUIRE_SECRETS=1
+      # Built here (not left as a literal ${POSTGRES_PASSWORD} inside
+      # .env.prod) because env_file: values are passed through verbatim —
+      # docker compose only expands ${...} in the compose file itself.
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - DATABASE_URL_SYNC=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
@@ -232,8 +268,28 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
-    # No ports: — backend is internal only
-    # No sa_db_data volume — the app is stateless; all data lives in Postgres (db).
+    # No ports: — only Caddy is internet-facing; backend is internal only.
+    command: sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-4}"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env.prod
+    environment:
+      # Same fail-closed/DB-wiring rules as `backend` — the worker is the
+      # only process that ever runs scheduled jobs in prod (17-…md P3.1).
+      - APP_REQUIRE_SECRETS=1
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DATABASE_URL_SYNC=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python -m app.worker
+    restart: unless-stopped
+    # No ports: — internal only, no HTTP server at all.
 
   db:
     image: postgres:17-alpine
@@ -256,6 +312,12 @@ volumes:
   caddy_config:
   pg_data:
 ```
+
+Backend and worker share the same Dockerfile/image (`context: ./backend`) —
+only `command:` differs. The web tier never schedules jobs; the worker never
+serves HTTP. Both connect to the same Postgres and take the same advisory
+locks, so scaling `WEB_CONCURRENCY` (or adding more `backend` replicas) never
+risks a job running twice.
 
 ---
 
@@ -285,6 +347,15 @@ SMTP_FROM=noreply@localhost
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_FROM_NUMBER=
+
+# Run the job registry in-process (17-…md P3.1). docker-compose.yml sets this
+# directly for the dev backend container; set it here too only if you run
+# `uvicorn` directly (not via docker compose) and want background jobs
+# locally. Never set this in prod.
+SCHEDULER_IN_APP=0
+
+# Sentry error reporting (P3.6). Leave blank to disable.
+SENTRY_DSN=
 ```
 
 ### `.env.prod.example` (production — all values mandatory)
@@ -333,6 +404,15 @@ APP_REQUIRE_SECRETS=1
 COOKIE_SECURE=true
 TRUST_PROXY_HEADERS=true
 EXPOSE_DOCS=false
+
+# Uvicorn worker processes for the backend service (17-…md P3.4). Safe to
+# scale — the web tier is stateless and never schedules jobs; only the
+# dedicated `worker` service does (docker-compose.prod.yml).
+WEB_CONCURRENCY=4
+
+# Sentry error reporting for both `backend` and `worker` (P3.6). Leave blank
+# to disable — Sentry is never a hard dependency.
+SENTRY_DSN=
 ```
 
 ---
@@ -353,10 +433,14 @@ chmod 600 .env.prod   # -rw------- only
 **Step 2 — Build frontend**
 ```bash
 cd frontend && npm ci
-VITE_API_BASE_URL=https://<APP_DOMAIN> npm run build
+VITE_API_BASE_URL=https://<APP_DOMAIN> VITE_SENTRY_DSN=<optional-frontend-dsn> npm run build
 ls dist/index.html   # must exist
 cd ..
 ```
+
+`VITE_SENTRY_DSN` is optional (P3.6) — leave unset to skip the Sentry browser
+SDK entirely; it's lazily imported (`frontend/src/lib/sentry.ts`) so an unset
+DSN never adds it to the bundle.
 
 **Step 3 — Start the database and run migrations**
 ```bash
@@ -517,7 +601,7 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm backend 
 
 # Frontend changed:
 cd frontend && npm ci
-VITE_API_BASE_URL=https://<APP_DOMAIN> npm run build && cd ..
+VITE_API_BASE_URL=https://<APP_DOMAIN> VITE_SENTRY_DSN=<optional-frontend-dsn> npm run build && cd ..
 # Caddy picks up new files immediately — no restart needed
 ```
 

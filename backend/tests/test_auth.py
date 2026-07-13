@@ -601,8 +601,12 @@ async def test_me_token_alg_none_rejected(client):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.postgres_only
 async def test_concurrent_refresh_only_one_succeeds(client):
-    """Two simultaneous refresh calls with the same token — only one should succeed."""
+    """Two simultaneous refresh calls with the same token — only one should succeed.
+
+    Requires Postgres row locking (`FOR UPDATE` is a no-op on SQLite) —
+    17-worker-and-scheduling.md P3.3."""
     await _register(client)
     r = await _login(client)
     raw_refresh = r.cookies.get("sa_refresh")
@@ -616,6 +620,42 @@ async def test_concurrent_refresh_only_one_succeeds(client):
     # Exactly one should succeed and one should fail
     assert statuses.count(200) == 1
     assert statuses.count(401) == 1
+
+
+@pytest.mark.postgres_only
+async def test_concurrent_otp_resend_at_limit(db_session, settings):
+    """Two simultaneous resends at the rate-limit boundary — only one should
+    succeed, the other must see OTP_RATE_LIMIT.
+
+    Requires Postgres row locking (`FOR UPDATE` is a no-op on SQLite) —
+    17-worker-and-scheduling.md P3.3."""
+    user = await auth_service.register_user(
+        db_session,
+        {
+            "first_name": "Otp",
+            "last_name": "Race",
+            "email": "otp_race@example.com",
+            "password": "testpassword",
+        },
+        settings,
+    )
+    # Registration creates 1 OTP; 4 more sequential resends bring the count to
+    # 5 (== _MAX_OTP_RESENDS) — right at the boundary where the next resend
+    # must be rejected.
+    for _ in range(4):
+        await auth_service.resend_otp(db_session, user.id, "email", settings)
+
+    async def attempt():
+        try:
+            await auth_service.resend_otp(db_session, user.id, "email", settings)
+            return "ok"
+        except ValueError as exc:
+            return str(exc)
+
+    results = await asyncio.gather(attempt(), attempt())
+
+    assert results.count("ok") == 1
+    assert results.count("OTP_RATE_LIMIT") == 1
 
 
 # ---------------------------------------------------------------------------
