@@ -263,8 +263,74 @@ Read: `19-notification-channels-v2.md` (B1 sections), `08-subscriptions.md`
     modules, all frontend files ≥ 80%).
   - Step B1 is now complete. Next: Step B2 (SEO launch pages + sitemap).
 
-**Step B2 — SEO launch pages + sitemap.**
+**Step B2 — SEO launch pages + sitemap.** ✅ complete (shipped 2026-07-14)
 Read: `23-seo-widgets-and-growth.md` (B2), `06-launches.md`
+- Server-rendered meta + client-rendered content: `app/routers/seo.py` reads
+  the built `frontend/dist/index.html` off the shared dist volume and
+  string-injects `<title>`/description/canonical/OG/Twitter/hreflang(×6 +
+  x-default)/`schema.org` `Event` JSON-LD tags at a `<!--seo-head-->`
+  placeholder (`GET /launches/{ll2_id}` and the language-prefixed `GET
+  /{lang}/launches/{ll2_id}`); unknown id serves the untouched index with
+  `X-Robots-Tag: noindex`. `GET /sitemap.xml` lists static routes, mission
+  slugs (`missions/index.json`), and every non-Gone launch from the last 90
+  days × 6 languages with `xhtml:link` hreflang alternates. Mission
+  name/description are untrusted LL2 fields never passed through
+  `sanitise()` — meta tags use `html.escape()`, the JSON-LD block uses a
+  `_json_ld_safe()` helper that replaces literal less-than characters with
+  the six-character sequence backslash-u-0-0-3-c to prevent `</script>`
+  breakout. `docker-compose.prod.yml`/`Caddyfile` updated so the `caddy` and
+  `backend` services share the `frontend-dist` volume (`FRONTEND_DIST_PATH`
+  env var), and Caddy proxies `/launches/*`, `/*/launches/*`, `/sitemap.xml`,
+  and `/robots.txt` to the backend instead of `file_server`. Frontend:
+  `LaunchDetailPage.tsx` at `/launches/:id` and `/:lang/launches/:id` reuses
+  the existing `useLaunches()` upcoming-list hook (find-by-id) plus a new
+  `useLaunchHistory()` hook against `GET
+  /api/v1/launches/{ll2_id}/history` (already-existing route) for a slip-
+  history teaser; reuses `LaunchCard` for countdown/status/stream/subscribe
+  rather than duplicating it. 8 new i18n keys × 6 locales. 15 new backend
+  tests in `test_seo.py` (meta injection, lang-prefix localization,
+  translated-content override, unknown-id noindex, event-status mapping,
+  no-image branch, sitemap XML structure via `lxml`, missing-missions-index
+  degradation, zero-upstream-calls via `respx`, launch-history route) plus a
+  parametrized injection-fixture test in `test_injection.py` (mission_name
+  XSS/SSTI payloads escaped in meta, JSON-LD stays valid JSON with no
+  literal `</script`) — this surfaced and fixed a test false-positive where
+  JSON's own `"`-escaping was briefly (mis)flagged as a leak, not a real
+  product bug.
+  - `/code-review --effort low` pass (2026-07-14) surfaced and fixed 5
+    findings: (1) `LaunchDetailPage` resolved launches via `useLaunches()`'s
+    `/upcoming`-window list (find-by-id), so any launch outside that window
+    — including every past launch the SEO page/sitemap deliberately serve —
+    404'd for real visitors while still being indexed; fixed with a new
+    `GET /api/v1/launches/{ll2_id}` single-launch endpoint (reuses
+    `launches_service.get_launch_by_id` + the existing translation helper)
+    and a `useLaunch()` hook, both window-independent. (2) That new endpoint
+    and `seo.py`'s existing handler didn't agree on the synthetic `Gone`
+    status (a launch LL2 stopped returning, set only by `sync_launches`) —
+    `seo.py` already excluded it from indexing, so the new endpoint was
+    fixed to 404 on it too rather than serving a page for a launch nothing
+    else treats as real. (3) The `/:lang/launches/:id` URL-driven-language
+    route never actually changed `i18n`'s active language — visiting a
+    non-default-language variant server-rendered the right meta tags but
+    hydrated with client-detected content, disagreeing with them; fixed
+    with a `useEffect` in `LaunchDetailPage` syncing `i18n.changeLanguage`
+    to the URL's `:lang` segment. (4) `GET /sitemap.xml` was never
+    registered in `tests/perf/test_query_counts.py`, violating rule 12
+    (every list endpoint paginated/registered there) — added the
+    budget + row-count-independence pair. (5) The mission_name injection
+    fixture in `test_injection.py` didn't cover `agency_name`/`rocket_name`
+    (the meta-description fallback path) or `pad_name` (always in the
+    JSON-LD `location.name`) — added a parametrized test covering all
+    three. 2 further PLAUSIBLE-but-low-severity findings (blocking
+    `index.html` file I/O in the request path, duplicated
+    translation-lookup logic between the new endpoint and `seo.py`) were
+    deferred as known follow-ups, not required for this step's
+    definition-of-done. 5 new routes in the route-authorization matrix (all
+    public). 695 backend tests green (+4 skipped), 446 frontend tests
+    green, per-module/per-file branch coverage gates both passed (34
+    backend modules, all frontend files ≥ 80%).
+  - Step B2 is now complete. Next: Step B3 (Live spacecraft in simulator).
+
 **Step B3 — Live spacecraft in simulator.**
 Read: `22-ephemeris-and-mission-replay.md` (foundation + B3)
 

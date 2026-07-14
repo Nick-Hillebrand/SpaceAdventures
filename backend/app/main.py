@@ -28,6 +28,7 @@ from app.routers import space_weather as space_weather_router
 from app.routers import auth as auth_router
 from app.routers import launches as launches_router
 from app.routers import push as push_router
+from app.routers import seo as seo_router
 from app.routers import subscriptions as subscriptions_router
 from app.routers import settings as settings_router
 from app.services import translation_service
@@ -196,6 +197,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(subscriptions_router.router)
     app.include_router(push_router.router)
     app.include_router(settings_router.router)
+    app.include_router(seo_router.router)
 
     return app
 

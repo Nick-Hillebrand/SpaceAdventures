@@ -167,7 +167,15 @@
     "showMore": "Показать больше",
     "showLess": "Показать меньше",
     "statusLabel": "Статус",
-    "rocketPlaceholder": "Заглушка ракеты"
+    "rocketPlaceholder": "Заглушка ракеты",
+    "detailBackToLaunches": "← Вернуться к запускам",
+    "detailNotFoundTitle": "Запуск не найден",
+    "detailNotFoundHint": "Этот запуск мог быть удалён из расписания, или ссылка неверна.",
+    "historyTitle": "История запусков",
+    "historyEmpty": "Изменений пока не записано.",
+    "historyTypeNet": "Сдвиг даты",
+    "historyTypeStatus": "Изменение статуса",
+    "historyTypeGone": "Удалён из расписания"
   },
   "auth": {
     "registerTitle": "Создать аккаунт",

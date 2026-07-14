@@ -6,7 +6,9 @@ A multilingual web application that fetches, caches, and visualises NASA data an
 
 - **APOD** — Astronomy Picture of the Day with date picker and HD image viewer
 - **ISS Tracker** — Live 3D globe tracking the International Space Station
-- **Rocket Launches** — Upcoming launches in grid or calendar view with countdown timers and livestream links
+- **Rocket Launches** — Upcoming launches in grid or calendar view with countdown timers and livestream links.
+  Each launch also has a crawlable detail page (`/launches/:id`, language-prefixed variants) with server-injected
+  SEO meta/OG/JSON-LD tags and a slip-history teaser, plus an XML sitemap at `/sitemap.xml`
 - **Mars Explorer** — Curiosity, Opportunity, Spirit and Perseverance rover photos with lightbox and camera/sol filters
 - **Near-Earth Objects** — Sortable asteroid table with close-approach data and hazard flags
 - **Space Weather** — Solar flares, geomagnetic storms, CMEs, SEP and radiation belt events
@@ -99,7 +101,8 @@ cp .env.example backend/.env
 | `DATABASE_URL_SYNC` | No | Sync URL used by Alembic migrations only. Defaults to `sqlite:///./data/app.db`. Set to `postgresql+psycopg://user:pass@host:5432/dbname` in production and CI (must point at the same database as `DATABASE_URL`). |
 | `DB_POOL_SIZE` | No | SQLAlchemy connection pool size. Only applied when `DATABASE_URL` is `postgresql+asyncpg://…` (ignored for SQLite). Defaults to `10`. |
 | `DB_MAX_OVERFLOW` | No | Extra connections allowed beyond `DB_POOL_SIZE` under load. Only applied for Postgres. Defaults to `20`. |
-| `FRONTEND_ORIGIN` | No | CORS allowed origin. Defaults to `http://localhost:5173`. |
+| `FRONTEND_ORIGIN` | No | CORS allowed origin, and the base URL used to build canonical/OG/sitemap URLs for the SEO launch pages. Defaults to `http://localhost:5173`. |
+| `FRONTEND_DIST_PATH` | No | Filesystem path to the built frontend (`frontend/dist`) — the SEO launch-page and sitemap routes (`/launches/:id`, `/sitemap.xml`) read `index.html` and `missions/index.json` from here. Defaults to `../frontend/dist`. In production this must point at the same `frontend-dist` volume Caddy serves static files from (see `docker-compose.prod.yml`); a crawler hitting these routes before the frontend has been built gets a 503. |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | No | Leave blank to disable email sending in dev. |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | No | Leave blank to disable SMS in dev. |
 | `COOKIE_SECURE` | No | `Secure` attribute on the refresh-token cookie. Defaults to `true`; set to `false` only for plain-HTTP local dev. |
@@ -238,7 +241,10 @@ is lazily imported and never lands in the bundle when unset). Copy
 
 ### 3 — Caddy
 
-Caddy terminates TLS, serves the static frontend, and reverse-proxies API calls to the backend. Minimal `Caddyfile`:
+Caddy terminates TLS, serves the static frontend, and reverse-proxies API calls to the backend. The
+`/launches/*` and `/sitemap.xml` paths must also be proxied to the backend rather than served as static
+files — it reads the same built `index.html` off the shared `frontend-dist` volume and injects SEO
+meta/OG/JSON-LD tags before returning it (`Architecture/23-seo-widgets-and-growth.md` B2). Minimal `Caddyfile`:
 
 ```caddy
 yourdomain.com {
@@ -248,10 +254,17 @@ yourdomain.com {
     # Proxy API requests to the backend
     reverse_proxy /api/* localhost:8000
 
+    # SEO launch pages + sitemap — must hit the backend, not file_server
+    @seo path /launches/* /*/launches/* /sitemap.xml
+    reverse_proxy @seo localhost:8000
+
     # SPA fallback — non-asset routes serve index.html
     try_files {path} /index.html
 }
 ```
+
+See the repo-root `Caddyfile` for the full production config (HSTS/CSP headers, rate limiting,
+`/robots.txt`, health checks).
 
 ---
 

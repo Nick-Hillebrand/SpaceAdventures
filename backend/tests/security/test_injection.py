@@ -22,6 +22,8 @@ and `_validate_push_endpoint()` in `app/schemas/push.py`.
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.services.notification_service import sanitise
@@ -130,6 +132,119 @@ async def test_slip_history_sanitises_rocket_name(_name: str, payload: str, db_s
     assert "\r" not in stored
     assert "\n" not in stored
     assert "\x00" not in stored
+
+
+# ---------------------------------------------------------------------------
+# SEO meta-injection rendering path: launches table (raw LL2 fields, never
+# passed through sanitise() — only the launch_net_changes table is) → HTML
+# meta/OG/Twitter tags + schema.org JSON-LD (Step B2,
+# 23-seo-widgets-and-growth.md). This is the first HTML-rendering consumer of
+# Launch row fields, so the relevant control is html.escape() for the meta
+# tags and the "<" → "<" neutralisation in `_json_ld_safe()` for the
+# JSON-LD `<script>` block — not sanitise()'s control-character stripping.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("_name,payload", _INJECTION_PAYLOADS, ids=_PAYLOAD_IDS)
+async def test_seo_meta_escapes_untrusted_mission_name(_name: str, payload: str, db_session) -> None:
+    """A mission_name straight from LL2 can never survive unescaped into the
+    rendered <title>/meta/OG/Twitter tags or break out of the JSON-LD
+    <script> block."""
+    from app.config import Settings
+    from app.routers.seo import _build_seo_head
+    from app.services.launches_service import get_launch_by_id, sync_launches
+    from tests.test_launches_service_unit import FakeLL2Client, _raw
+
+    await sync_launches(
+        db_session,
+        FakeLL2Client(
+            [_raw(ll2_id="l-inj", mission={"name": payload, "description": "Sats.", "type": "Comms"})]
+        ),
+    )
+    launch = await get_launch_by_id(db_session, "l-inj")
+    assert launch is not None
+
+    settings = Settings(require_secrets=False, frontend_origin="https://example.test")  # type: ignore[call-arg]
+    title_tag, rest = _build_seo_head(launch, "en", settings)
+
+    # The meta/title/OG/Twitter portion (html.escape()) and the JSON-LD
+    # <script> block (json.dumps() + `_json_ld_safe()`) have different
+    # escaping rules, so they must be checked separately: a `"` inside a
+    # JSON string is legitimately preserved (backslash-escaped) by
+    # json.dumps() — that is correct, safe JSON, not a leak — whereas the
+    # same raw `"` surviving into an HTML attribute value would be a real
+    # break-out.
+    script_open = '<script type="application/ld+json">'
+    script_start = rest.index(script_open)
+    json_ld_start = script_start + len(script_open)
+    json_ld_end = rest.index("</script>", json_ld_start)
+    json_ld_body = rest[json_ld_start:json_ld_end]
+    html_part = title_tag + "\n" + rest[:script_start]
+
+    if any(c in payload for c in "<>&\"'"):
+        assert payload not in html_part, (
+            f"raw, unescaped mission_name payload ({_name}) leaked into SEO "
+            "meta/OG/Twitter tag output"
+        )
+
+    # The JSON-LD block itself must remain syntactically valid JSON (proving
+    # the payload was safely embedded as string data) and must never contain
+    # a literal "</script" that could break out of the surrounding
+    # <script type="application/ld+json"> tag, regardless of what LL2 sent.
+    json.loads(json_ld_body)
+    assert "</script" not in json_ld_body.lower()
+
+
+@pytest.mark.parametrize("_name,payload", _INJECTION_PAYLOADS, ids=_PAYLOAD_IDS)
+async def test_seo_meta_escapes_untrusted_agency_rocket_pad_names(
+    _name: str, payload: str, db_session
+) -> None:
+    """agency_name/rocket_name/pad_name are the same untrusted-LL2-field
+    shape as mission_name, but reach SEO output through two different code
+    paths: pad_name always lands in the JSON-LD `location.name`, while
+    agency_name/rocket_name only appear in the html.escape()'d meta
+    description when there is no mission_description to prefer (the
+    `_build_seo_head` fallback string)."""
+    from app.config import Settings
+    from app.routers.seo import _build_seo_head
+    from app.services.launches_service import get_launch_by_id, sync_launches
+    from tests.test_launches_service_unit import FakeLL2Client, _raw
+
+    await sync_launches(
+        db_session,
+        FakeLL2Client(
+            [
+                _raw(
+                    ll2_id="l-inj-2",
+                    launch_service_provider={"name": payload, "type": "Commercial"},
+                    rocket={"configuration": {"name": payload, "family": "Falcon"}},
+                    pad={"name": payload, "location": {"name": "Cape Canaveral"}},
+                    mission={"name": "Starlink", "description": "", "type": "Comms"},
+                )
+            ]
+        ),
+    )
+    launch = await get_launch_by_id(db_session, "l-inj-2")
+    assert launch is not None
+
+    settings = Settings(require_secrets=False, frontend_origin="https://example.test")  # type: ignore[call-arg]
+    title_tag, rest = _build_seo_head(launch, "en", settings)
+
+    script_open = '<script type="application/ld+json">'
+    script_start = rest.index(script_open)
+    json_ld_start = script_start + len(script_open)
+    json_ld_end = rest.index("</script>", json_ld_start)
+    json_ld_body = rest[json_ld_start:json_ld_end]
+    html_part = title_tag + "\n" + rest[:script_start]
+
+    if any(c in payload for c in "<>&\"'"):
+        assert payload not in html_part, (
+            f"raw, unescaped agency/rocket/pad payload ({_name}) leaked into the "
+            "SEO description fallback"
+        )
+
+    json.loads(json_ld_body)
+    assert "</script" not in json_ld_body.lower()
 
 
 # ---------------------------------------------------------------------------

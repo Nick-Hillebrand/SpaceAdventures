@@ -10,6 +10,7 @@ import ConfirmUnsubscribePage from "@/routes/ConfirmUnsubscribePage";
 import SettingsPage from "@/routes/SettingsPage";
 import ApodPage from "@/routes/ApodPage";
 import LaunchesPage from "@/routes/LaunchesPage";
+import LaunchDetailPage from "@/routes/LaunchDetailPage";
 import NeoPage from "@/routes/NeoPage";
 import SpaceWeatherPage from "@/routes/SpaceWeatherPage";
 
@@ -45,6 +46,8 @@ function AppShell() {
             <Route path="/apod" element={<ApodPage />} />
             <Route path="/iss" element={<IssPage />} />
             <Route path="/launches" element={<LaunchesPage />} />
+            <Route path="/launches/:id" element={<LaunchDetailPage />} />
+            <Route path="/:lang/launches/:id" element={<LaunchDetailPage />} />
             <Route path="/mars" element={<MarsPage />} />
             <Route path="/neo" element={<NeoPage />} />
             <Route path="/space-weather" element={<SpaceWeatherPage />} />

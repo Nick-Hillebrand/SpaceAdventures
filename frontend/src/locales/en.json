@@ -167,7 +167,15 @@
     "showMore": "Show more",
     "showLess": "Show less",
     "statusLabel": "Status",
-    "rocketPlaceholder": "Rocket placeholder"
+    "rocketPlaceholder": "Rocket placeholder",
+    "detailBackToLaunches": "← Back to launches",
+    "detailNotFoundTitle": "Launch not found",
+    "detailNotFoundHint": "This launch may have been removed from the schedule, or the link is incorrect.",
+    "historyTitle": "Launch History",
+    "historyEmpty": "No changes recorded yet.",
+    "historyTypeNet": "NET slip",
+    "historyTypeStatus": "Status change",
+    "historyTypeGone": "Removed from schedule"
   },
   "auth": {
     "registerTitle": "Create Account",

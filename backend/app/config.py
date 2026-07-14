@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     # CORS
     frontend_origin: str = "http://localhost:5173"
 
+    # SEO launch pages + sitemap (23-seo-widgets-and-growth.md B2) — directory
+    # containing the built frontend (`npm run build` output, index.html +
+    # static assets incl. public/missions/*.json). Default is relative to a
+    # bare `uvicorn` invocation from `backend/`; prod compose overrides this
+    # to the shared read-only bind mount (`/srv/dist`).
+    frontend_dist_path: str = "../frontend/dist"
+
     # HTTP client
     http_timeout_seconds: float = 10.0
 

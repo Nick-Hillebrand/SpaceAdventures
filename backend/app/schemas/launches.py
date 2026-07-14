@@ -37,3 +37,16 @@ class LaunchesResponse(BaseModel):
     data: list[LaunchOut]
     last_synced_at: datetime | None
     cached: bool = True
+
+
+class LaunchHistoryEntry(BaseModel):
+    change_type: str
+    old_value: str | None
+    new_value: str | None
+    detected_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LaunchHistoryResponse(BaseModel):
+    data: list[LaunchHistoryEntry]

@@ -167,7 +167,15 @@
     "showMore": "Mostrar más",
     "showLess": "Mostrar menos",
     "statusLabel": "Estado",
-    "rocketPlaceholder": "Marcador de posición de cohete"
+    "rocketPlaceholder": "Marcador de posición de cohete",
+    "detailBackToLaunches": "← Volver a lanzamientos",
+    "detailNotFoundTitle": "Lanzamiento no encontrado",
+    "detailNotFoundHint": "Este lanzamiento puede haber sido eliminado de la programación, o el enlace es incorrecto.",
+    "historyTitle": "Historial de lanzamientos",
+    "historyEmpty": "Sin cambios registrados aún.",
+    "historyTypeNet": "Cambio de fecha",
+    "historyTypeStatus": "Cambio de estado",
+    "historyTypeGone": "Eliminado de la programación"
   },
   "auth": {
     "registerTitle": "Crear cuenta",

@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas.launches import LaunchOut, LaunchesResponse
+from app.schemas.launches import LaunchHistoryEntry, LaunchHistoryResponse, LaunchOut, LaunchesResponse
 from app.services import launches_service
 from app.services.ll2_client import LL2Client
 
@@ -74,6 +74,38 @@ async def get_upcoming_launches(
         last_synced_at=last_synced_at,
         cached=True,
     )
+
+
+@router.get("/{ll2_id}/history", response_model=LaunchHistoryResponse)
+async def get_launch_history(
+    ll2_id: str,
+    session: AsyncSession = Depends(get_db),
+) -> LaunchHistoryResponse:
+    """Recent slip-history entries for one launch (23-…md B2 detail-page teaser)."""
+    rows = await launches_service.get_launch_history(session, ll2_id)
+    return LaunchHistoryResponse(
+        data=[LaunchHistoryEntry.model_validate(row) for row in rows]
+    )
+
+
+@router.get("/{ll2_id}", response_model=LaunchOut)
+async def get_launch(
+    ll2_id: str,
+    lang: str = Query(default="en", description="ISO 639-1 language code"),
+    session: AsyncSession = Depends(get_db),
+) -> LaunchOut:
+    """Single launch by id, including launches outside the /upcoming window.
+
+    The SEO detail page and sitemap (23-…md B2) serve/list any non-Gone
+    launch up to 90 days in the past — the client needs a matching data
+    source instead of scanning the upcoming-only list, or a past launch's
+    page 404s for real visitors while still being indexed by crawlers.
+    """
+    launch = await launches_service.get_launch_by_id(session, ll2_id)
+    if launch is None or launch.status_abbrev == "Gone":
+        raise HTTPException(status_code=404, detail="Launch not found")
+    out = LaunchOut.model_validate(launch)
+    return _apply_launch_translations(out, launch.translations_json, lang)
 
 
 @router.post("/sync", status_code=200)

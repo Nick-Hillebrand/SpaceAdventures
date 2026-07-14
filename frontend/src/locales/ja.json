@@ -167,7 +167,15 @@
     "showMore": "さらに表示",
     "showLess": "表示を減らす",
     "statusLabel": "ステータス",
-    "rocketPlaceholder": "ロケットのプレースホルダー"
+    "rocketPlaceholder": "ロケットのプレースホルダー",
+    "detailBackToLaunches": "← 打ち上げに戻る",
+    "detailNotFoundTitle": "打ち上げが見つかりません",
+    "detailNotFoundHint": "この打ち上げはスケジュールから削除されたか、リンクが間違っている可能性があります。",
+    "historyTitle": "打ち上げ履歴",
+    "historyEmpty": "変更記録はまだありません。",
+    "historyTypeNet": "予定日変更",
+    "historyTypeStatus": "ステータス変更",
+    "historyTypeGone": "スケジュールから削除"
   },
   "auth": {
     "registerTitle": "アカウント作成",

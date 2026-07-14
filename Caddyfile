@@ -44,7 +44,22 @@
         health_interval 30s
     }
 
-    root * /srv
+    # SEO launch pages + sitemap (23-seo-widgets-and-growth.md B2) — the
+    # backend reads the built index.html from the shared frontend-dist volume
+    # and injects meta/OG/JSON-LD tags before returning it, so these paths
+    # must hit the backend instead of being served as static files below.
+    @seo path /launches/* /*/launches/* /sitemap.xml
+    reverse_proxy @seo backend:8000 {
+        health_uri      /api/v1/health
+        health_interval 30s
+    }
+
+    handle /robots.txt {
+        header Content-Type "text/plain"
+        respond "User-agent: *\nAllow: /\nSitemap: https://{$APP_DOMAIN}/sitemap.xml\n" 200
+    }
+
+    root * /srv/dist
     try_files {path} /index.html
     file_server
 }

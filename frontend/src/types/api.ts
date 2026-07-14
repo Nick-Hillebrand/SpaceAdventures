@@ -168,6 +168,17 @@ export interface LaunchesResponse {
   cached: boolean;
 }
 
+export interface LaunchHistoryEntry {
+  change_type: string;
+  old_value: string | null;
+  new_value: string | null;
+  detected_at: string;
+}
+
+export interface LaunchHistoryResponse {
+  data: LaunchHistoryEntry[];
+}
+
 export interface SubscriptionData {
   id: string;
   type: "launch" | "agency";

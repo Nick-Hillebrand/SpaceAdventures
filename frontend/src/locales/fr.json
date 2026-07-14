@@ -167,7 +167,15 @@
     "showMore": "Afficher plus",
     "showLess": "Afficher moins",
     "statusLabel": "Statut",
-    "rocketPlaceholder": "Espace réservé fusée"
+    "rocketPlaceholder": "Espace réservé fusée",
+    "detailBackToLaunches": "← Retour aux lancements",
+    "detailNotFoundTitle": "Lancement non trouvé",
+    "detailNotFoundHint": "Ce lancement a peut-être été retiré du calendrier, ou le lien est incorrect.",
+    "historyTitle": "Historique des lancements",
+    "historyEmpty": "Aucun changement enregistré pour l'instant.",
+    "historyTypeNet": "Décalage NET",
+    "historyTypeStatus": "Changement de statut",
+    "historyTypeGone": "Retiré du calendrier"
   },
   "auth": {
     "registerTitle": "Créer un compte",

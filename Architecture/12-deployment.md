@@ -166,7 +166,22 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
         health_interval 30s
     }
 
-    root * /srv
+    # SEO launch pages + sitemap (23-seo-widgets-and-growth.md B2) — the
+    # backend reads the built index.html from the shared frontend-dist volume
+    # and injects meta/OG/JSON-LD tags before returning it, so these paths
+    # must hit the backend instead of being served as static files below.
+    @seo path /launches/* /*/launches/* /sitemap.xml
+    reverse_proxy @seo backend:8000 {
+        health_uri      /api/v1/health
+        health_interval 30s
+    }
+
+    handle /robots.txt {
+        header Content-Type "text/plain"
+        respond "User-agent: *\nAllow: /\nSitemap: https://{$APP_DOMAIN}/sitemap.xml\n" 200
+    }
+
+    root * /srv/dist
     try_files {path} /index.html
     file_server
 }
@@ -237,7 +252,7 @@ services:
       - CADDY_TLS_EMAIL=${CADDY_TLS_EMAIL}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./frontend/dist:/srv:ro
+      - ./frontend/dist:/srv/dist:ro
       - caddy_data:/data       # TLS certs — NEVER delete this volume
       - caddy_config:/config
     depends_on:
@@ -259,6 +274,12 @@ services:
       # docker compose only expands ${...} in the compose file itself.
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - DATABASE_URL_SYNC=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # SEO launch pages + sitemap (23-…md B2) — reads index.html/missions
+      # from the same shared read-only volume Caddy serves static assets
+      # from (mounted below).
+      - FRONTEND_DIST_PATH=/srv/dist
+    volumes:
+      - ./frontend/dist:/srv/dist:ro
     depends_on:
       db:
         condition: service_healthy

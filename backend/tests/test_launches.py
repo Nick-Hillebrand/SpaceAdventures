@@ -475,6 +475,104 @@ class TestUpcomingRoute:
         assert body["last_synced_at"] is None
 
 
+class TestGetLaunchByIdRoute:
+    """GET /api/v1/launches/{ll2_id} — single-launch lookup used by the
+    frontend detail page (23-…md B2) for launches outside the /upcoming
+    window (the sitemap/SEO page serve non-Gone launches up to 90 days in
+    the past)."""
+
+    @pytest.mark.asyncio
+    async def test_get_launch_by_id_past_launch(self, client, db_session):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        launch = Launch(
+            ll2_id="route-past-001",
+            name="Past Launch",
+            net=now - timedelta(days=3),
+            status_abbrev="Success",
+            status_name="Launch Successful",
+            agency_name="SpaceX",
+            rocket_name="Falcon 9",
+            pad_name="SLC-40",
+            pad_location="Cape Canaveral",
+            image_url=None,
+            livestream_urls=[],
+            fetched_at=now,
+        )
+        db_session.add(launch)
+        await db_session.commit()
+
+        # Not in /upcoming (net is in the past)...
+        upcoming = await client.get("/api/v1/launches/upcoming")
+        assert all(r["ll2_id"] != "route-past-001" for r in upcoming.json()["data"])
+
+        # ...but resolvable by id, which is what the detail page needs.
+        response = await client.get("/api/v1/launches/route-past-001")
+        assert response.status_code == 200
+        assert response.json()["ll2_id"] == "route-past-001"
+        assert response.json()["name"] == "Past Launch"
+
+    @pytest.mark.asyncio
+    async def test_get_launch_by_id_unknown_returns_404(self, client):
+        response = await client.get("/api/v1/launches/does-not-exist")
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_launch_by_id_gone_returns_404(self, client, db_session):
+        """A launch LL2 stopped returning entirely (status Gone) is treated
+        the same as unknown — it's excluded from the sitemap for the same
+        reason (get_sitemap_launches)."""
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        db_session.add(
+            Launch(
+                ll2_id="route-gone-001",
+                name="Gone Launch",
+                net=now - timedelta(days=1),
+                status_abbrev="Gone",
+                status_name="Gone",
+                agency_name="SpaceX",
+                rocket_name="Falcon 9",
+                pad_name="SLC-40",
+                pad_location="Cape Canaveral",
+                image_url=None,
+                livestream_urls=[],
+                fetched_at=now,
+            )
+        )
+        await db_session.commit()
+
+        response = await client.get("/api/v1/launches/route-gone-001")
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_launch_by_id_applies_translation(self, client, db_session):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        launch = Launch(
+            ll2_id="route-tr-001",
+            name="Translated Launch",
+            net=now + timedelta(hours=2),
+            status_abbrev="Go",
+            status_name="Go for Launch",
+            agency_name="SpaceX",
+            rocket_name="Falcon 9",
+            pad_name="SLC-40",
+            pad_location="Cape Canaveral",
+            mission_name="Starlink",
+            translations_json={"de": {"mission_name": "Starlink (DE)"}},
+            image_url=None,
+            livestream_urls=[],
+            fetched_at=now,
+        )
+        db_session.add(launch)
+        await db_session.commit()
+
+        response = await client.get("/api/v1/launches/route-tr-001?lang=de")
+        assert response.status_code == 200
+        assert response.json()["mission_name"] == "Starlink (DE)"
+
+        response_en = await client.get("/api/v1/launches/route-tr-001")
+        assert response_en.json()["mission_name"] == "Starlink"
+
+
 @pytest_asyncio.fixture
 async def admin_client(db_engine):
     """HTTP client with admin_api_key configured."""

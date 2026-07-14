@@ -370,3 +370,36 @@ async def is_launches_table_empty(session: AsyncSession) -> bool:
     result = await session.execute(stmt)
     count: int = result.scalar_one()
     return count == 0
+
+
+async def get_launch_by_id(session: AsyncSession, ll2_id: str) -> Launch | None:
+    """Read a single launch by LL2 id — never triggers an upstream fetch."""
+    return await session.get(Launch, ll2_id)
+
+
+async def get_launch_history(
+    session: AsyncSession, ll2_id: str, limit: int = 10
+) -> list[LaunchNetChange]:
+    """Most recent slip/status/gone changes for one launch, newest first."""
+    stmt = (
+        select(LaunchNetChange)
+        .where(LaunchNetChange.launch_id == ll2_id)
+        .order_by(LaunchNetChange.detected_at.desc())
+        .limit(limit)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def get_sitemap_launches(session: AsyncSession) -> list[Launch]:
+    """All upcoming + past-90-day launches (23-…md B2 sitemap) — excludes
+    launches LL2 has stopped returning (status "Gone"), since those no
+    longer have a meaningful public detail page."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    stmt = (
+        select(Launch)
+        .where(Launch.net > cutoff, Launch.status_abbrev != "Gone")
+        .order_by(Launch.net.asc())
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())

@@ -167,7 +167,15 @@
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
     "statusLabel": "Status",
-    "rocketPlaceholder": "Raketen-Platzhalter"
+    "rocketPlaceholder": "Raketen-Platzhalter",
+    "detailBackToLaunches": "← Zurück zu Starts",
+    "detailNotFoundTitle": "Start nicht gefunden",
+    "detailNotFoundHint": "Dieser Start wurde möglicherweise aus der Planung entfernt, oder der Link ist ungültig.",
+    "historyTitle": "Start-Verlauf",
+    "historyEmpty": "Keine Änderungen aufgezeichnet.",
+    "historyTypeNet": "NET-Verschiebung",
+    "historyTypeStatus": "Statusänderung",
+    "historyTypeGone": "Aus der Planung entfernt"
   },
   "auth": {
     "registerTitle": "Konto erstellen",

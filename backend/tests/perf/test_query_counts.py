@@ -129,6 +129,40 @@ async def test_upcoming_launches_query_count_is_row_count_independent(client, db
 
 
 # ---------------------------------------------------------------------------
+# GET /sitemap.xml
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("row_count", [10, 100])
+async def test_sitemap_query_count_within_budget(client, db_engine, db_session, row_count):
+    await _seed_launches(db_session, row_count)
+    with count_queries(db_engine) as get_count:
+        response = await client.get("/sitemap.xml")
+    assert response.status_code == 200
+    assert get_count() <= MAX_STATEMENTS
+
+
+async def test_sitemap_query_count_is_row_count_independent(client, db_engine, db_session):
+    await _seed_launches(db_session, 10)
+    with count_queries(db_engine) as get_count:
+        r = await client.get("/sitemap.xml")
+    assert r.status_code == 200
+    count_at_10 = get_count()
+
+    await _seed_launches(db_session, 90, offset=10)  # bring the total to 100
+    with count_queries(db_engine) as get_count:
+        r = await client.get("/sitemap.xml")
+    assert r.status_code == 200
+    count_at_100 = get_count()
+
+    assert count_at_10 == count_at_100, (
+        f"query count grew with row count ({count_at_10} at 10 rows vs "
+        f"{count_at_100} at 100 rows) — this is the N+1 signature"
+    )
+    assert count_at_100 <= MAX_STATEMENTS
+
+
+# ---------------------------------------------------------------------------
 # GET /api/v1/subscriptions
 # ---------------------------------------------------------------------------
 

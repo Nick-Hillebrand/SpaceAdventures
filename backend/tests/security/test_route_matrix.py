@@ -46,7 +46,12 @@ ROUTE_TABLE: list[tuple[str, str, str]] = [
     ("GET", "/api/v1/iss/passes/radio", "public"),
     ("GET", "/api/v1/iss/quota", "public"),
     ("GET", "/api/v1/launches/upcoming", "public"),
+    ("GET", "/api/v1/launches/{ll2_id}/history", "public"),
+    ("GET", "/api/v1/launches/{ll2_id}", "public"),
     ("POST", "/api/v1/launches/sync", "admin"),
+    ("GET", "/launches/{ll2_id}", "public"),
+    ("GET", "/{lang}/launches/{ll2_id}", "public"),
+    ("GET", "/sitemap.xml", "public"),
     ("POST", "/api/v1/auth/register", "public"),
     ("POST", "/api/v1/auth/verify/email", "user"),
     ("POST", "/api/v1/auth/verify/phone", "user"),
@@ -78,7 +83,11 @@ ROUTE_TABLE: list[tuple[str, str, str]] = [
 VALID_AUTH_LEVELS = {"public", "user", "admin", "capability"}
 
 # Path params in the table above need a concrete value to build a real URL.
-_PATH_PARAM_FILLS = {"subscription_id": "route-matrix-test-id"}
+_PATH_PARAM_FILLS = {
+    "subscription_id": "route-matrix-test-id",
+    "ll2_id": "route-matrix-test-id",
+    "lang": "en",
+}
 
 
 def _concrete_path(path: str) -> str:
