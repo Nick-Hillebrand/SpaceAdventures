@@ -108,6 +108,8 @@ cp .env.example backend/.env
 | `SCHEDULER_IN_APP` | No | Run the APScheduler job registry inside this process. Defaults to `false`. `docker-compose.yml` sets this for the dev backend container; set it in your own `.env` too if you run `uvicorn` directly instead of via docker compose. Never set in prod — the dedicated `worker` service (`python -m app.worker`) runs jobs there instead. |
 | `WEB_CONCURRENCY` | No | Uvicorn worker process count for the backend service in production (`docker-compose.prod.yml`). Defaults to `4`. Safe to scale — the web tier is stateless and never schedules jobs. Not used in dev (dev pins `--workers 1`). |
 | `SENTRY_DSN` | No | Sentry error reporting DSN, read by both the `backend` and `worker` processes. Leave blank to disable — Sentry is never a hard dependency. |
+| `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` | No | Web Push VAPID keypair (raw base64url, not PEM) — see the generation snippet in `.env.example`. Leave blank to disable push sending; `/api/v1/push/vapid-public-key` returns an empty key and the frontend won't offer the push channel. |
+| `VAPID_CLAIMS_EMAIL` | No | Contact email sent in the VAPID JWT `sub` claim (`mailto:` prefix added automatically), used by push services to reach you about your server's push traffic. |
 
 > **Note:** The backend starts without the three required secrets (`JWT_SECRET_KEY`, `UNSUBSCRIBE_SECRET_KEY`, `ADMIN_API_KEY`) when `APP_REQUIRE_SECRETS` is not set to `1` (the default for dev). When required, each must be at least 32 characters. Auth endpoints still work without them in dev; JWT tokens are signed with whatever key is configured.
 >

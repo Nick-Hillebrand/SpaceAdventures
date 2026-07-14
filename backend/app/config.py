@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_from_number: str = ""
 
+    # Web Push / VAPID (19-notification-channels-v2.md B1.2)
+    vapid_private_key: str = ""
+    vapid_public_key: str = ""
+    vapid_claims_email: str = ""
+
+    # Outbox hardening (19-…md B1.1) — per-user monthly SMS cap; over cap
+    # converts that notification to email instead (financial self-protection).
+    sms_monthly_cap: int = 30
+
     # CORS
     frontend_origin: str = "http://localhost:5173"
 

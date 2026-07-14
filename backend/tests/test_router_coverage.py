@@ -404,10 +404,11 @@ def test_quota_status_exhausted_at_cap(settings):
 async def test_health_snapshot_ok_path(db_session):
     from app.main import _health_snapshot
 
-    status, job_rows, quota_row = await _health_snapshot(db_session)
+    status, job_rows, quota_row, dead_letter_count = await _health_snapshot(db_session)
     assert status == "ok"
     assert job_rows == []
     assert quota_row is None
+    assert dead_letter_count == 0
 
 
 async def test_health_snapshot_error_path_never_raises():
@@ -416,10 +417,11 @@ async def test_health_snapshot_error_path_never_raises():
     broken_session = AsyncMock()
     broken_session.execute.side_effect = RuntimeError("db is down")
 
-    status, job_rows, quota_row = await _health_snapshot(broken_session)
+    status, job_rows, quota_row, dead_letter_count = await _health_snapshot(broken_session)
     assert status == "error"
     assert job_rows == []
     assert quota_row is None
+    assert dead_letter_count == 0
 
 
 async def test_health_route_direct_public_degraded_no_heartbeat(db_session, settings):

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useDeleteAccount, useExportAccount, useMe, useSetConsent } from "@/hooks/useAuth";
 import { useSubscriptions, useDeleteSubscription } from "@/hooks/useSubscriptions";
+import { usePush } from "@/hooks/usePush";
 import { apiPost } from "@/lib/api";
 import { formatDate } from "@/lib/dateTime";
 
@@ -17,6 +18,7 @@ export default function AccountPage() {
   const setConsent = useSetConsent();
   const deleteAccount = useDeleteAccount();
   const exportAccount = useExportAccount();
+  const push = usePush();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [resendStatus, setResendStatus] = useState<Record<string, "sent" | "failed">>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -158,6 +160,39 @@ export default function AccountPage() {
             </label>
           </p>
 
+          {push.permission !== "unsupported" && (
+            <p data-testid="push-device-status">
+              <strong>{t("account.pushDevice")}:</strong>{" "}
+              {push.permission === "denied" ? (
+                <span>{t("account.pushDenied")}</span>
+              ) : push.isSubscribed ? (
+                <>
+                  <span aria-label="push subscribed">✓ {t("account.pushSubscribed")}</span>
+                  <button
+                    type="button"
+                    onClick={() => push.unsubscribe()}
+                    disabled={push.isPending}
+                    data-testid="push-unsubscribe-button"
+                  >
+                    {t("account.pushDisable")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>{t("account.pushNotSubscribed")}</span>
+                  <button
+                    type="button"
+                    onClick={() => push.subscribe()}
+                    disabled={push.isPending}
+                    data-testid="push-subscribe-button"
+                  >
+                    {t("account.pushEnable")}
+                  </button>
+                </>
+              )}
+            </p>
+          )}
+
           <div className="account-danger-zone">
             <h2>{t("account.dangerZone")}</h2>
 
@@ -250,6 +285,7 @@ export default function AccountPage() {
                     {[
                       sub.notify_email && t("account.channelEmail"),
                       sub.notify_sms && t("account.channelSms"),
+                      sub.notify_push && t("account.channelPush"),
                     ]
                       .filter(Boolean)
                       .join(", ") || t("account.noChannels")}

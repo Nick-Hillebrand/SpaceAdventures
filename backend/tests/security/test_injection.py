@@ -9,6 +9,16 @@ rocket_name, pad_name, old_value, new_value). Notification-output paths
 (email, SMS) are covered by test_notifications.py; this file targets the
 slip-history storage path specifically, and the underlying sanitise()
 helper.
+
+Step B1.2 (Web Push): `PushSubscribeRequest.endpoint`/`keys.p256dh`/
+`keys.auth` are browser-supplied, but they are *not* in scope for this
+fixture matrix — they are opaque values handed unmodified to pywebpush and
+are never rendered into HTML/ICS/SEO-meta/JSON-LD/SMS/social output (the
+§2.3 injection concern), nor interpolated into SQL (ORM-only, values are
+bound parameters). `endpoint` is instead an SSRF concern (§2.5 — the worker
+later makes an outbound HTTP request to whatever URL is stored), which is
+covered separately: see `test_push.py::test_subscribe_rejects_unsafe_endpoint`
+and `_validate_push_endpoint()` in `app/schemas/push.py`.
 """
 from __future__ import annotations
 

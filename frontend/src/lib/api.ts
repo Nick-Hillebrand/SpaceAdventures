@@ -97,6 +97,8 @@ export async function apiGet<T>(path: string): Promise<T> {
   if (!response.ok) {
     throw await parseError(response);
   }
+  // 204 No Content — no body (e.g. POST /api/v1/push/subscribe)
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -128,5 +130,7 @@ export async function apiPost<T>(path: string, body: unknown, tokenOverride?: st
   if (!response.ok) {
     throw await parseError(response);
   }
+  // 204 No Content — no body (e.g. POST /api/v1/push/subscribe)
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }

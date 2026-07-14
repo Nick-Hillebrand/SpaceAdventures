@@ -40,6 +40,7 @@ async def create_subscription(
         agency_name=data.agency_name,
         notify_email=data.notify_email,
         notify_sms=data.notify_sms,
+        notify_push=data.notify_push,
     )
     session.add(sub)
     await session.commit()

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.launches import Launch
 from app.models.notification_log import NotificationLog, PendingNotification
@@ -323,7 +325,9 @@ async def test_notification_retry_on_failure(mock_send, db_session, settings):
 
 @pytest.mark.asyncio
 @patch("aiosmtplib.send", new_callable=AsyncMock)
-async def test_notification_deleted_after_3_failures(mock_send, db_session, settings):
+async def test_notification_dead_lettered_after_5_failures(mock_send, db_session, settings):
+    """B1.1: a row that fails a 5th time is dead-lettered (kept, `dead=True`),
+    not deleted — it must stay visible in the admin health payload."""
     mock_send.side_effect = Exception("SMTP permanent error")
 
     user = _make_user(db_session, email_verified=True)
@@ -338,21 +342,26 @@ async def test_notification_deleted_after_3_failures(mock_send, db_session, sett
         change_type="NET_SLIP",
         old_value="2026-08-01T10:00:00",
         new_value="2026-08-01T14:00:00",
-        attempt_count=2,  # Already at 2 — next failure should purge
+        attempt_count=4,  # Already at 4 — next failure is the 5th
     )
     db_session.add(pending)
     await db_session.flush()
     pending_id = pending.id
     await db_session.commit()
 
-    await notification_service.drain_queue(db_session, settings)
+    with patch("app.observability.capture_message") as mock_capture:
+        await notification_service.drain_queue(db_session, settings)
+        assert mock_capture.called
 
-    # Row should be deleted
+    # Row is kept, marked dead
     db_session.expire_all()
     result = await db_session.execute(
         select(PendingNotification).where(PendingNotification.id == pending_id)
     )
-    assert result.scalar_one_or_none() is None
+    row = result.scalar_one_or_none()
+    assert row is not None
+    assert row.dead is True
+    assert row.attempt_count == 5
 
     # A 'failed' log should exist
     log_result = await db_session.execute(
@@ -361,6 +370,241 @@ async def test_notification_deleted_after_3_failures(mock_send, db_session, sett
     logs = list(log_result.scalars().all())
     assert len(logs) == 1
     assert logs[0].error_detail is not None
+
+
+@pytest.mark.asyncio
+@patch("aiosmtplib.send", new_callable=AsyncMock)
+async def test_dead_row_not_selected_by_drain(mock_send, db_session, settings):
+    """A `dead=True` row must never be retried again."""
+    user = _make_user(db_session, email_verified=True)
+    launch = _make_launch(db_session)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    sub = await _make_subscription(db_session, user.id, notify_email=True)
+    pending = PendingNotification(
+        subscription_id=sub.id,
+        ll2_id="launch-001",
+        change_type="NET_SLIP",
+        old_value="2026-08-01T10:00:00",
+        new_value="2026-08-01T14:00:00",
+        attempt_count=5,
+        dead=True,
+    )
+    db_session.add(pending)
+    await db_session.commit()
+
+    await notification_service.drain_queue(db_session, settings)
+
+    assert not mock_send.called
+
+
+@pytest.mark.asyncio
+@patch("aiosmtplib.send", new_callable=AsyncMock)
+async def test_backoff_schedule_exact(mock_send, db_session, settings):
+    """B1.1: attempt N's failure schedules next_attempt_at exactly
+    _BACKOFF_SCHEDULE_SECONDS[N-1] seconds out (1m, 5m, 30m, 2h, 12h)."""
+    mock_send.side_effect = Exception("SMTP permanent error")
+
+    user = _make_user(db_session, email_verified=True)
+    launch = _make_launch(db_session)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    sub = await _make_subscription(db_session, user.id, notify_email=True)
+    pending = await _make_pending(db_session, sub.id)
+    pending_id = pending.id
+    await db_session.commit()
+
+    before = datetime.now(timezone.utc)
+    await notification_service.drain_queue(db_session, settings)
+
+    db_session.expire_all()
+    result = await db_session.execute(
+        select(PendingNotification).where(PendingNotification.id == pending_id)
+    )
+    row = result.scalar_one_or_none()
+    assert row.attempt_count == 1
+    assert row.dead is False
+    delta = (row.next_attempt_at - before).total_seconds()
+    # attempt_count-1 == 0 -> first backoff entry (60s)
+    assert 55 <= delta <= 65
+
+
+# ---------------------------------------------------------------------------
+# SMS monthly cap (B1.1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("app.services.notification_service._send_sms", new_callable=AsyncMock)
+async def test_sms_cap_boundary_allows_up_to_cap(mock_send_sms, db_session, settings):
+    settings2 = settings.model_copy(update={"sms_monthly_cap": 1})
+    user = _make_user(
+        db_session, email_verified=False, phone="+15551234567", phone_verified=True
+    )
+    launch = _make_launch(db_session)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    sub = await _make_subscription(db_session, user.id, notify_email=False, notify_sms=True)
+    user_id = user.id
+    await _make_pending(db_session, sub.id)
+    await db_session.commit()
+
+    await notification_service.drain_queue(db_session, settings2)
+
+    assert mock_send_sms.called
+    db_session.expire_all()
+    refreshed = (
+        await db_session.execute(select(User).where(User.id == user_id))
+    ).scalar_one()
+    assert refreshed.sms_sent_month == 1
+
+
+@pytest.mark.asyncio
+@patch("aiosmtplib.send", new_callable=AsyncMock)
+@patch("app.services.notification_service._send_sms", new_callable=AsyncMock)
+async def test_sms_over_cap_converts_to_email(mock_send_sms, mock_send_email, db_session, settings):
+    """Over the monthly cap: no SMS is sent, and the notification falls back
+    to email instead (financial self-protection)."""
+    settings2 = settings.model_copy(update={"sms_monthly_cap": 1})
+    user = _make_user(
+        db_session,
+        email_verified=True,
+        phone="+15551234567",
+        phone_verified=True,
+    )
+    user.sms_sent_month = 1
+    user.sms_month = notification_service._current_month_str()
+    launch = _make_launch(db_session)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    sub = await _make_subscription(db_session, user.id, notify_email=False, notify_sms=True)
+    await _make_pending(db_session, sub.id)
+    await db_session.commit()
+
+    await notification_service.drain_queue(db_session, settings2)
+
+    assert not mock_send_sms.called
+    assert mock_send_email.called
+
+
+@pytest.mark.asyncio
+@patch("app.services.notification_service._send_sms", new_callable=AsyncMock)
+async def test_sms_month_rollover_resets_counter(mock_send_sms, db_session, settings):
+    settings2 = settings.model_copy(update={"sms_monthly_cap": 1})
+    user = _make_user(
+        db_session, email_verified=False, phone="+15551234567", phone_verified=True
+    )
+    user.sms_sent_month = 1
+    user.sms_month = "2020-01"  # stale month — must roll over rather than staying capped
+    launch = _make_launch(db_session)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    sub = await _make_subscription(db_session, user.id, notify_email=False, notify_sms=True)
+    user_id = user.id
+    await _make_pending(db_session, sub.id)
+    await db_session.commit()
+
+    await notification_service.drain_queue(db_session, settings2)
+
+    assert mock_send_sms.called
+    db_session.expire_all()
+    refreshed = (
+        await db_session.execute(select(User).where(User.id == user_id))
+    ).scalar_one()
+    assert refreshed.sms_month == notification_service._current_month_str()
+    assert refreshed.sms_sent_month == 1
+
+
+# ---------------------------------------------------------------------------
+# Push channel (B1.2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("app.services.notification_service._send_push", new_callable=AsyncMock)
+async def test_push_sent_to_all_user_devices(mock_send_push, db_session, settings):
+    from app.models.push_subscription import PushSubscription
+
+    user = _make_user(db_session, email_verified=False)
+    launch = _make_launch(db_session)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    device1 = PushSubscription(
+        user_id=user.id, endpoint="https://push.example/1", p256dh="key1", auth="auth1"
+    )
+    device2 = PushSubscription(
+        user_id=user.id, endpoint="https://push.example/2", p256dh="key2", auth="auth2"
+    )
+    db_session.add_all([device1, device2])
+
+    sub = await _make_subscription(db_session, user.id, notify_email=False, notify_sms=False)
+    sub.notify_push = True
+    await _make_pending(db_session, sub.id)
+    await db_session.commit()
+
+    await notification_service.drain_queue(db_session, settings)
+
+    assert mock_send_push.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_push_gone_subscription_pruned(db_session, settings):
+    from unittest.mock import MagicMock
+
+    from pywebpush import WebPushException
+
+    from app.models.push_subscription import PushSubscription
+
+    user = _make_user(db_session, email_verified=False)
+    launch = _make_launch(db_session)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    device = PushSubscription(
+        user_id=user.id, endpoint="https://push.example/gone", p256dh="key1", auth="auth1"
+    )
+    db_session.add(device)
+
+    sub = await _make_subscription(db_session, user.id, notify_email=False, notify_sms=False)
+    sub.notify_push = True
+    await _make_pending(db_session, sub.id)
+    await db_session.commit()
+    device_id = device.id
+
+    fake_response = MagicMock()
+    fake_response.status_code = 410
+    gone_exc = WebPushException("gone", response=fake_response)
+
+    with patch("app.services.notification_service.webpush", side_effect=gone_exc):
+        await notification_service.drain_queue(db_session, settings)
+
+    db_session.expire_all()
+    result = await db_session.execute(
+        select(PushSubscription).where(PushSubscription.id == device_id)
+    )
+    assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_send_push_wraps_sync_call_in_thread(settings):
+    """P32: pywebpush is sync — `_send_push` must run it via `asyncio.to_thread`,
+    not block the event loop directly."""
+    from app.models.push_subscription import PushSubscription
+
+    device = PushSubscription(
+        id="dev-1", user_id=1, endpoint="https://push.example/x", p256dh="k", auth="a"
+    )
+
+    with patch("app.services.notification_service.asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread:
+        await notification_service._send_push(settings, device, '{"title":"t"}')
+        assert mock_to_thread.called
+        assert mock_to_thread.call_args.args[0] is notification_service._webpush_sync
 
 
 # ---------------------------------------------------------------------------
@@ -423,3 +667,47 @@ def test_scrub_error_removes_credentials():
     assert "mysecret" not in scrubbed
     assert "[REDACTED]" in scrubbed
     assert len(scrubbed) <= 500
+
+
+# ---------------------------------------------------------------------------
+# Concurrent drain — Postgres FOR UPDATE SKIP LOCKED (B1.1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.postgres_only
+@pytest.mark.asyncio
+async def test_concurrent_drain_no_double_send(db_engine, settings):
+    """Two overlapping drain ticks must never both deliver the same row.
+
+    `FOR UPDATE SKIP LOCKED` (a no-op on SQLite) means the second concurrent
+    call's SELECT excludes the row the first call is already holding, rather
+    than blocking on it — 17-worker-and-scheduling.md P3.3.
+    """
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, class_=AsyncSession)
+
+    async with factory() as setup_session:
+        user = _make_user(setup_session, email_verified=True)
+        launch = _make_launch(setup_session)
+        await setup_session.flush()
+        await setup_session.refresh(user)
+        sub = await _make_subscription(setup_session, user.id, notify_email=True)
+        await _make_pending(setup_session, sub.id)
+        await setup_session.commit()
+
+    async def _slow_send(*args, **kwargs):
+        await asyncio.sleep(0.3)
+
+    with patch("aiosmtplib.send", new_callable=AsyncMock) as mock_send:
+        mock_send.side_effect = _slow_send
+
+        async def _drain():
+            async with factory() as session:
+                await notification_service.drain_queue(session, settings)
+
+        await asyncio.gather(_drain(), _drain())
+
+    assert mock_send.call_count == 1
+
+    async with factory() as check_session:
+        result = await check_session.execute(select(PendingNotification))
+        assert list(result.scalars().all()) == []

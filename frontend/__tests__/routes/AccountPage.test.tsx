@@ -9,7 +9,51 @@ import i18n from "@/i18n";
 
 afterEach(async () => {
   await act(async () => { await i18n.changeLanguage("en"); });
+  vi.unstubAllGlobals();
+  // @ts-expect-error — cleaning up the test-only navigator override
+  delete navigator.serviceWorker;
 });
+
+class FakePushSubscription {
+  endpoint = "https://push.example/endpoint-1";
+  unsubscribe = vi.fn().mockResolvedValue(true);
+  toJSON() {
+    return {
+      endpoint: this.endpoint,
+      keys: { p256dh: "test-p256dh", auth: "test-auth" },
+    };
+  }
+}
+
+function installPushEnvironment({
+  initialPermission = "default" as NotificationPermission,
+  existingSubscription = null as FakePushSubscription | null,
+}: {
+  initialPermission?: NotificationPermission;
+  existingSubscription?: FakePushSubscription | null;
+} = {}) {
+  const requestPermission = vi.fn().mockResolvedValue(initialPermission);
+  const subscribe = vi.fn().mockResolvedValue(new FakePushSubscription());
+  const getSubscription = vi.fn().mockResolvedValue(existingSubscription);
+
+  class FakeNotification {
+    static permission: NotificationPermission = initialPermission;
+    static requestPermission = requestPermission;
+  }
+
+  const registration = {
+    pushManager: { subscribe, getSubscription },
+  };
+
+  vi.stubGlobal("Notification", FakeNotification);
+  vi.stubGlobal("PushManager", function PushManager() {});
+  Object.defineProperty(navigator, "serviceWorker", {
+    configurable: true,
+    value: { ready: Promise.resolve(registration) },
+  });
+
+  return { requestPermission, subscribe, getSubscription };
+}
 
 // P28: use vi.hoisted() for variables referenced in mock factories
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -409,5 +453,92 @@ describe("AccountPage", () => {
     await user.click(screen.getByRole("button", { name: /Cancel/i }));
 
     expect(screen.queryByTestId("delete-account-confirm")).not.toBeInTheDocument();
+  });
+
+  it("push unsupported — no push-device-status block shown", async () => {
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    expect(screen.queryByTestId("push-device-status")).not.toBeInTheDocument();
+  });
+
+  it("push supported, not subscribed — shows enable button and subscribes on click", async () => {
+    installPushEnvironment({ initialPermission: "granted" });
+    const user = userEvent.setup();
+
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    const status = await screen.findByTestId("push-device-status");
+    expect(status).toHaveTextContent(/Not enabled on this device/i);
+
+    await user.click(screen.getByTestId("push-subscribe-button"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("push subscribed")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("push-unsubscribe-button")).toBeInTheDocument();
+  });
+
+  it("push supported, already subscribed — shows disable button and unsubscribes on click", async () => {
+    installPushEnvironment({
+      initialPermission: "granted",
+      existingSubscription: new FakePushSubscription(),
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("push subscribed")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("push-unsubscribe-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("push-device-status")).toHaveTextContent(
+        /Not enabled on this device/i,
+      );
+    });
+  });
+
+  it("push permission denied — shows blocked status with no action button", async () => {
+    installPushEnvironment({ initialPermission: "denied" });
+
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    const status = await screen.findByTestId("push-device-status");
+    expect(status).toHaveTextContent(/Blocked in browser settings/i);
+    expect(screen.queryByTestId("push-subscribe-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("push-unsubscribe-button")).not.toBeInTheDocument();
+  });
+
+  it("subscriptions list shows Push among the notification channels", async () => {
+    server.use(
+      http.get("/api/v1/subscriptions", () =>
+        HttpResponse.json([
+          {
+            id: "sub-push-001",
+            type: "launch",
+            ll2_id: "launch-001",
+            agency_name: null,
+            notify_email: false,
+            notify_sms: false,
+            notify_push: true,
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ]),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Alice Liddell/i);
+
+    await user.click(screen.getByRole("button", { name: /Subscriptions/i }));
+
+    expect(await screen.findByTestId("subscription-sub-push-001")).toHaveTextContent(/Push/i);
   });
 });

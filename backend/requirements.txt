@@ -12,6 +12,7 @@ PyJWT==2.13.0
 passlib[bcrypt]==1.7.4
 aiosmtplib==5.1.2
 twilio==9.3.2
+pywebpush==2.3.0
 APScheduler==3.10.4
 python-dateutil==2.9.0.post0
 structlog==25.4.0

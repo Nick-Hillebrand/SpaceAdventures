@@ -46,6 +46,7 @@ export const handlers = [
         agency_name: null,
         notify_email: true,
         notify_sms: false,
+        notify_push: false,
         created_at: "2026-01-01T00:00:00Z",
       },
       { status: 201 },
@@ -53,6 +54,17 @@ export const handlers = [
   ),
 
   http.delete("/api/v1/subscriptions/:id", () => new HttpResponse(null, { status: 204 })),
+
+  // Realistic-shaped (87-char, unpadded-base64url) VAPID key — a real key is
+  // a 65-byte uncompressed EC point, so an arbitrary shorter string would
+  // fail `atob()`'s padding requirements in usePush's decode step.
+  http.get("/api/v1/push/vapid-public-key", () =>
+    HttpResponse.json({ public_key: "A".repeat(87) }),
+  ),
+
+  http.post("/api/v1/push/subscribe", () => new HttpResponse(null, { status: 204 })),
+
+  http.delete("/api/v1/push/subscribe", () => new HttpResponse(null, { status: 204 })),
 
   http.get("/api/v1/settings", () =>
     HttpResponse.json({ nasa_key_set: false, n2yo_key_set: false }),

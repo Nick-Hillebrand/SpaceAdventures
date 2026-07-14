@@ -50,3 +50,13 @@ def capture_exception(exc: Exception) -> None:
 
     if sentry_sdk.is_initialized():
         sentry_sdk.capture_exception(exc)
+
+
+def capture_message(message: str, *, level: str = "warning") -> None:
+    """Report a non-exception event (e.g. an outbox row going dead-letter) to
+    Sentry if it's configured; always safe to call. `message` must already be
+    scrubbed — this function does not redact anything itself."""
+    import sentry_sdk  # noqa: PLC0415
+
+    if sentry_sdk.is_initialized():
+        sentry_sdk.capture_message(message, level=level)

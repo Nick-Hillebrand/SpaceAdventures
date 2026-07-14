@@ -62,6 +62,9 @@ ROUTE_TABLE: list[tuple[str, str, str]] = [
     ("POST", "/api/v1/subscriptions/unsubscribe", "capability"),
     ("POST", "/api/v1/subscriptions", "user"),
     ("DELETE", "/api/v1/subscriptions/{subscription_id}", "user"),
+    ("GET", "/api/v1/push/vapid-public-key", "public"),
+    ("POST", "/api/v1/push/subscribe", "user"),
+    ("DELETE", "/api/v1/push/subscribe", "user"),
     ("GET", "/api/v1/settings", "public"),
     # FastAPI's auto-generated interactive docs — read-only schema/UI, no
     # data access. Declared explicitly so the completeness check stays green;

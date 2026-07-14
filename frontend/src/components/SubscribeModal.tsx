@@ -5,6 +5,7 @@ import {
   useCreateSubscription,
   useSubscriptions,
 } from "@/hooks/useSubscriptions";
+import { usePush } from "@/hooks/usePush";
 import type { LaunchData } from "@/types/api";
 import { formatDateTime } from "@/lib/dateTime";
 
@@ -20,11 +21,13 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
   const { data: subscriptions } = useSubscriptions();
   const createSubscription = useCreateSubscription();
   const setConsent = useSetConsent();
+  const push = usePush();
 
   const [subscribeLaunch, setSubscribeLaunch] = useState(false);
   const [subscribeAgency, setSubscribeAgency] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState(false);
   const [notifySms, setNotifySms] = useState(false);
+  const [notifyPush, setNotifyPush] = useState(false);
   const [grantConsent, setGrantConsent] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -52,6 +55,14 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
         return;
       }
     }
+    if ((subscribeLaunch || subscribeAgency) && notifyPush && !push.isSubscribed) {
+      const pushSubscribed = await push.subscribe();
+      if (!pushSubscribed) {
+        setStatus(t("subscriptions.failedSubscribe"));
+        return;
+      }
+    }
+
     const tasks = [];
 
     if (subscribeLaunch && !isLaunchSubscribed) {
@@ -61,6 +72,7 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
           ll2_id: launch.ll2_id,
           notify_email: notifyEmail,
           notify_sms: notifySms,
+          notify_push: notifyPush,
         })
       );
     }
@@ -72,6 +84,7 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
           agency_name: launch.agency_name,
           notify_email: notifyEmail,
           notify_sms: notifySms,
+          notify_push: notifyPush,
         })
       );
     }
@@ -92,7 +105,8 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
 
   const hasVerifiedEmail = user?.email_verified && !!user?.email;
   const hasVerifiedPhone = user?.phone_verified && !!user?.phone;
-  const noChannelAvailable = !hasVerifiedEmail && !hasVerifiedPhone;
+  const pushAvailable = push.permission !== "unsupported" && push.permission !== "denied";
+  const noChannelAvailable = !hasVerifiedEmail && !hasVerifiedPhone && !pushAvailable;
 
   return (
     <div
@@ -193,6 +207,23 @@ export function SubscribeModal({ launch, isOpen, onClose }: SubscribeModalProps)
               ) : (
                 <p data-testid="verify-phone-prompt">
                   {t("subscriptions.verifyPhonePrompt")}
+                </p>
+              )}
+              <br />
+              {push.permission !== "unsupported" && push.permission !== "denied" && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={notifyPush}
+                    onChange={(e) => setNotifyPush(e.target.checked)}
+                    data-testid="checkbox-push"
+                  />
+                  {" "}{t("account.channelPush")}
+                </label>
+              )}
+              {push.permission === "denied" && (
+                <p data-testid="push-denied-prompt">
+                  {t("subscriptions.pushDeniedPrompt")}
                 </p>
               )}
             </fieldset>

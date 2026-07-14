@@ -101,7 +101,7 @@ Read: `27-mission-simulations-3d.md`, `13-mars-rover-3d-model.md`
 - Content order: Apollo 11 first (lowest asset risk), then
   Pathfinder/Sojourner (validates the VRML→glb conversion pipeline).
 
-### Milestone P — Production readiness ⭐ current focus (blocks public users; resumed here after S, 2026-07-12)
+### Milestone P — Production readiness ✅ complete (blocks public users; resumed here after S, 2026-07-12; all steps shipped 2026-07-13)
 
 **Step P1 — Hardening.** ✅ complete (shipped 2026-07-13, see status below)
 Read: `15-production-hardening.md`, `10-security.md`, `25-security-testing.md`,
@@ -226,10 +226,43 @@ Read: `18-slip-history-and-reliability.md` (Stage 1 only)
     unaffected (no new routes in Stage 1).
   - Step P4 is now complete. Next: Step B1 (Outbox hardening + Web Push).
 
-### Milestone B — Beta (50–100 users; the test is notification correctness)
+### Milestone B — Beta ⭐ current focus (50–100 users; the test is notification correctness)
 
-**Step B1 — Outbox hardening + Web Push.**
+**Step B1 — Outbox hardening + Web Push.** ✅ complete (shipped 2026-07-13)
 Read: `19-notification-channels-v2.md` (B1 sections), `08-subscriptions.md`
+- Outbox hardening (B1.1): backoff + dead-letter + `SELECT … FOR UPDATE SKIP
+  LOCKED` on the pending-notification queue, SMS monthly cap with fallback
+  to email, dead-letter count surfaced in the admin health payload. Web
+  Push (B1.2): VAPID-based push subscribe/unsubscribe endpoints, worker
+  delivery via `pywebpush`, frontend service worker + `usePush` hook +
+  `SubscribeModal`/`AccountPage` UI, i18n across all six locales.
+  - ✅ Shipped 2026-07-13: `PendingNotification` model extended with
+    retry/backoff/dead-letter fields; `drain_queue` rewritten around
+    `SKIP LOCKED` row claiming; SMS monthly cap enforced with automatic
+    conversion to email on cap-exceeded; dead-letter count added to
+    `/api/v1/health`. `push_subscriptions` table + migration
+    (`d80da57a25c5`); `app/routers/push.py` (`GET
+    /api/v1/push/vapid-public-key`, `POST`/`DELETE
+    /api/v1/push/subscribe`) registered in the route-authorization matrix;
+    `notification_service.py` gained a push delivery channel; `endpoint`
+    is validated against SSRF (https-only, rejects private/loopback/
+    link-local/reserved/multicast IP-literal hosts — the worker replays it
+    into an outbound `pywebpush` POST, so a malicious registered user
+    handing it a raw endpoint URL is an in-scope threat per
+    `25-security-testing.md` §2.5); push payload fields are documented as
+    out of scope for the §2.3 injection-fixture matrix (opaque values never
+    rendered into any output context) in `test_injection.py`. Frontend:
+    `vite-plugin-pwa` + `src/sw.ts` service worker, `usePush` hook,
+    `SubscribeModal` push opt-in and `AccountPage` push device status UI;
+    fixed two real bugs surfaced while writing these tests — `apiPost`
+    was missing 204-No-Content handling (thrown `SyntaxError` on the empty
+    subscribe response body), and `SubscribeModal`'s post-subscribe check
+    read a stale closure value instead of `subscribe()`'s own return value.
+    656 backend tests green (4 skipped), 431 frontend tests green,
+    per-module/per-file branch coverage gates both passed (33 backend
+    modules, all frontend files ≥ 80%).
+  - Step B1 is now complete. Next: Step B2 (SEO launch pages + sitemap).
+
 **Step B2 — SEO launch pages + sitemap.**
 Read: `23-seo-widgets-and-growth.md` (B2), `06-launches.md`
 **Step B3 — Live spacecraft in simulator.**

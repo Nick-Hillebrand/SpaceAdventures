@@ -7,6 +7,7 @@ from app.models.mars import MarsPhoto
 from app.models.n2yo_quota import N2yoQuota
 from app.models.neo import Neo
 from app.models.notification_log import NotificationLog, PendingNotification
+from app.models.push_subscription import PushSubscription
 from app.models.rate_limit import RateLimitEvent
 from app.models.space_weather import SpaceWeatherEvent
 from app.models.subscription import Subscription
@@ -27,6 +28,7 @@ __all__ = [
     "NotificationLog",
     "Otp",
     "PendingNotification",
+    "PushSubscription",
     "RateLimitEvent",
     "RefreshToken",
     "SpaceWeatherEvent",

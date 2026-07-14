@@ -1,10 +1,30 @@
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // 19-notification-channels-v2.md B1.2: custom `src/sw.ts` (push +
+    // notificationclick handlers) via injectManifest — never the generated
+    // strategy, since we hand-write the push event handling. The SW is only
+    // registered in production builds (`registerType: "prompt"` + the
+    // frontend's own `import.meta.env.PROD` gate around `registerSW()`) so
+    // it never collides with the MSW mock worker in dev/test.
+    VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
+      injectRegister: false,
+      manifest: false,
+      devOptions: { enabled: false },
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
+      },
+    }),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -43,3 +43,17 @@ def test_capture_exception_reports_when_initialized():
          patch("sentry_sdk.capture_exception") as mock_capture:
         observability.capture_exception(exc)
     mock_capture.assert_called_once_with(exc)
+
+
+def test_capture_message_noop_when_not_initialized():
+    with patch("sentry_sdk.is_initialized", return_value=False), \
+         patch("sentry_sdk.capture_message") as mock_capture:
+        observability.capture_message("notification dead-lettered")
+    mock_capture.assert_not_called()
+
+
+def test_capture_message_reports_when_initialized():
+    with patch("sentry_sdk.is_initialized", return_value=True), \
+         patch("sentry_sdk.capture_message") as mock_capture:
+        observability.capture_message("notification dead-lettered", level="error")
+    mock_capture.assert_called_once_with("notification dead-lettered", level="error")

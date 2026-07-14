@@ -39,6 +39,10 @@ class Subscription(Base):
     agency_name: Mapped[str | None] = mapped_column(String, nullable=True)
     notify_email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notify_sms: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # B1.2 (19-notification-channels-v2.md): push is free-tier for basic
+    # launch reminders — no verified-channel gate the way email/sms require
+    # (verification lives at the push_subscriptions row, not the user).
+    notify_push: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )

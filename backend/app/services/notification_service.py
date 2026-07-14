@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import logging
 import re
 import unicodedata  # noqa: F401
@@ -14,14 +15,18 @@ import structlog
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import jwt as _jwt
+from pywebpush import WebPushException, webpush
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app import observability
 from app.config import Settings
 from app.models.launches import Launch
 from app.models.notification_log import NotificationLog, PendingNotification
+from app.models.push_subscription import PushSubscription
 from app.models.subscription import Subscription
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 # Structured events (`notification.sent|failed`) feed the delivery-rate KPI —
@@ -30,6 +35,12 @@ logger = logging.getLogger(__name__)
 struct_logger = structlog.get_logger(__name__)
 
 _BASE_URL = "https://spaceadventures.app"  # used in unsubscribe links
+
+# B1.1 (19-notification-channels-v2.md) — drain batch size and retry backoff.
+_DRAIN_BATCH_LIMIT = 100
+# Indexed by (attempt_count - 1): 1 min, 5 min, 30 min, 2 h, 12 h.
+_BACKOFF_SCHEDULE_SECONDS = [60, 300, 1800, 7200, 43200]
+_MAX_ATTEMPTS = len(_BACKOFF_SCHEDULE_SECONDS)
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +158,49 @@ def _build_sms_body(
     return body[:160]
 
 
+def _build_push_payload(
+    launch: Launch,
+    change_type: str,
+    old_value: str | None,
+    new_value: str | None,
+) -> str:
+    """Return the JSON string sent as the Web Push `data` payload.
+
+    Shape matches what `frontend/src/sw.ts` expects: `{title, body, url}` —
+    the service worker calls `showNotification(title, {body, data: {url}})`.
+    """
+    name = sanitise(launch.name)
+    title = f"Space Adventures — {name}"
+    body = sanitise(_change_label(change_type, old_value, new_value))
+    return json.dumps({"title": title, "body": body, "url": f"{_BASE_URL}/launches"})
+
+
+# ---------------------------------------------------------------------------
+# SMS monthly cap (B1.1 — financial self-protection against SMS-pump abuse)
+# ---------------------------------------------------------------------------
+
+
+def _current_month_str(now: datetime | None = None) -> str:
+    now = now or datetime.now(timezone.utc)
+    return now.strftime("%Y-%m")
+
+
+def _sms_cap_allows(user: User, settings: Settings) -> bool:
+    """Roll the user's counter over to the current month if stale, then
+    report whether they're still under `settings.sms_monthly_cap`. Does not
+    itself increment the counter — call `_record_sms_sent` after a
+    confirmed-successful send."""
+    month = _current_month_str()
+    if user.sms_month != month:
+        user.sms_month = month
+        user.sms_sent_month = 0
+    return user.sms_sent_month < settings.sms_monthly_cap
+
+
+def _record_sms_sent(user: User) -> None:
+    user.sms_sent_month += 1
+
+
 # ---------------------------------------------------------------------------
 # Email and SMS sending
 # ---------------------------------------------------------------------------
@@ -195,116 +249,279 @@ async def _send_sms(settings: Settings, to: str, body: str) -> None:
     )
 
 
+class PushSubscriptionGone(Exception):
+    """Raised when the push service reports the endpoint as revoked
+    (HTTP 404/410) — the caller should delete the subscription row."""
+
+
+def _webpush_sync(settings: Settings, subscription_info: dict, payload: str) -> None:
+    try:
+        webpush(
+            subscription_info=subscription_info,
+            data=payload,
+            vapid_private_key=settings.vapid_private_key,
+            vapid_claims={"sub": f"mailto:{settings.vapid_claims_email}"},
+        )
+    except WebPushException as exc:
+        status = exc.response.status_code if exc.response is not None else None
+        if status in (404, 410):
+            raise PushSubscriptionGone(str(exc)) from exc
+        raise
+
+
+async def _send_push(settings: Settings, subscription: PushSubscription, payload: str) -> None:
+    """pywebpush is sync (P32 rule, same as Twilio) — wrap in asyncio.to_thread."""
+    subscription_info = {
+        "endpoint": subscription.endpoint,
+        "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
+    }
+    await asyncio.to_thread(_webpush_sync, settings, subscription_info, payload)
+
+
 # ---------------------------------------------------------------------------
 # Main drain function
 # ---------------------------------------------------------------------------
 
 
+def _merge_error(existing: str | None, new: str) -> str:
+    if existing is None:
+        return new
+    return (existing + " | " + new)[:500]
+
+
+async def _send_push_to_user(
+    session: AsyncSession,
+    settings: Settings,
+    user: User,
+    payload: str,
+) -> tuple[bool, str | None]:
+    """Send to every device the user has registered. Returns (any_success,
+    error_detail). A 404/410 from one device prunes that device silently and
+    is never treated as a failure of the notification as a whole."""
+    result = await session.execute(
+        select(PushSubscription).where(PushSubscription.user_id == user.id)
+    )
+    devices = list(result.scalars().all())
+
+    any_success = False
+    error_detail: str | None = None
+    for device in devices:
+        try:
+            await _send_push(settings, device, payload)
+            any_success = True
+        except PushSubscriptionGone:
+            await session.delete(device)
+        except Exception as exc:  # noqa: BLE001
+            error_detail = _merge_error(error_detail, scrub_error(exc))
+    return any_success, error_detail
+
+
 async def drain_queue(session: AsyncSession, settings: Settings) -> None:
-    """Load all pending_notification rows and attempt delivery."""
-    stmt = select(PendingNotification).options(
-        selectinload(PendingNotification.subscription).selectinload(Subscription.user)
+    """Select a due batch from pending_notifications and attempt delivery.
+
+    B1.1 (19-notification-channels-v2.md): `FOR UPDATE SKIP LOCKED` so a
+    concurrent drain (a second worker, or an overlapping run of this same
+    job) picks a different due batch instead of blocking on rows this call
+    already holds — the whole batch commits as one transaction specifically
+    so those locks stay held for the batch's full duration, not just the
+    first row. Failed rows are rescheduled with exponential backoff instead
+    of retried immediately; a row dead-letters after 5 attempts rather than
+    being deleted, so it stays visible in the admin health payload.
+    """
+    now = datetime.now(timezone.utc)
+    stmt = (
+        select(PendingNotification)
+        .where(PendingNotification.dead.is_(False), PendingNotification.next_attempt_at <= now)
+        .order_by(PendingNotification.created_at)
+        .limit(_DRAIN_BATCH_LIMIT)
+        .with_for_update(skip_locked=True)
+        .options(
+            selectinload(PendingNotification.subscription).selectinload(Subscription.user)
+        )
     )
     result = await session.execute(stmt)
     pending_list = list(result.scalars().all())
 
     for pending in pending_list:
-        subscription = pending.subscription
-        user = subscription.user
+        try:
+            await _process_pending(session, settings, pending)
+        except Exception as exc:  # noqa: BLE001 — one row's unexpected failure
+            # must not roll back every already-processed row in this batch
+            # (the whole batch shares one transaction/commit, see docstring).
+            logger.warning("Unexpected error processing pending %d: %s", pending.id, exc)
+            _reschedule_or_dead_letter(pending, scrub_error(exc))
 
-        # Fetch the launch data for content building
-        launch: Launch | None = await session.get(Launch, pending.ll2_id)
-        if launch is None:
-            # Launch no longer in DB — drop the notification
-            await session.delete(pending)
-            await session.commit()
-            continue
+    await session.commit()
 
-        unsubscribe_token = create_unsubscribe_token(subscription.id, user.id, settings)
-        unsubscribe_url = (
-            f"{_BASE_URL}/confirm-unsubscribe?token={unsubscribe_token}"
+
+def _reschedule_or_dead_letter(pending: PendingNotification, error_detail: str) -> None:
+    pending.attempt_count += 1
+    if pending.attempt_count >= _MAX_ATTEMPTS:
+        pending.dead = True
+        observability.capture_message(
+            f"notification dead-lettered after {pending.attempt_count} attempts: {error_detail}"
         )
+    else:
+        backoff = _BACKOFF_SCHEDULE_SECONDS[pending.attempt_count - 1]
+        pending.next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=backoff)
 
-        subject, body_text, body_html = _build_email_content(
-            launch,
-            pending.change_type,
-            pending.old_value,
-            pending.new_value,
-            unsubscribe_url,
+
+async def _send_email_and_log(
+    session: AsyncSession,
+    settings: Settings,
+    pending: PendingNotification,
+    user: User,
+    subject: str,
+    body_text: str,
+    body_html: str,
+    unsubscribe_url: str,
+) -> None:
+    """Send the update email and record it — shared by the normal email
+    channel and the SMS-monthly-cap conversion path so the two never drift."""
+    await _send_email(
+        settings,
+        to=user.email,
+        subject=subject,
+        body_text=body_text,
+        body_html=body_html,
+        list_unsubscribe=unsubscribe_url,
+    )
+    session.add(
+        NotificationLog(
+            user_id=user.id,
+            ll2_id=pending.ll2_id,
+            change_type=pending.change_type,
+            channel="email",
+            delivery_status="sent",
         )
-        sms_body = _build_sms_body(
-            launch,
-            pending.change_type,
-            pending.old_value,
-            pending.new_value,
-        )
+    )
 
-        success = False
-        error_detail: str | None = None
 
-        # --- Email ---
-        if subscription.notify_email and user.email_verified and user.email:
-            try:
-                await _send_email(
-                    settings,
-                    to=user.email,
-                    subject=subject,
-                    body_text=body_text,
-                    body_html=body_html,
-                    list_unsubscribe=unsubscribe_url,
-                )
-                log = NotificationLog(
-                    user_id=user.id,
-                    ll2_id=pending.ll2_id,
-                    change_type=pending.change_type,
-                    channel="email",
-                    delivery_status="sent",
-                )
-                session.add(log)
-                success = True
-                struct_logger.info("notification.sent", channel="email", ll2_id=pending.ll2_id)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Email delivery failed for pending %d: %s", pending.id, exc)
-                error_detail = scrub_error(exc)
-                struct_logger.warning(
-                    "notification.failed", channel="email", reason=error_detail, ll2_id=pending.ll2_id
-                )
+async def _process_pending(
+    session: AsyncSession, settings: Settings, pending: PendingNotification
+) -> None:
+    subscription = pending.subscription
+    user = subscription.user
 
-        # --- SMS ---
-        if subscription.notify_sms and user.phone_verified and user.phone:
+    launch: Launch | None = await session.get(Launch, pending.ll2_id)
+    if launch is None:
+        # Launch no longer in DB — drop the notification
+        await session.delete(pending)
+        return
+
+    unsubscribe_token = create_unsubscribe_token(subscription.id, user.id, settings)
+    unsubscribe_url = f"{_BASE_URL}/confirm-unsubscribe?token={unsubscribe_token}"
+
+    subject, body_text, body_html = _build_email_content(
+        launch,
+        pending.change_type,
+        pending.old_value,
+        pending.new_value,
+        unsubscribe_url,
+    )
+    sms_body = _build_sms_body(
+        launch,
+        pending.change_type,
+        pending.old_value,
+        pending.new_value,
+    )
+
+    success = False
+    error_detail: str | None = None
+    email_sent = False
+
+    # --- Email ---
+    if subscription.notify_email and user.email_verified and user.email:
+        try:
+            await _send_email_and_log(
+                session, settings, pending, user, subject, body_text, body_html, unsubscribe_url
+            )
+            success = True
+            email_sent = True
+            struct_logger.info("notification.sent", channel="email", ll2_id=pending.ll2_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Email delivery failed for pending %d: %s", pending.id, exc)
+            error_detail = _merge_error(error_detail, scrub_error(exc))
+            struct_logger.warning(
+                "notification.failed", channel="email", reason=error_detail, ll2_id=pending.ll2_id
+            )
+
+    # --- SMS (per-user monthly cap; over cap converts to email) ---
+    if subscription.notify_sms and user.phone_verified and user.phone:
+        if _sms_cap_allows(user, settings):
             try:
                 await _send_sms(settings, to=user.phone, body=sms_body)
-                log = NotificationLog(
-                    user_id=user.id,
-                    ll2_id=pending.ll2_id,
-                    change_type=pending.change_type,
-                    channel="sms",
-                    delivery_status="sent",
+                _record_sms_sent(user)
+                session.add(
+                    NotificationLog(
+                        user_id=user.id,
+                        ll2_id=pending.ll2_id,
+                        change_type=pending.change_type,
+                        channel="sms",
+                        delivery_status="sent",
+                    )
                 )
-                session.add(log)
                 success = True
                 struct_logger.info("notification.sent", channel="sms", ll2_id=pending.ll2_id)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("SMS delivery failed for pending %d: %s", pending.id, exc)
-                sms_reason = scrub_error(exc)
-                if error_detail is None:
-                    error_detail = sms_reason
-                else:
-                    error_detail = (error_detail + " | " + sms_reason)[:500]
+                error_detail = _merge_error(error_detail, scrub_error(exc))
                 struct_logger.warning(
-                    "notification.failed", channel="sms", reason=sms_reason, ll2_id=pending.ll2_id
+                    "notification.failed", channel="sms", reason=error_detail, ll2_id=pending.ll2_id
                 )
+        else:
+            struct_logger.warning(
+                "notification.sms_capped", user_id=user.id, ll2_id=pending.ll2_id
+            )
+            if not email_sent and user.email_verified and user.email:
+                try:
+                    await _send_email_and_log(
+                        session, settings, pending, user, subject, body_text, body_html, unsubscribe_url
+                    )
+                    success = True
+                    email_sent = True
+                    struct_logger.info(
+                        "notification.sent", channel="email", ll2_id=pending.ll2_id, sms_cap_conversion=True
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    error_detail = _merge_error(error_detail, scrub_error(exc))
 
-        # --- Post-delivery logic ---
-        if success or (not subscription.notify_email and not subscription.notify_sms):
-            # Delivered successfully (or nothing to send) — remove the pending row
-            await session.delete(pending)
-        elif error_detail is not None:
-            # At least one delivery was attempted and failed
-            pending.attempt_count += 1
-            if pending.attempt_count >= 3:
-                # Max retries reached — log failure and delete
-                fail_log = NotificationLog(
+    # --- Push ---
+    if subscription.notify_push:
+        payload = _build_push_payload(
+            launch, pending.change_type, pending.old_value, pending.new_value
+        )
+        push_success, push_error = await _send_push_to_user(session, settings, user, payload)
+        if push_success:
+            session.add(
+                NotificationLog(
+                    user_id=user.id,
+                    ll2_id=pending.ll2_id,
+                    change_type=pending.change_type,
+                    channel="push",
+                    delivery_status="sent",
+                )
+            )
+            success = True
+            struct_logger.info("notification.sent", channel="push", ll2_id=pending.ll2_id)
+        elif push_error is not None:
+            error_detail = _merge_error(error_detail, push_error)
+            struct_logger.warning(
+                "notification.failed", channel="push", reason=push_error, ll2_id=pending.ll2_id
+            )
+
+    # --- Post-delivery logic ---
+    any_channel_requested = (
+        subscription.notify_email or subscription.notify_sms or subscription.notify_push
+    )
+    if success or not any_channel_requested:
+        await session.delete(pending)
+    elif error_detail is not None:
+        was_dead = pending.attempt_count + 1 >= _MAX_ATTEMPTS
+        _reschedule_or_dead_letter(pending, error_detail)
+        if was_dead:
+            session.add(
+                NotificationLog(
                     user_id=user.id,
                     ll2_id=pending.ll2_id,
                     change_type=pending.change_type,
@@ -312,10 +529,6 @@ async def drain_queue(session: AsyncSession, settings: Settings) -> None:
                     delivery_status="failed",
                     error_detail=error_detail,
                 )
-                session.add(fail_log)
-                await session.delete(pending)
-        else:
-            # No channels active — remove the pending row
-            await session.delete(pending)
-
-        await session.commit()
+            )
+    else:
+        await session.delete(pending)

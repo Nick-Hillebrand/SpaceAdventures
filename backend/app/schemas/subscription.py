@@ -14,6 +14,7 @@ class CreateSubscriptionRequest(BaseModel):
     agency_name: str | None = None
     notify_email: bool = False
     notify_sms: bool = False
+    notify_push: bool = False
 
 
 class SubscriptionOut(BaseModel):
@@ -23,6 +24,7 @@ class SubscriptionOut(BaseModel):
     agency_name: str | None
     notify_email: bool
     notify_sms: bool
+    notify_push: bool
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

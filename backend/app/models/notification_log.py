@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     ForeignKey,
     Index,
@@ -31,6 +32,16 @@ class PendingNotification(Base):
     old_value: Mapped[str | None] = mapped_column(String, nullable=True)
     new_value: Mapped[str | None] = mapped_column(String, nullable=True)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # B1.1 (19-notification-channels-v2.md): drain reschedules a failed row
+    # instead of retrying immediately — next_attempt_at holds it back until
+    # the backoff window elapses. dead=TRUE after 5 attempts; the row stays
+    # (visible in the admin health dead-letter count) instead of being purged,
+    # so an operator can see the queue actually stalled rather than silently
+    # losing rows.
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    dead: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
@@ -46,6 +57,11 @@ class PendingNotification(Base):
             "ix_pending_notifications_attempts_created",
             "attempt_count",
             "created_at",
+        ),
+        Index(
+            "ix_pending_notifications_dead_next_attempt",
+            "dead",
+            "next_attempt_at",
         ),
     )
 
@@ -69,7 +85,7 @@ class NotificationLog(Base):
     )
 
     __table_args__ = (
-        CheckConstraint("channel IN ('email','sms')", name="ck_notification_log_channel"),
+        CheckConstraint("channel IN ('email','sms','push')", name="ck_notification_log_channel"),
         CheckConstraint(
             "delivery_status IN ('sent','failed')",
             name="ck_notification_log_delivery_status",

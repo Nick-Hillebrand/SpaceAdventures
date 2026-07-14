@@ -175,6 +175,7 @@ export interface SubscriptionData {
   agency_name: string | null;
   notify_email: boolean;
   notify_sms: boolean;
+  notify_push: boolean;
   created_at: string;
 }
 
@@ -186,6 +187,19 @@ export interface CreateSubscriptionRequest {
   agency_name?: string;
   notify_email: boolean;
   notify_sms: boolean;
+  notify_push: boolean;
+}
+
+export interface VapidPublicKeyResponse {
+  public_key: string;
+}
+
+export interface PushSubscribeRequest {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
 }
 
 export interface TokenResponse {

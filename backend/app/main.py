@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import observability
@@ -19,6 +19,7 @@ from app.database import dispose_engine, get_db, init_engine
 from app.jobs import JOB_STALENESS_SECONDS, register_jobs
 from app.models.job_status import JobStatus
 from app.models.n2yo_quota import N2yoQuota
+from app.models.notification_log import PendingNotification
 from app.routers import apod as apod_router
 from app.routers import iss as iss_router
 from app.routers import mars as mars_router
@@ -26,6 +27,7 @@ from app.routers import neo as neo_router
 from app.routers import space_weather as space_weather_router
 from app.routers import auth as auth_router
 from app.routers import launches as launches_router
+from app.routers import push as push_router
 from app.routers import subscriptions as subscriptions_router
 from app.routers import settings as settings_router
 from app.services import translation_service
@@ -107,7 +109,7 @@ def _quota_status(settings: Settings, quota_row: N2yoQuota | None) -> str:
 
 async def _health_snapshot(
     session: AsyncSession,
-) -> tuple[str, list[JobStatus], N2yoQuota | None]:
+) -> tuple[str, list[JobStatus], N2yoQuota | None, int]:
     """Read of everything the health endpoint needs, on the request's own
     session (so tests exercising `get_db` overrides see real data).
 
@@ -117,9 +119,14 @@ async def _health_snapshot(
         await session.execute(text("SELECT 1"))
         job_rows = list((await session.execute(select(JobStatus))).scalars().all())
         quota_row = await session.get(N2yoQuota, 1)
-        return "ok", job_rows, quota_row
+        dead_letter_count = await session.scalar(
+            select(func.count()).select_from(PendingNotification).where(
+                PendingNotification.dead.is_(True)
+            )
+        )
+        return "ok", job_rows, quota_row, dead_letter_count or 0
     except Exception:  # noqa: BLE001 — health check must never propagate a raw DB error
-        return "error", [], None
+        return "error", [], None, 0
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -152,7 +159,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         credentials: HTTPAuthorizationCredentials | None = Depends(_health_bearer),
         session: AsyncSession = Depends(get_db),
     ) -> dict[str, Any]:
-        db_status, job_rows, quota_row = await _health_snapshot(session)
+        db_status, job_rows, quota_row, dead_letter_count = await _health_snapshot(session)
         now = datetime.now(timezone.utc)
 
         job_staleness: dict[str, str] = {}
@@ -176,6 +183,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "smtp": _smtp_status(request.app.state.settings),
             "n2yo_quota": {"status": _quota_status(request.app.state.settings, quota_row)},
             "jobs": job_staleness,
+            "notifications": {"dead_letter_count": dead_letter_count},
         }
 
     app.include_router(apod_router.router)
@@ -186,6 +194,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(launches_router.router)
     app.include_router(auth_router.router)
     app.include_router(subscriptions_router.router)
+    app.include_router(push_router.router)
     app.include_router(settings_router.router)
 
     return app

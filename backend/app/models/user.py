@@ -33,6 +33,13 @@ class User(Base):
     # is what subscription creation gates on (see subscription_service).
     consent_notifications_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     consent_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    # B1.1 (19-notification-channels-v2.md): per-user monthly SMS cap —
+    # financial self-protection against SMS-pump abuse. sms_month is the
+    # 'YYYY-MM' the counter applies to; the drain resets sms_sent_month to 0
+    # whenever it sees a stale sms_month rather than running a separate
+    # rollover job.
+    sms_sent_month: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sms_month: Mapped[str | None] = mapped_column(String, nullable=True)
 
     otps: Mapped[list["Otp"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

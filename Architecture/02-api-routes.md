@@ -86,6 +86,16 @@ POST   /api/v1/subscriptions/unsubscribe      # { token } in body — no auth re
 
 ---
 
+## Push Routes (19-notification-channels-v2.md B1.2)
+
+```
+GET    /api/v1/push/vapid-public-key          # public — { public_key } (empty string if VAPID not configured)
+POST   /api/v1/push/subscribe                 # auth required — { endpoint, keys: { p256dh, auth } }; upserts on endpoint; 422 if endpoint isn't a safe https URL (SSRF guard, 25-security-testing.md §2.5)
+DELETE /api/v1/push/subscribe                 # auth required — { endpoint }; 404 if not found or belongs to another user
+```
+
+---
+
 ## Settings Routes
 
 ```

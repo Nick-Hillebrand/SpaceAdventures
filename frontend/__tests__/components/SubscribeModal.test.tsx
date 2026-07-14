@@ -1,7 +1,7 @@
 import { screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { SubscribeModal } from "@/components/SubscribeModal";
 import { renderWithProviders } from "@/testUtils";
 import { server } from "@/msw/server";
@@ -10,7 +10,49 @@ import i18n from "@/i18n";
 
 afterEach(async () => {
   await act(async () => { await i18n.changeLanguage("en"); });
+  vi.unstubAllGlobals();
+  // @ts-expect-error — cleaning up the test-only navigator override
+  delete navigator.serviceWorker;
 });
+
+class FakePushSubscription {
+  endpoint = "https://push.example/endpoint-1";
+  unsubscribe = vi.fn().mockResolvedValue(true);
+  toJSON() {
+    return {
+      endpoint: this.endpoint,
+      keys: { p256dh: "test-p256dh", auth: "test-auth" },
+    };
+  }
+}
+
+function installPushEnvironment({
+  initialPermission = "default" as NotificationPermission,
+  subscribeImpl = vi.fn().mockResolvedValue(new FakePushSubscription()),
+}: {
+  initialPermission?: NotificationPermission;
+  subscribeImpl?: ReturnType<typeof vi.fn>;
+} = {}) {
+  const requestPermission = vi.fn().mockResolvedValue(initialPermission);
+
+  class FakeNotification {
+    static permission: NotificationPermission = initialPermission;
+    static requestPermission = requestPermission;
+  }
+
+  const registration = {
+    pushManager: { subscribe: subscribeImpl, getSubscription: vi.fn().mockResolvedValue(null) },
+  };
+
+  vi.stubGlobal("Notification", FakeNotification);
+  vi.stubGlobal("PushManager", function PushManager() {});
+  Object.defineProperty(navigator, "serviceWorker", {
+    configurable: true,
+    value: { ready: Promise.resolve(registration) },
+  });
+
+  return { requestPermission, subscribe: subscribeImpl };
+}
 
 function makeLaunch(overrides: Partial<LaunchData> = {}): LaunchData {
   return {
@@ -363,5 +405,91 @@ describe("SubscribeModal", () => {
     // The modal renders based on subscription data
     // Confirm button should be present (subscription already exists but modal still shows)
     expect(screen.getByTestId("confirm-subscribe")).toBeInTheDocument();
+  });
+
+  it("push unsupported — no push checkbox and no push-denied prompt shown", async () => {
+    renderModal();
+    await screen.findByTestId("checkbox-launch");
+
+    expect(screen.queryByTestId("checkbox-push")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("push-denied-prompt")).not.toBeInTheDocument();
+  });
+
+  it("push permission denied — shows push-denied prompt instead of checkbox", async () => {
+    installPushEnvironment({ initialPermission: "denied" });
+
+    renderModal();
+    await screen.findByTestId("checkbox-launch");
+
+    expect(screen.queryByTestId("checkbox-push")).not.toBeInTheDocument();
+    expect(screen.getByTestId("push-denied-prompt")).toBeInTheDocument();
+  });
+
+  it("push supported — checking push and confirming subscribes to push then POSTs notify_push:true", async () => {
+    installPushEnvironment({ initialPermission: "granted" });
+    const user = userEvent.setup();
+    let postBody: unknown = null;
+
+    server.use(
+      http.post("/api/v1/subscriptions", async ({ request }) => {
+        postBody = await request.json();
+        return HttpResponse.json(
+          {
+            id: "sub-004",
+            type: "launch",
+            ll2_id: "launch-001",
+            agency_name: null,
+            notify_email: false,
+            notify_sms: false,
+            notify_push: true,
+            created_at: "2026-01-01T00:00:00Z",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderModal();
+
+    const pushCheckbox = await screen.findByTestId("checkbox-push");
+    await user.click(screen.getByTestId("checkbox-launch"));
+    await user.click(pushCheckbox);
+    await user.click(screen.getByTestId("confirm-subscribe"));
+
+    await waitFor(() => {
+      expect(postBody).toMatchObject({
+        type: "launch",
+        ll2_id: "launch-001",
+        notify_push: true,
+      });
+    });
+  });
+
+  it("push subscribe failure — shows failed-to-subscribe status and does not create the subscription", async () => {
+    installPushEnvironment({
+      initialPermission: "granted",
+      subscribeImpl: vi.fn().mockRejectedValue(new Error("push subscribe failed")),
+    });
+    const user = userEvent.setup();
+    let subscriptionCreated = false;
+
+    server.use(
+      http.post("/api/v1/subscriptions", () => {
+        subscriptionCreated = true;
+        return HttpResponse.json({}, { status: 201 });
+      }),
+    );
+
+    renderModal();
+
+    const pushCheckbox = await screen.findByTestId("checkbox-push");
+    await user.click(screen.getByTestId("checkbox-launch"));
+    await user.click(pushCheckbox);
+    await user.click(screen.getByTestId("confirm-subscribe"));
+
+    expect(await screen.findByTestId("subscribe-status")).toHaveTextContent(
+      /Failed to subscribe/i,
+    );
+    expect(subscriptionCreated).toBe(false);
   });
 });
