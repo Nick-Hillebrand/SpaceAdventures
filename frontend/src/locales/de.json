@@ -137,7 +137,18 @@
     "live": "Live",
     "tleData": "TLE-Daten",
     "globeTrackerAria": "ISS-Globusverfolgung",
-    "dataPanelAria": "ISS-Daten"
+    "dataPanelAria": "ISS-Daten",
+    "myPassesAria": "Bevorstehende ISS-Durchgänge über Ihrer Position",
+    "tonightOverCity": "Heute Nacht über {{city}}",
+    "setLocationPrompt": "Legen Sie Ihren Himmelort fest, um bevorstehende ISS-Durchgänge über Ihrer Position zu sehen.",
+    "goToAccount": "Zu Kontoeinstellungen",
+    "myPassesUnavailable": "Ihre bevorstehenden Durchgänge können nicht geladen werden",
+    "noUpcomingPasses": "In den nächsten Tagen gibt es keine sichtbaren Durchgänge über Ihrer Position.",
+    "alertMe": "Vor jedem Durchgang warnen (Pro)",
+    "alertMeDisable": "Durchgangswarnungen deaktivieren",
+    "alertMeProRequired": "ISS-Durchgangswarnungen sind eine Pro-Funktion.",
+    "alertMeConsentRequired": "Aktivieren Sie die Benachrichtigungszustimmung in den Kontoeinstellungen, um Durchgangswarnungen zu erhalten.",
+    "alertMeFailed": "Fehler beim Aktualisieren Ihres Benachrichtigungsabonnements. Versuchen Sie es erneut."
   },
   "launches": {
     "title": "Raketenstarts",
@@ -252,7 +263,22 @@
     "otpSendFailed": "OTP konnte nicht gesendet werden.",
     "subLaunchLabel": "Start: {{id}}",
     "subAgencyLabel": "Agentur: {{name}}",
-    "noChannels": "Keine Kanäle"
+    "noChannels": "Keine Kanäle",
+    "locationTitle": "Mein Himmelort",
+    "locationCurrentLabel": "Aktueller Ort",
+    "locationChange": "Ändern",
+    "locationClear": "Löschen",
+    "locationClearFailed": "Fehler beim Löschen des Ortes. Versuchen Sie es erneut.",
+    "locationNotSet": "Noch kein Ort festgelegt.",
+    "locationSearchLabel": "Nach Stadt suchen",
+    "locationSearchPlaceholder": "z.B. Vancouver",
+    "locationSearchButton": "Suchen",
+    "locationSearching": "Suche läuft…",
+    "locationSearchFailed": "Ortssuche fehlgeschlagen. Versuchen Sie es erneut.",
+    "locationSetFailed": "Fehler beim Festlegen des Ortes. Versuchen Sie es erneut.",
+    "locationNoResults": "Keine passenden Orte gefunden.",
+    "locationUseThis": "Diesen Ort verwenden",
+    "subIssPassLabel": "ISS sichtbare Durchgangswarnungen"
   },
   "subscriptions": {
     "subscribeButton": "Abonnieren",

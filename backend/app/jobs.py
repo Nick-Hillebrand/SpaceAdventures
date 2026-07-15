@@ -20,7 +20,7 @@ from app.config import Settings
 from app.database import get_sessionmaker
 from app.models.job_status import JobStatus
 from app.models.rate_limit import RateLimitEvent
-from app.services import ephemerides_service, launches_service, notification_service
+from app.services import ephemerides_service, iss_pass_alert_service, launches_service, notification_service
 from app.services.advisory_lock import release_job_lock, try_job_lock
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ _RATE_LIMIT_EVENT_RETENTION_HOURS = 24
 JOB_DURATION_BUDGET_SECONDS: dict[str, float] = {
     "notification_drain": 60,
     "worker_heartbeat": 10,
+    "pass_precompute": 300,
 }
 _DEFAULT_JOB_DURATION_BUDGET_SECONDS = 120
 
@@ -42,6 +43,8 @@ JOB_STALENESS_SECONDS: dict[str, int] = {
     "rate_limit_purge": 4 * 24 * 60 * 60,
     "worker_heartbeat": 5 * 60,
     "ephemeris_sync": 4 * 24 * 60 * 60,
+    "pass_precompute": 4 * 6 * 60 * 60,
+    "pass_notify": 4 * 5 * 60,
 }
 
 
@@ -133,6 +136,18 @@ async def _ephemeris_sync_body(clients: Any, settings: Settings) -> None:
         await ephemerides_service.run_ephemeris_sync(session, clients.horizons_client)
 
 
+async def _pass_precompute_body(clients: Any, settings: Settings) -> None:
+    async with get_sessionmaker()() as session:
+        await iss_pass_alert_service.precompute_passes(
+            session, clients.n2yo_client, settings.n2yo_hourly_cap
+        )
+
+
+async def _pass_notify_body(clients: Any, settings: Settings) -> None:
+    async with get_sessionmaker()() as session:
+        await iss_pass_alert_service.notify_passes(session)
+
+
 @dataclass
 class JobSpec:
     name: str
@@ -150,6 +165,8 @@ def register_jobs(scheduler: AsyncIOScheduler, settings: Settings, clients: Any)
         JobSpec("rate_limit_purge", "interval", {"hours": _RATE_LIMIT_EVENT_RETENTION_HOURS}),
         JobSpec("worker_heartbeat", "interval", {"seconds": 30}),
         JobSpec("ephemeris_sync", "interval", {"hours": 24}),
+        JobSpec("pass_precompute", "interval", {"hours": 6}),
+        JobSpec("pass_notify", "interval", {"minutes": 5}),
     ]
     bodies: dict[str, Callable[[Any, Settings], Awaitable[None]]] = {
         "launches_sync": _launches_sync_body,
@@ -157,6 +174,8 @@ def register_jobs(scheduler: AsyncIOScheduler, settings: Settings, clients: Any)
         "rate_limit_purge": _rate_limit_purge_body,
         "worker_heartbeat": _worker_heartbeat_body,
         "ephemeris_sync": _ephemeris_sync_body,
+        "pass_precompute": _pass_precompute_body,
+        "pass_notify": _pass_notify_body,
     }
 
     for job in jobs:

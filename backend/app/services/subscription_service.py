@@ -5,6 +5,7 @@ from __future__ import annotations
 import jwt
 from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -33,6 +34,28 @@ async def create_subscription(
             status_code=403,
             detail={"error": {"code": "CONSENT_REQUIRED", "message": "Notification consent is required before subscribing"}},
         )
+    if data.type == "iss_pass":
+        # CLAUDE.md rule 11: Pro gating happens server-side, never by hiding UI.
+        if not user.is_pro:
+            raise HTTPException(
+                status_code=403,
+                detail={"error": {"code": "PRO_REQUIRED", "message": "This feature requires a Pro subscription"}},
+            )
+        # ll2_id/agency_name are both NULL for this type, so the existing
+        # UniqueConstraints (which key on those columns) don't stop a second
+        # row — check explicitly for a fast/friendly 409 on the common case.
+        # The `uq_subscriptions_iss_pass_user` partial index is what actually
+        # closes the TOCTOU race between this check and the insert below.
+        existing = await session.execute(
+            select(Subscription).where(
+                Subscription.user_id == user.id, Subscription.type == "iss_pass"
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={"error": {"code": "ALREADY_SUBSCRIBED", "message": "Already subscribed to ISS pass alerts"}},
+            )
     sub = Subscription(
         user_id=user.id,
         type=data.type,
@@ -43,7 +66,14 @@ async def create_subscription(
         notify_push=data.notify_push,
     )
     session.add(sub)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {"code": "ALREADY_SUBSCRIBED", "message": "Already subscribed to ISS pass alerts"}},
+        ) from exc
     await session.refresh(sub)
     return sub
 

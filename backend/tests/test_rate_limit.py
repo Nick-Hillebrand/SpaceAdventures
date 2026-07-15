@@ -81,20 +81,21 @@ def test_hash_ip_deterministic_and_distinct():
 async def test_check_and_record_allows_up_to_limit_then_blocks(db_session):
     bucket, ip_hash = "test-bucket", hash_ip("9.9.9.9")
     for _ in range(3):
-        exceeded = await _check_and_record(db_session, bucket, ip_hash, limit=3, window_seconds=900)
-        assert exceeded is False
-    exceeded = await _check_and_record(db_session, bucket, ip_hash, limit=3, window_seconds=900)
-    assert exceeded is True
+        await _check_and_record(db_session, bucket, ip_hash, limit=3, window_seconds=900)
+    with pytest.raises(HTTPException) as exc_info:
+        await _check_and_record(db_session, bucket, ip_hash, limit=3, window_seconds=900)
+    assert exc_info.value.status_code == 429
 
 
 async def test_check_and_record_different_ips_dont_interfere(db_session):
     bucket = "test-bucket"
     ip_a, ip_b = hash_ip("1.1.1.1"), hash_ip("2.2.2.2")
     for _ in range(3):
-        assert await _check_and_record(db_session, bucket, ip_a, limit=3, window_seconds=900) is False
+        await _check_and_record(db_session, bucket, ip_a, limit=3, window_seconds=900)
     # ip_a is now exhausted; ip_b is untouched and independent.
-    assert await _check_and_record(db_session, bucket, ip_a, limit=3, window_seconds=900) is True
-    assert await _check_and_record(db_session, bucket, ip_b, limit=3, window_seconds=900) is False
+    with pytest.raises(HTTPException):
+        await _check_and_record(db_session, bucket, ip_a, limit=3, window_seconds=900)
+    await _check_and_record(db_session, bucket, ip_b, limit=3, window_seconds=900)
 
 
 async def test_dependency_raises_429_when_exceeded(db_session, settings):
@@ -130,12 +131,12 @@ async def test_check_and_record_window_slides(db_session):
     await db_session.commit()
 
     # A 60s window has already slid past the 120s-old row, so it doesn't count.
-    exceeded = await _check_and_record(db_session, bucket, ip_hash, limit=1, window_seconds=60)
-    assert exceeded is False
+    await _check_and_record(db_session, bucket, ip_hash, limit=1, window_seconds=60)
 
     # A 300s window still sees it, so this second event trips a limit of 1.
-    exceeded = await _check_and_record(db_session, bucket, ip_hash, limit=1, window_seconds=300)
-    assert exceeded is True
+    with pytest.raises(HTTPException) as exc_info:
+        await _check_and_record(db_session, bucket, ip_hash, limit=1, window_seconds=300)
+    assert exc_info.value.status_code == 429
 
 
 # ---------------------------------------------------------------------------

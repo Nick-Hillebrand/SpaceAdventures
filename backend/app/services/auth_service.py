@@ -188,6 +188,22 @@ async def set_consent(session: AsyncSession, user: User, granted: bool) -> User:
     return user
 
 
+async def set_pro_status(session: AsyncSession, user_id: int, is_pro: bool) -> User | None:
+    """Admin-only Pro grant/revoke (20-location-and-sky-alerts.md L1).
+
+    No billing integration exists yet, so Pro status is toggled manually by
+    an operator via the admin API key rather than a webhook. Returns None if
+    `user_id` doesn't exist.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        return None
+    user.is_pro = is_pro
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
 async def delete_account(session: AsyncSession, user: User, password: str) -> None:
     """Hard-delete a user's account (P1.10, GDPR/PIPEDA).
 
@@ -239,6 +255,11 @@ async def export_account(session: AsyncSession, user: User) -> dict:
                 if user.consent_notifications_at
                 else None
             ),
+            "is_pro": user.is_pro,
+            "location_name": user.location_name,
+            "location_lat": user.location_lat,
+            "location_lng": user.location_lng,
+            "location_tz": user.location_tz,
         },
         "subscriptions": [
             {
@@ -255,6 +276,7 @@ async def export_account(session: AsyncSession, user: User) -> dict:
         "notification_history": [
             {
                 "ll2_id": n.ll2_id,
+                "iss_pass_alert_id": n.iss_pass_alert_id,
                 "change_type": n.change_type,
                 "channel": n.channel,
                 "delivery_status": n.delivery_status,

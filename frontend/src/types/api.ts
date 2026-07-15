@@ -194,7 +194,7 @@ export interface EphemeridesResponse {
 
 export interface SubscriptionData {
   id: string;
-  type: "launch" | "agency";
+  type: "launch" | "agency" | "iss_pass";
   ll2_id: string | null;
   agency_name: string | null;
   notify_email: boolean;
@@ -206,7 +206,7 @@ export interface SubscriptionData {
 export type SubscriptionsResponse = SubscriptionData[];
 
 export interface CreateSubscriptionRequest {
-  type: "launch" | "agency";
+  type: "launch" | "agency" | "iss_pass";
   ll2_id?: string;
   agency_name?: string;
   notify_email: boolean;
@@ -240,9 +240,41 @@ export interface UserResponse {
   phone_verified: boolean;
   created_at: string;
   consent_notifications_at: string | null;
+  is_pro: boolean;
+  location_name: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_tz: string | null;
 }
 
 export interface SettingsStatus {
   nasa_key_set: boolean;
   n2yo_key_set: boolean;
+}
+
+export interface LocationCandidate {
+  name: string;
+  country?: string | null;
+  admin1?: string | null;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+}
+
+export interface LocationSearchResponse {
+  candidates: LocationCandidate[];
+}
+
+export interface SetLocationRequest {
+  name: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+}
+
+export interface LocationOut {
+  location_name: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_tz: string | null;
 }

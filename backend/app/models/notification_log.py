@@ -27,7 +27,15 @@ class PendingNotification(Base):
     subscription_id: Mapped[str] = mapped_column(
         String, ForeignKey("subscriptions.id", ondelete="CASCADE"), nullable=False
     )
-    ll2_id: Mapped[str] = mapped_column(String, nullable=False)
+    # L1: nullable — a change_type='ISS_PASS' row carries iss_pass_alert_id
+    # instead. Exactly one of the two is set, enforced in
+    # iss_pass_alert_service/notification_service rather than a CHECK, to
+    # match the existing launch-shaped code path (which never validates this
+    # either).
+    ll2_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    iss_pass_alert_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("iss_pass_alerts.id", ondelete="CASCADE"), nullable=True
+    )
     change_type: Mapped[str] = mapped_column(String, nullable=False)
     old_value: Mapped[str | None] = mapped_column(String, nullable=True)
     new_value: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -50,7 +58,7 @@ class PendingNotification(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "change_type IN ('NET_SLIP','STATUS_CHANGE','NEW_LAUNCH')",
+            "change_type IN ('NET_SLIP','STATUS_CHANGE','NEW_LAUNCH','ISS_PASS')",
             name="ck_pending_notifications_change_type",
         ),
         Index(
@@ -75,7 +83,13 @@ class NotificationLog(Base):
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
-    ll2_id: Mapped[str] = mapped_column(String, nullable=False)
+    ll2_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # L1: SET NULL (not CASCADE) — a future pass-cleanup job deleting old
+    # iss_pass_alerts rows must never destroy this billing/audit record, the
+    # same reasoning as user_id above.
+    iss_pass_alert_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("iss_pass_alerts.id", ondelete="SET NULL"), nullable=True
+    )
     change_type: Mapped[str] = mapped_column(String, nullable=False)
     channel: Mapped[str] = mapped_column(String, nullable=False)
     delivery_status: Mapped[str] = mapped_column(String, nullable=False)

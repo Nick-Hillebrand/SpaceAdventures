@@ -1,4 +1,5 @@
 import { screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "@/testUtils";
@@ -9,6 +10,7 @@ import type {
   IssPositionsResponse,
   IssQuotaResponse,
   IssTleResponse,
+  SubscriptionsResponse,
 } from "@/types/api";
 
 // P28: vi.mock() hoisting — use vi.hoisted() to create the mock instance
@@ -341,5 +343,368 @@ describe("IssPage — position interpolation (fake timers)", () => {
 
     await act(async () => { await i18n.changeLanguage("de"); });
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("ISS-Tracker");
+  });
+});
+
+// ── "Tonight over {city}" / pass-alert tests (real timers) ─────────────────
+
+function makeUser(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    first_name: "Alice",
+    last_name: "Liddell",
+    email: "alice@example.com",
+    phone: null,
+    email_verified: true,
+    phone_verified: false,
+    created_at: "2024-01-01T00:00:00Z",
+    consent_notifications_at: "2024-01-01T00:00:00Z",
+    is_pro: false,
+    location_name: null,
+    location_lat: null,
+    location_lng: null,
+    location_tz: null,
+    ...overrides,
+  };
+}
+
+describe("IssPage — my passes / pass alerts (real timers)", () => {
+  afterEach(async () => {
+    vi.clearAllMocks();
+    await act(async () => { await i18n.changeLanguage("en"); });
+  });
+
+  it("prompts to set a location when the user has none saved", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(http.get("/api/v1/auth/me", () => HttpResponse.json(makeUser())));
+    renderWithProviders(<IssPage />);
+
+    expect(await screen.findByTestId("iss-set-location-prompt")).toBeInTheDocument();
+    expect(screen.queryByTestId("iss-alert-subscribe")).not.toBeInTheDocument();
+  });
+
+  it("shows a no-upcoming-passes message when the location has no passes", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({ location_name: "Vancouver, CA", location_lat: 49.28, location_lng: -123.12 }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () =>
+        HttpResponse.json({
+          passes: [],
+          fetched_at: new Date().toISOString(),
+          cached: false,
+          quota_exhausted: false,
+        }),
+      ),
+    );
+    renderWithProviders(<IssPage />);
+
+    expect(await screen.findByTestId("iss-no-upcoming-passes")).toBeInTheDocument();
+  });
+
+  it("shows the LOCATION_REQUIRED prompt when the server reports no location", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({ location_name: "Vancouver, CA", location_lat: 49.28, location_lng: -123.12 }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () =>
+        HttpResponse.json(
+          { error: { code: "LOCATION_REQUIRED", message: "Set your sky location first" } },
+          { status: 400 },
+        ),
+      ),
+    );
+    renderWithProviders(<IssPage />);
+
+    expect(await screen.findByTestId("iss-set-location-prompt")).toBeInTheDocument();
+  });
+
+  it("shows an error banner on a generic passes-fetch failure", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({ location_name: "Vancouver, CA", location_lat: 49.28, location_lng: -123.12 }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () =>
+        HttpResponse.json({ error: { code: "SERVER_ERROR", message: "boom" } }, { status: 500 }),
+      ),
+    );
+    renderWithProviders(<IssPage />);
+
+    await screen.findByText(/Unable to load your upcoming passes/i);
+  });
+
+  it("shows passes and a Pro-required message for a non-Pro user", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({ location_name: "Vancouver, CA", location_lat: 49.28, location_lng: -123.12 }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () => HttpResponse.json(makePasses())),
+    );
+    renderWithProviders(<IssPage />);
+
+    expect(await screen.findByTestId("iss-pass-0")).toBeInTheDocument();
+    expect(screen.getByTestId("iss-alert-pro-required")).toBeInTheDocument();
+    expect(screen.queryByTestId("iss-alert-subscribe")).not.toBeInTheDocument();
+  });
+
+  it("Pro user with no subscription can subscribe, which then shows unsubscribe", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    let subscribed = false;
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({
+            is_pro: true,
+            location_name: "Vancouver, CA",
+            location_lat: 49.28,
+            location_lng: -123.12,
+          }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () => HttpResponse.json(makePasses())),
+      http.get("/api/v1/subscriptions", () =>
+        HttpResponse.json(
+          (subscribed
+            ? [
+                {
+                  id: "sub-iss-1",
+                  type: "iss_pass",
+                  ll2_id: null,
+                  agency_name: null,
+                  notify_email: true,
+                  notify_sms: false,
+                  notify_push: true,
+                  created_at: "2026-01-01T00:00:00Z",
+                },
+              ]
+            : []) satisfies SubscriptionsResponse,
+        ),
+      ),
+      http.post("/api/v1/subscriptions", () => {
+        subscribed = true;
+        return HttpResponse.json(
+          {
+            id: "sub-iss-1",
+            type: "iss_pass",
+            ll2_id: null,
+            agency_name: null,
+            notify_email: true,
+            notify_sms: false,
+            notify_push: true,
+            created_at: "2026-01-01T00:00:00Z",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<IssPage />);
+
+    const subscribeButton = await screen.findByTestId("iss-alert-subscribe");
+    await user.click(subscribeButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("iss-alert-unsubscribe")).toBeInTheDocument();
+    });
+  });
+
+  it("subscribed Pro user can unsubscribe", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    let subscribed = true;
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({
+            is_pro: true,
+            location_name: "Vancouver, CA",
+            location_lat: 49.28,
+            location_lng: -123.12,
+          }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () => HttpResponse.json(makePasses())),
+      http.get("/api/v1/subscriptions", () =>
+        HttpResponse.json(
+          (subscribed
+            ? [
+                {
+                  id: "sub-iss-1",
+                  type: "iss_pass",
+                  ll2_id: null,
+                  agency_name: null,
+                  notify_email: true,
+                  notify_sms: false,
+                  notify_push: true,
+                  created_at: "2026-01-01T00:00:00Z",
+                },
+              ]
+            : []) satisfies SubscriptionsResponse,
+        ),
+      ),
+      http.delete("/api/v1/subscriptions/:id", () => {
+        subscribed = false;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<IssPage />);
+
+    const unsubscribeButton = await screen.findByTestId("iss-alert-unsubscribe");
+    await user.click(unsubscribeButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("iss-alert-subscribe")).toBeInTheDocument();
+    });
+  });
+
+  it("shows a consent-required error when subscribing without consent", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({
+            is_pro: true,
+            location_name: "Vancouver, CA",
+            location_lat: 49.28,
+            location_lng: -123.12,
+          }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () => HttpResponse.json(makePasses())),
+      http.get("/api/v1/subscriptions", () => HttpResponse.json([])),
+      http.post("/api/v1/subscriptions", () =>
+        HttpResponse.json(
+          { error: { code: "CONSENT_REQUIRED", message: "consent first" } },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<IssPage />);
+
+    await user.click(await screen.findByTestId("iss-alert-subscribe"));
+
+    expect(await screen.findByTestId("iss-alert-error")).toHaveTextContent(
+      /Enable notification consent/i,
+    );
+  });
+
+  it("shows a Pro-required error when subscribing without Pro (server-side defense)", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({
+            is_pro: true,
+            location_name: "Vancouver, CA",
+            location_lat: 49.28,
+            location_lng: -123.12,
+          }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () => HttpResponse.json(makePasses())),
+      http.get("/api/v1/subscriptions", () => HttpResponse.json([])),
+      http.post("/api/v1/subscriptions", () =>
+        HttpResponse.json({ error: { code: "PRO_REQUIRED", message: "pro only" } }, { status: 403 }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<IssPage />);
+
+    await user.click(await screen.findByTestId("iss-alert-subscribe"));
+
+    expect(await screen.findByTestId("iss-alert-error")).toHaveTextContent(
+      /ISS pass alerts are a Pro feature/i,
+    );
+  });
+
+  it("silently no-ops when the subscription already exists (race)", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({
+            is_pro: true,
+            location_name: "Vancouver, CA",
+            location_lat: 49.28,
+            location_lng: -123.12,
+          }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () => HttpResponse.json(makePasses())),
+      http.get("/api/v1/subscriptions", () => HttpResponse.json([])),
+      http.post("/api/v1/subscriptions", () =>
+        HttpResponse.json(
+          { error: { code: "ALREADY_SUBSCRIBED", message: "already" } },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<IssPage />);
+
+    await user.click(await screen.findByTestId("iss-alert-subscribe"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("iss-alert-error")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows a generic error for other subscribe failures", async () => {
+    const IssPage = (await import("@/routes/IssPage")).default;
+    mockAll();
+    server.use(
+      http.get("/api/v1/auth/me", () =>
+        HttpResponse.json(
+          makeUser({
+            is_pro: true,
+            location_name: "Vancouver, CA",
+            location_lat: 49.28,
+            location_lng: -123.12,
+          }),
+        ),
+      ),
+      http.get("/api/v1/iss/passes", () => HttpResponse.json(makePasses())),
+      http.get("/api/v1/subscriptions", () => HttpResponse.json([])),
+      http.post("/api/v1/subscriptions", () =>
+        HttpResponse.json({ error: { code: "SERVER_ERROR", message: "boom" } }, { status: 500 }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<IssPage />);
+
+    await user.click(await screen.findByTestId("iss-alert-subscribe"));
+
+    expect(await screen.findByTestId("iss-alert-error")).toHaveTextContent(
+      /Failed to update your pass alert subscription/i,
+    );
   });
 });

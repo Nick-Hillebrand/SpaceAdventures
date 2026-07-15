@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.config import Settings
 from app.database import get_db
 from app.main import create_app
+from app.services.geocode_client import GeocodeClient
 from app.services.horizons_client import HorizonsClient
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
@@ -45,7 +46,11 @@ ROUTE_TABLE: list[tuple[str, str, str]] = [
     ("GET", "/api/v1/iss/tle", "public"),
     ("GET", "/api/v1/iss/passes/visual", "public"),
     ("GET", "/api/v1/iss/passes/radio", "public"),
+    ("GET", "/api/v1/iss/passes", "user"),
     ("GET", "/api/v1/iss/quota", "public"),
+    ("GET", "/api/v1/location/search", "user"),
+    ("POST", "/api/v1/location", "user"),
+    ("DELETE", "/api/v1/location", "user"),
     ("GET", "/api/v1/launches/upcoming", "public"),
     ("GET", "/api/v1/launches/{ll2_id}/history", "public"),
     ("GET", "/api/v1/launches/{ll2_id}", "public"),
@@ -64,6 +69,7 @@ ROUTE_TABLE: list[tuple[str, str, str]] = [
     ("POST", "/api/v1/auth/consent", "user"),
     ("DELETE", "/api/v1/auth/me", "user"),
     ("GET", "/api/v1/auth/me/export", "user"),
+    ("POST", "/api/v1/auth/admin/users/{user_id}/pro", "admin"),
     ("GET", "/api/v1/subscriptions", "user"),
     ("POST", "/api/v1/subscriptions/unsubscribe", "capability"),
     ("POST", "/api/v1/subscriptions", "user"),
@@ -89,6 +95,7 @@ _PATH_PARAM_FILLS = {
     "subscription_id": "route-matrix-test-id",
     "ll2_id": "route-matrix-test-id",
     "lang": "en",
+    "user_id": "999999",
 }
 
 
@@ -181,6 +188,7 @@ async def matrix_client(db_engine):
         n2yo_base_url="https://api.n2yo.example/rest/v1/satellite",
         n2yo_hourly_cap=900,
         ll2_base_url="https://ll.thespacedevs.example",
+        geocode_base_url="https://geocoding-api.open-meteo.example",
     )
     factory = async_sessionmaker(db_engine, expire_on_commit=False, class_=AsyncSession)
 
@@ -194,6 +202,7 @@ async def matrix_client(db_engine):
     app.state.ll2_client = LL2Client(admin_settings)
     app.state.mars_raw_images_client = MarsRawImagesClient(admin_settings)
     app.state.horizons_client = HorizonsClient(admin_settings)
+    app.state.geocode_client = GeocodeClient(admin_settings)
     app.dependency_overrides[get_db] = _override_get_db
 
     transport = ASGITransport(app=app)
@@ -206,6 +215,7 @@ async def matrix_client(db_engine):
         await app.state.ll2_client.close()
         await app.state.mars_raw_images_client.close()
         await app.state.horizons_client.close()
+        await app.state.geocode_client.close()
 
 
 # Bodies for routes whose auth dependency is evaluated ahead of body

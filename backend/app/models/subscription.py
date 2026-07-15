@@ -50,9 +50,20 @@ class Subscription(Base):
     user: Mapped[User] = relationship("User", lazy="raise")
 
     __table_args__ = (
-        CheckConstraint("type IN ('launch','agency')", name="ck_subscription_type"),
+        CheckConstraint("type IN ('launch','agency','iss_pass')", name="ck_subscription_type"),
         UniqueConstraint("user_id", "type", "ll2_id", name="uq_subscription_launch"),
         UniqueConstraint("user_id", "type", "agency_name", name="uq_subscription_agency"),
         Index("ix_subscriptions_user_id", "user_id"),
         Index("ix_subscriptions_agency_name", "agency_name"),
+        # ll2_id/agency_name are both NULL for type='iss_pass', so the two
+        # UniqueConstraints above (which key on those columns) don't stop a
+        # second row for the same user — this partial index is what actually
+        # enforces "one iss_pass subscription per user" at the DB level.
+        Index(
+            "uq_subscriptions_iss_pass_user",
+            "user_id",
+            unique=True,
+            sqlite_where=text("type = 'iss_pass'"),
+            postgresql_where=text("type = 'iss_pass'"),
+        ),
     )

@@ -137,7 +137,18 @@
     "live": "Live",
     "tleData": "TLE data",
     "globeTrackerAria": "ISS globe tracker",
-    "dataPanelAria": "ISS data"
+    "dataPanelAria": "ISS data",
+    "myPassesAria": "Upcoming ISS passes over your location",
+    "tonightOverCity": "Tonight over {{city}}",
+    "setLocationPrompt": "Set your sky location to see upcoming ISS passes over you.",
+    "goToAccount": "Go to Account Settings",
+    "myPassesUnavailable": "Unable to load your upcoming passes",
+    "noUpcomingPasses": "No visible passes over your location in the next couple of days.",
+    "alertMe": "Alert me before each pass (Pro)",
+    "alertMeDisable": "Turn off pass alerts",
+    "alertMeProRequired": "ISS pass alerts are a Pro feature.",
+    "alertMeConsentRequired": "Enable notification consent in Account Settings to receive pass alerts.",
+    "alertMeFailed": "Failed to update your pass alert subscription. Please try again."
   },
   "launches": {
     "title": "Rocket Launches",
@@ -252,7 +263,22 @@
     "otpSendFailed": "Failed to send OTP.",
     "subLaunchLabel": "Launch: {{id}}",
     "subAgencyLabel": "Agency: {{name}}",
-    "noChannels": "No channels"
+    "noChannels": "No channels",
+    "locationTitle": "My sky location",
+    "locationCurrentLabel": "Current location",
+    "locationChange": "Change",
+    "locationClear": "Clear",
+    "locationClearFailed": "Failed to clear location. Please try again.",
+    "locationNotSet": "No location set yet.",
+    "locationSearchLabel": "Search for a city",
+    "locationSearchPlaceholder": "e.g. Vancouver",
+    "locationSearchButton": "Search",
+    "locationSearching": "Searching…",
+    "locationSearchFailed": "Location search failed. Please try again.",
+    "locationSetFailed": "Failed to set location. Please try again.",
+    "locationNoResults": "No matching locations found.",
+    "locationUseThis": "Use this location",
+    "subIssPassLabel": "ISS visible pass alerts"
   },
   "subscriptions": {
     "subscribeButton": "Subscribe",

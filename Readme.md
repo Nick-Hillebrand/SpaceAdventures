@@ -22,6 +22,9 @@ A multilingual web application that fetches, caches, and visualises NASA data an
   orbit camera and narration
 - **User accounts** — JWT auth (httpOnly-cookie refresh tokens) with email/SMS OTP verification, launch
   notification subscriptions, notification-consent recording, and self-service account data export/deletion
+- **Sky location + ISS pass alerts (Pro)** — save a home location via city search (Open-Meteo geocoding),
+  see upcoming visible ISS passes over it on the ISS Tracker page, and (Pro subscribers) get notified
+  before each pass. Free tier can view passes for their saved location; alerting is the Pro-gated feature
 
 ---
 

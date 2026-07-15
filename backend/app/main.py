@@ -23,6 +23,7 @@ from app.models.notification_log import PendingNotification
 from app.routers import apod as apod_router
 from app.routers import ephemerides as ephemerides_router
 from app.routers import iss as iss_router
+from app.routers import location as location_router
 from app.routers import mars as mars_router
 from app.routers import neo as neo_router
 from app.routers import space_weather as space_weather_router
@@ -36,6 +37,7 @@ from app.services import translation_service
 from app.services.horizons_client import HorizonsClient
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
+from app.services.geocode_client import GeocodeClient
 from app.services.n2yo_client import N2YOClient
 from app.services.nasa_client import NasaClient, NasaClientError
 
@@ -51,6 +53,7 @@ async def lifespan(app: FastAPI):
     app.state.ll2_client = LL2Client(settings)
     app.state.mars_raw_images_client = MarsRawImagesClient(settings)
     app.state.horizons_client = HorizonsClient(settings)
+    app.state.geocode_client = GeocodeClient(settings)
     app.state.translator = translation_service.translate_fields
 
     # The web tier never schedules background work (CLAUDE.md rule 7) — ALL
@@ -63,6 +66,7 @@ async def lifespan(app: FastAPI):
         clients = SimpleNamespace(
             ll2_client=app.state.ll2_client,
             horizons_client=app.state.horizons_client,
+            n2yo_client=app.state.n2yo_client,
             translator=app.state.translator,
         )
         scheduler = AsyncIOScheduler()
@@ -79,6 +83,7 @@ async def lifespan(app: FastAPI):
         await app.state.ll2_client.close()
         await app.state.mars_raw_images_client.close()
         await app.state.horizons_client.close()
+        await app.state.geocode_client.close()
         await dispose_engine()
 
 
@@ -198,6 +203,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(space_weather_router.router)
     app.include_router(mars_router.router)
     app.include_router(iss_router.router)
+    app.include_router(location_router.router)
     app.include_router(launches_router.router)
     app.include_router(auth_router.router)
     app.include_router(subscriptions_router.router)

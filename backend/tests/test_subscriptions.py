@@ -178,6 +178,72 @@ async def test_withdraw_consent_blocks_new_subscriptions_but_keeps_account(clien
 
 
 # ---------------------------------------------------------------------------
+# iss_pass Pro-gating (20-location-and-sky-alerts.md L1, CLAUDE.md rule 11)
+# ---------------------------------------------------------------------------
+
+
+async def _make_pro(db_session, user_id: int) -> None:
+    result = await db_session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one()
+    user.is_pro = True
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_iss_pass_subscription_free_user_is_403(client):
+    _, headers = await _register_and_login(client)
+    body = {"type": "iss_pass", "notify_email": False, "notify_sms": False, "notify_push": True}
+    r = await _create_sub(client, headers, body)
+    assert r.status_code == 403
+    assert r.json()["detail"]["error"]["code"] == "PRO_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_create_iss_pass_subscription_pro_user_succeeds(client, db_session):
+    user_id, headers = await _register_and_login(client)
+    await _make_pro(db_session, user_id)
+
+    body = {"type": "iss_pass", "notify_email": False, "notify_sms": False, "notify_push": True}
+    r = await _create_sub(client, headers, body)
+    assert r.status_code == 201
+    data = r.json()
+    assert data["type"] == "iss_pass"
+    assert data["notify_push"] is True
+
+
+@pytest.mark.asyncio
+async def test_create_iss_pass_subscription_duplicate_is_409(client, db_session):
+    user_id, headers = await _register_and_login(client)
+    await _make_pro(db_session, user_id)
+
+    body = {"type": "iss_pass", "notify_email": False, "notify_sms": False, "notify_push": True}
+    r = await _create_sub(client, headers, body)
+    assert r.status_code == 201
+
+    r2 = await _create_sub(client, headers, body)
+    assert r2.status_code == 409
+    assert r2.json()["detail"]["error"]["code"] == "ALREADY_SUBSCRIBED"
+
+
+@pytest.mark.asyncio
+async def test_create_iss_pass_subscription_downgraded_user_is_403(client, db_session):
+    """A user who lost Pro status can't create a *new* iss_pass subscription —
+    server-side gating applies on every write, not just the first."""
+    user_id, headers = await _register_and_login(client)
+    await _make_pro(db_session, user_id)
+
+    result = await db_session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one()
+    user.is_pro = False
+    await db_session.commit()
+
+    body = {"type": "iss_pass", "notify_email": False, "notify_sms": False, "notify_push": True}
+    r = await _create_sub(client, headers, body)
+    assert r.status_code == 403
+    assert r.json()["detail"]["error"]["code"] == "PRO_REQUIRED"
+
+
+# ---------------------------------------------------------------------------
 # Delete subscription
 # ---------------------------------------------------------------------------
 

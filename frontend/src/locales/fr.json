@@ -137,7 +137,18 @@
     "live": "En direct",
     "tleData": "Données TLE",
     "globeTrackerAria": "Suivi de l'ISS sur le globe",
-    "dataPanelAria": "Données de l'ISS"
+    "dataPanelAria": "Données de l'ISS",
+    "myPassesAria": "Prochains passages visibles de l'ISS au-dessus de votre localisation",
+    "tonightOverCity": "Ce soir au-dessus de {{city}}",
+    "setLocationPrompt": "Définissez votre emplacement dans le ciel pour voir les prochains passages de l'ISS au-dessus de vous.",
+    "goToAccount": "Aller aux paramètres du compte",
+    "myPassesUnavailable": "Impossible de charger vos prochains passages",
+    "noUpcomingPasses": "Aucun passage visible au-dessus de votre localisation dans les prochains jours.",
+    "alertMe": "M'alerter avant chaque passage (Pro)",
+    "alertMeDisable": "Désactiver les alertes de passage",
+    "alertMeProRequired": "Les alertes de passage de l'ISS sont une fonctionnalité Pro.",
+    "alertMeConsentRequired": "Activez le consentement aux notifications dans les paramètres du compte pour recevoir les alertes de passage.",
+    "alertMeFailed": "Erreur lors de la mise à jour de votre abonnement aux alertes de passage. Veuillez réessayer."
   },
   "launches": {
     "title": "Lancements de fusées",
@@ -252,7 +263,22 @@
     "otpSendFailed": "Échec de l'envoi de l'OTP.",
     "subLaunchLabel": "Lancement : {{id}}",
     "subAgencyLabel": "Agence : {{name}}",
-    "noChannels": "Aucun canal"
+    "noChannels": "Aucun canal",
+    "locationTitle": "Mon emplacement dans le ciel",
+    "locationCurrentLabel": "Emplacement actuel",
+    "locationChange": "Modifier",
+    "locationClear": "Effacer",
+    "locationClearFailed": "Erreur lors de l'effacement de l'emplacement. Veuillez réessayer.",
+    "locationNotSet": "Aucun emplacement défini pour le moment.",
+    "locationSearchLabel": "Rechercher une ville",
+    "locationSearchPlaceholder": "p. ex. Vancouver",
+    "locationSearchButton": "Rechercher",
+    "locationSearching": "Recherche en cours…",
+    "locationSearchFailed": "Échec de la recherche d'emplacement. Veuillez réessayer.",
+    "locationSetFailed": "Erreur lors de la définition de l'emplacement. Veuillez réessayer.",
+    "locationNoResults": "Aucun emplacement correspondant trouvé.",
+    "locationUseThis": "Utiliser cet emplacement",
+    "subIssPassLabel": "Alertes de passage visible de l'ISS"
   },
   "subscriptions": {
     "subscribeButton": "S'abonner",

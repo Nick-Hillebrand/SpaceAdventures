@@ -72,6 +72,10 @@ class DeleteAccountRequest(BaseModel):
     password: str
 
 
+class SetProStatusRequest(BaseModel):
+    is_pro: bool
+
+
 class UserResponse(BaseModel):
     id: int
     first_name: str
@@ -82,5 +86,10 @@ class UserResponse(BaseModel):
     phone_verified: bool
     created_at: datetime
     consent_notifications_at: datetime | None = None
+    is_pro: bool = False
+    location_name: str | None = None
+    location_lat: float | None = None
+    location_lng: float | None = None
+    location_tz: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

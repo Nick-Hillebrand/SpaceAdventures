@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import Globe from "globe.gl";
 import {
   useIssPositions,
@@ -8,7 +9,10 @@ import {
   useIssRadioPasses,
   useIssTle,
   useIssVisualPasses,
+  useMyIssPasses,
 } from "@/hooks/useIss";
+import { useMe } from "@/hooks/useAuth";
+import { useCreateSubscription, useDeleteSubscription, useSubscriptions } from "@/hooks/useSubscriptions";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { formatDateTime, formatTime } from "@/lib/dateTime";
 import type { IssPosition } from "@/types/api";
@@ -40,12 +44,25 @@ export default function IssPage() {
   const [locationDenied] = useState<boolean>(false);
   const [currentPos, setCurrentPos] = useState<IssPosition | null>(null);
   const [updating, setUpdating] = useState<boolean>(false);
+  const [issAlertError, setIssAlertError] = useState<string | null>(null);
 
   const { data: posData, isError: posError, error: posErr } = useIssPositions();
   const { data: tleData } = useIssTle();
   const { data: visualData } = useIssVisualPasses(observerLat, observerLng, observerAlt);
   const { data: radioData } = useIssRadioPasses(observerLat, observerLng, observerAlt);
   const { data: quotaData } = useIssQuota();
+  const { data: user } = useMe();
+  const hasLocation =
+    typeof user?.location_lat === "number" && typeof user?.location_lng === "number";
+  const {
+    data: myPassesData,
+    isLoading: myPassesLoading,
+    isError: myPassesIsError,
+    error: myPassesErr,
+  } = useMyIssPasses(hasLocation);
+  const { data: subscriptions } = useSubscriptions();
+  const createSubscription = useCreateSubscription();
+  const deleteSubscription = useDeleteSubscription();
 
   // P17: Guard containerRef.current inside useEffect
   useEffect(() => {
@@ -143,6 +160,29 @@ export default function IssPage() {
 
   const nextVisualPass = visualData?.passes?.[0] ?? null;
   const nextRadioPass = radioData?.passes?.[0] ?? null;
+
+  const issPassSubscription = subscriptions?.find((s) => s.type === "iss_pass") ?? null;
+
+  async function handleSubscribeIssPass() {
+    setIssAlertError(null);
+    try {
+      await createSubscription.mutateAsync({
+        type: "iss_pass",
+        notify_email: true,
+        notify_sms: false,
+        notify_push: true,
+      });
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === "CONSENT_REQUIRED") {
+        setIssAlertError(t("iss.alertMeConsentRequired"));
+      } else if (code === "PRO_REQUIRED") {
+        setIssAlertError(t("iss.alertMeProRequired"));
+      } else if (code !== "ALREADY_SUBSCRIBED") {
+        setIssAlertError(t("iss.alertMeFailed"));
+      }
+    }
+  }
 
   return (
     <div className="iss-page">
@@ -260,6 +300,77 @@ export default function IssPage() {
               </div>
             )}
           </div>
+        </section>
+      )}
+
+      {user && (
+        <section
+          className="iss-my-passes"
+          aria-label={t("iss.myPassesAria")}
+          data-testid="iss-my-passes-section"
+        >
+          <h2>{t("iss.tonightOverCity", { city: user.location_name ?? "" })}</h2>
+
+          {!hasLocation ? (
+            <p data-testid="iss-set-location-prompt">
+              {t("iss.setLocationPrompt")} <Link to="/account">{t("iss.goToAccount")}</Link>
+            </p>
+          ) : myPassesLoading ? (
+            <p role="status">{t("common.loading")}</p>
+          ) : myPassesIsError ? (
+            myPassesErr?.code === "LOCATION_REQUIRED" ? (
+              <p data-testid="iss-set-location-prompt">
+                {t("iss.setLocationPrompt")} <Link to="/account">{t("iss.goToAccount")}</Link>
+              </p>
+            ) : (
+              <ErrorBanner
+                titleKey="iss.myPassesUnavailable"
+                detail={myPassesErr?.message}
+                variant="section"
+              />
+            )
+          ) : !myPassesData?.passes.length ? (
+            <p data-testid="iss-no-upcoming-passes">{t("iss.noUpcomingPasses")}</p>
+          ) : (
+            <>
+              <ul data-testid="iss-upcoming-passes-list">
+                {myPassesData.passes.map((p, i) => (
+                  <li key={p.startUTC} data-testid={`iss-pass-${i}`}>
+                    {formatDateTime(new Date(p.startUTC * 1000).toISOString())} ·{" "}
+                    {t("iss.duration")}: {p.duration} s · {t("iss.maxElevation")}: {p.maxEl}°
+                  </li>
+                ))}
+              </ul>
+
+              {issPassSubscription ? (
+                <button
+                  type="button"
+                  onClick={() => deleteSubscription.mutate(issPassSubscription.id)}
+                  disabled={deleteSubscription.isPending}
+                  data-testid="iss-alert-unsubscribe"
+                >
+                  {t("iss.alertMeDisable")}
+                </button>
+              ) : user.is_pro ? (
+                <button
+                  type="button"
+                  onClick={handleSubscribeIssPass}
+                  disabled={createSubscription.isPending}
+                  data-testid="iss-alert-subscribe"
+                >
+                  {t("iss.alertMe")}
+                </button>
+              ) : (
+                <p data-testid="iss-alert-pro-required">{t("iss.alertMeProRequired")}</p>
+              )}
+
+              {issAlertError && (
+                <span role="alert" data-testid="iss-alert-error">
+                  {issAlertError}
+                </span>
+              )}
+            </>
+          )}
         </section>
       )}
 

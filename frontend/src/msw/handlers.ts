@@ -10,6 +10,11 @@ const mockUser = {
   phone_verified: false,
   created_at: "2024-01-01T00:00:00Z",
   consent_notifications_at: "2024-01-01T00:00:00Z",
+  is_pro: false,
+  location_name: null,
+  location_lat: null,
+  location_lng: null,
+  location_tz: null,
 };
 
 export const handlers = [
@@ -68,5 +73,27 @@ export const handlers = [
 
   http.get("/api/v1/settings", () =>
     HttpResponse.json({ nasa_key_set: false, n2yo_key_set: false }),
+  ),
+
+  http.get("/api/v1/location/search", () => HttpResponse.json({ candidates: [] })),
+
+  http.post("/api/v1/location", () =>
+    HttpResponse.json({
+      location_name: "Vancouver, CA",
+      location_lat: 49.28,
+      location_lng: -123.12,
+      location_tz: "America/Vancouver",
+    }),
+  ),
+
+  http.delete("/api/v1/location", () => new HttpResponse(null, { status: 204 })),
+
+  http.get("/api/v1/iss/passes", () =>
+    HttpResponse.json({
+      passes: [],
+      fetched_at: "2026-01-01T00:00:00Z",
+      cached: false,
+      quota_exhausted: false,
+    }),
   ),
 ];

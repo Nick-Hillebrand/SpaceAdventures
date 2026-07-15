@@ -137,7 +137,18 @@
     "live": "ライブ",
     "tleData": "TLEデータ",
     "globeTrackerAria": "ISS地球儀トラッカー",
-    "dataPanelAria": "ISSデータ"
+    "dataPanelAria": "ISSデータ",
+    "myPassesAria": "あなたの位置上空の今後のISS可視パス",
+    "tonightOverCity": "今夜の{{city}}上空",
+    "setLocationPrompt": "空の位置を設定して、あなたの上空にある今後のISSの可視パスを確認してください。",
+    "goToAccount": "アカウント設定に移動",
+    "myPassesUnavailable": "今後のパスを読み込むことができません",
+    "noUpcomingPasses": "次の数日間、あなたの位置上空に可視パスはありません。",
+    "alertMe": "各パスの前に通知 (Pro)",
+    "alertMeDisable": "パス通知をオフにする",
+    "alertMeProRequired": "ISS可視パス通知はPro機能です。",
+    "alertMeConsentRequired": "パス通知を受け取るには、アカウント設定で通知の同意を有効にしてください。",
+    "alertMeFailed": "パス通知の購読を更新できませんでした。もう一度お試しください。"
   },
   "launches": {
     "title": "ロケット打ち上げ",
@@ -252,7 +263,22 @@
     "otpSendFailed": "OTPの送信に失敗しました。",
     "subLaunchLabel": "打ち上げ: {{id}}",
     "subAgencyLabel": "機関: {{name}}",
-    "noChannels": "チャンネルなし"
+    "noChannels": "チャンネルなし",
+    "locationTitle": "空の位置",
+    "locationCurrentLabel": "現在地",
+    "locationChange": "変更",
+    "locationClear": "クリア",
+    "locationClearFailed": "位置情報の削除に失敗しました。もう一度お試しください。",
+    "locationNotSet": "まだ位置情報が設定されていません。",
+    "locationSearchLabel": "都市を検索",
+    "locationSearchPlaceholder": "例：バンクーバー",
+    "locationSearchButton": "検索",
+    "locationSearching": "検索中…",
+    "locationSearchFailed": "位置情報の検索に失敗しました。もう一度お試しください。",
+    "locationSetFailed": "位置情報の設定に失敗しました。もう一度お試しください。",
+    "locationNoResults": "一致する位置が見つかりません。",
+    "locationUseThis": "この位置を使用",
+    "subIssPassLabel": "ISSの可視パス通知"
   },
   "subscriptions": {
     "subscribeButton": "購読",

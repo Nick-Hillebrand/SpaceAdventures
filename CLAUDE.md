@@ -398,8 +398,62 @@ Read: `22-ephemeris-and-mission-replay.md` (foundation + B3)
 
 ### Milestone L — Public launch ⭐ current focus (time to a major launch event)
 
-**Step L1 — Location + ISS visual pass alerts (Pro flagship).**
+**Step L1 — Location + ISS visual pass alerts (Pro flagship).** ✅ complete (shipped 2026-07-15)
 Read: `20-location-and-sky-alerts.md` (foundation + L1), `05-iss-tracker.md`
+  - ✅ Shipped 2026-07-15: Backend — `is_pro` + four `location_*` columns on
+    `users`, `iss_pass_alerts` table, and `iss_pass`-type `subscriptions` rows
+    (`ll2_id`/`agency_name` both NULL) via a new migration;
+    `app/services/geocode_client.py` (Open-Meteo geocoding client,
+    size-capped/schema-validated per rule 9) + `location_service.py` +
+    `app/routers/location.py` (`GET /api/v1/location/search` — 20/hr per-user
+    rate limit, `POST`/`DELETE /api/v1/location`, all auth-required since a
+    saved location is PII); `get_pro_user_dep` + `UserResponse.is_pro` +
+    `POST /api/v1/admin/users/{user_id}/pro` (admin-key-gated Pro grant/revoke
+    — no billing integration yet, operator action only);
+    `iss_pass_alert_service.py` + `pass_precompute`/`pass_notify` worker jobs
+    + `GET /api/v1/iss/passes` (auth required, NOT Pro-gated — any
+    authenticated user with a saved location can view passes; 400
+    `LOCATION_REQUIRED` if none set); `notification_service.py` gained
+    `ISS_PASS` content (push-preferred, email-fallback chain);
+    `subscription_service.create_subscription` gained the `iss_pass` type
+    (403 `CONSENT_REQUIRED` → 403 `PRO_REQUIRED` → 409 `ALREADY_SUBSCRIBED`
+    gating order, rule 11); `auth_service.export_account` (P1.10) now
+    includes the location fields. Frontend — `AccountPage` gained a sky
+    location section (search/select/change/clear against the new location
+    endpoints, via `useLocation.ts`'s `useSearchLocation`/`useSetLocation`/
+    `useClearLocation` — the latter two `invalidateQueries(["auth","me"])`
+    rather than manually merging the cache, matching `useSubscriptions.ts`'s
+    established pattern); `IssPage` gained a "Tonight over {city}" section
+    (`useMyIssPasses` in `useIss.ts`) showing upcoming passes over the user's
+    saved location, a set-location prompt when none is saved (client-side
+    `hasLocation` check and server-side `LOCATION_REQUIRED` both handled),
+    and a Pro-gated "Alert me" subscribe/unsubscribe toggle — Pro gating here
+    is UX/upsell only, the real enforcement is the backend's 403s (rule 11).
+    26 new i18n keys × 6 locales (5 delegated to a haiku subagent per the
+    mechanical-work delegation rule, then independently verified for
+    translation-quality and key-completeness). New tests: backend —
+    location/geocode-client/iss_pass_alert_service/worker-job/
+    notification_service unit tests, route-authorization matrix entries for
+    all 4 new routes; frontend — 9 new AccountPage location tests, 13 new
+    IssPage pass/alert tests.
+  - `/code-review --effort low` pass (2026-07-15, self-review during
+    definition-of-done) surfaced 1 finding: unlike Horizons/N2YO (numeric-
+    only fields), Open-Meteo's `name`/`country`/`admin1` are string fields
+    that reach storage (`users.location_name`) and the API response, and
+    `POST /api/v1/location` accepts `name` directly from the client without
+    verifying it against an actual search result — rule 9 requires this
+    external data source to land in the injection-fixture matrix, and it
+    hadn't. Fixed: `location_service.search_location()` and `set_location()`
+    both now run every string field through the existing `sanitise()`
+    helper (control-character stripping) before it is returned or
+    persisted, closing both the upstream-Open-Meteo and direct-client-input
+    paths; 16 new parametrized tests added to `test_injection.py` (8 payloads
+    × 2 write paths) plus a documented rationale in its module docstring.
+    847 backend tests green (5 skipped, 96.85% coverage), 505 frontend tests
+    green, per-module/per-file branch coverage gates both passed (40 backend
+    modules, all frontend files ≥ 80%).
+  - Step L1 is now complete. Next: Step L2 (iCal feeds).
+
 **Step L2 — iCal feeds.**
 Read: `19-notification-channels-v2.md` (L2)
 **Step L3 — Embeddable widgets.**

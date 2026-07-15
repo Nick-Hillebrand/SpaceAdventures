@@ -137,7 +137,18 @@
     "live": "En vivo",
     "tleData": "Datos TLE",
     "globeTrackerAria": "Rastreador de globo de la ISS",
-    "dataPanelAria": "Datos de la ISS"
+    "dataPanelAria": "Datos de la ISS",
+    "myPassesAria": "Próximos pases de la ISS sobre tu ubicación",
+    "tonightOverCity": "Esta noche sobre {{city}}",
+    "setLocationPrompt": "Establece tu ubicación en el cielo para ver los próximos pases de la ISS sobre ti.",
+    "goToAccount": "Ir a Configuración de Cuenta",
+    "myPassesUnavailable": "No se pueden cargar tus próximos pases",
+    "noUpcomingPasses": "No hay pases visibles sobre tu ubicación en los próximos días.",
+    "alertMe": "Alertarme antes de cada pase (Pro)",
+    "alertMeDisable": "Desactivar alertas de pases",
+    "alertMeProRequired": "Las alertas de pase de la ISS son una función Pro.",
+    "alertMeConsentRequired": "Habilita el consentimiento de notificaciones en Configuración de Cuenta para recibir alertas de pases.",
+    "alertMeFailed": "Error al actualizar tu suscripción de alertas de pases. Por favor, inténtalo de nuevo."
   },
   "launches": {
     "title": "Lanzamientos de cohetes",
@@ -252,7 +263,22 @@
     "otpSendFailed": "Error al enviar el OTP.",
     "subLaunchLabel": "Lanzamiento: {{id}}",
     "subAgencyLabel": "Agencia: {{name}}",
-    "noChannels": "Sin canales"
+    "noChannels": "Sin canales",
+    "locationTitle": "Mi ubicación en el cielo",
+    "locationCurrentLabel": "Ubicación actual",
+    "locationChange": "Cambiar",
+    "locationClear": "Limpiar",
+    "locationClearFailed": "Error al limpiar la ubicación. Inténtalo de nuevo.",
+    "locationNotSet": "Aún no hay ubicación establecida.",
+    "locationSearchLabel": "Buscar una ciudad",
+    "locationSearchPlaceholder": "p. ej. Vancouver",
+    "locationSearchButton": "Buscar",
+    "locationSearching": "Buscando…",
+    "locationSearchFailed": "Error en la búsqueda de ubicación. Inténtalo de nuevo.",
+    "locationSetFailed": "Error al establecer la ubicación. Inténtalo de nuevo.",
+    "locationNoResults": "No se encontraron ubicaciones coincidentes.",
+    "locationUseThis": "Usar esta ubicación",
+    "subIssPassLabel": "Alertas de pase visible de la ISS"
   },
   "subscriptions": {
     "subscribeButton": "Suscribirse",

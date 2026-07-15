@@ -81,8 +81,12 @@ class N2YOClient:
     async def get_tle(self) -> Any:
         return await self._get(f"tle/{ISS_NORAD}")
 
-    async def get_visual_passes(self, lat: float, lng: float, alt: float) -> Any:
-        return await self._get(f"visualpasses/{ISS_NORAD}/{lat}/{lng}/{alt}/7/10")
+    async def get_visual_passes(
+        self, lat: float, lng: float, alt: float, days: int = 7, min_visibility: int = 10
+    ) -> Any:
+        return await self._get(
+            f"visualpasses/{ISS_NORAD}/{lat}/{lng}/{alt}/{days}/{min_visibility}"
+        )
 
     async def get_radio_passes(self, lat: float, lng: float, alt: float) -> Any:
         return await self._get(f"radiopasses/{ISS_NORAD}/{lat}/{lng}/{alt}/7/10")

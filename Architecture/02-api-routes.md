@@ -46,7 +46,22 @@ GET  /api/v1/iss/positions
 GET  /api/v1/iss/tle
 GET  /api/v1/iss/passes/visual?lat=0&lng=0&alt=0   # lat∈[-90,90], lng∈[-180,180], alt∈[0,10000] — 400 if invalid
 GET  /api/v1/iss/passes/radio?lat=0&lng=0&alt=0    # same validation
+GET  /api/v1/iss/passes                             # auth required — passes over the caller's saved location; 400 LOCATION_REQUIRED if none set (20-location-and-sky-alerts.md L1). NOT Pro-gated — any authenticated user with a saved location can view passes; the "iss_pass" subscription type (below) is the Pro-gated alerting feature.
 GET  /api/v1/iss/quota                              # { used, cap, window_start, resets_at }
+```
+
+---
+
+## Location Routes (20-location-and-sky-alerts.md L1)
+
+All three routes require auth — a saved location is PII and the geocode
+search is proxied server-side so Open-Meteo's response never reaches the
+browser unvalidated (`25-security-testing.md` §2.5).
+
+```
+GET    /api/v1/location/search?q=       # rate-limited 20/hr per user — { candidates: [{ name, country?, admin1?, latitude, longitude, timezone }] }
+POST   /api/v1/location                 # { name, latitude, longitude, timezone } → { location_name, location_lat, location_lng, location_tz }
+DELETE /api/v1/location                 # 204 — clears the four location_* columns
 ```
 
 ---
@@ -70,7 +85,8 @@ POST /api/v1/auth/verify/resend   # { channel } — rate-limited 5/hr
 POST /api/v1/auth/login           # rate-limited 5 failures per (identifier, IP) per 15 min
 POST /api/v1/auth/refresh         # token rotation — returns new access + refresh token
 POST /api/v1/auth/logout          # { refresh_token } — revokes token
-GET  /api/v1/auth/me              # returns: id, first_name, last_name, email, phone, email_verified, phone_verified, created_at — NEVER password_hash
+GET  /api/v1/auth/me              # returns: id, first_name, last_name, email, phone, email_verified, phone_verified, created_at, consent_notifications_at, is_pro, location_name, location_lat, location_lng, location_tz — NEVER password_hash
+POST /api/v1/admin/users/{user_id}/pro  # admin only — Authorization: Bearer <ADMIN_API_KEY> — { is_pro } → UserResponse; grant/revoke Pro (20-location-and-sky-alerts.md L1; no billing integration yet, operator action only)
 ```
 
 ---
@@ -79,7 +95,7 @@ GET  /api/v1/auth/me              # returns: id, first_name, last_name, email, p
 
 ```
 GET    /api/v1/subscriptions                  # current user's only (filtered server-side)
-POST   /api/v1/subscriptions                  # auth required
+POST   /api/v1/subscriptions                  # auth required — type: "launch" | "agency" | "iss_pass". "iss_pass" (20-location-and-sky-alerts.md L1) takes no ll2_id/agency_name; 403 PRO_REQUIRED if !is_pro, 403 CONSENT_REQUIRED if consent not recorded, 409 ALREADY_SUBSCRIBED if one already exists for the user
 DELETE /api/v1/subscriptions/{id}             # 404 if not found OR belongs to another user
 POST   /api/v1/subscriptions/unsubscribe      # { token } in body — no auth required; token contains subscription_id + user_id
 ```

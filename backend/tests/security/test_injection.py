@@ -32,6 +32,29 @@ string-typed Horizons field that ever reaches storage or an output context
 (HTML/ICS/SEO-meta/JSON-LD/SMS/social) — like Web Push's opaque keys, this
 source is out of scope for the fixture matrix below, and coverage lives in
 `test_horizons_client.py` instead.
+
+Step L1 (N2YO, `20-location-and-sky-alerts.md`): the `visualpasses` response
+consumed by `iss_pass_alert_service.precompute_passes` is untrusted upstream
+input, but every field it stores is numeric (start/end UTC timestamps, max
+elevation, start/end azimuth, magnitude) — `_parse_pass()` parses each with
+`int()`/`float()` and returns `None` (skipping the whole row) on any
+non-numeric field, including injection-shaped strings, rather than coercing
+or partially storing it; `_safe_float()` applies the same defensiveness to
+the optional `mag` field. There is no string-typed N2YO field that ever
+reaches storage or an output context — like Horizons, this source is out of
+scope for the fixture matrix below, and coverage lives in
+`test_iss_pass_alert_service.py::test_parse_pass_rejects_injection_shaped_numeric_fields`
+instead.
+
+Step L1 (Open-Meteo geocoding, `20-location-and-sky-alerts.md`): unlike
+Horizons/N2YO, `name`/`country`/`admin1` from Open-Meteo *are* string fields
+that reach storage (`users.location_name`) and the API response — and
+`POST /api/v1/location` accepts `name` directly from the client without
+requiring it to match an actual search result, so this field is untrusted on
+both the upstream (Open-Meteo) and client-input sides. This source is in
+scope: `location_service.search_location()` and `set_location()` both run
+every string field through `sanitise()` before it is returned or persisted,
+covered by the parametrized tests below.
 """
 from __future__ import annotations
 
@@ -142,6 +165,77 @@ async def test_slip_history_sanitises_rocket_name(_name: str, payload: str, db_s
     rows = [r for r in result.scalars().all() if r.change_type == "status"]
     assert rows
     stored = rows[-1].rocket_name
+    assert "\r" not in stored
+    assert "\n" not in stored
+    assert "\x00" not in stored
+
+
+# ---------------------------------------------------------------------------
+# Location storage path: Open-Meteo geocode search + direct set_location()
+# write → users.location_name/location_country/location_admin1
+# (20-location-and-sky-alerts.md L1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("_name,payload", _INJECTION_PAYLOADS, ids=_PAYLOAD_IDS)
+async def test_geocode_search_sanitises_candidate_fields(_name: str, payload: str) -> None:
+    """name/country/admin1 from Open-Meteo are sanitised before they ever
+    reach the API response (the frontend never talks to Open-Meteo directly)."""
+    from app.services import location_service
+
+    class _FakeGeocodeClient:
+        async def search(self, query: str, count: int = 5) -> list[dict]:
+            return [
+                {
+                    "name": payload,
+                    "country": payload,
+                    "admin1": payload,
+                    "latitude": 48.8566,
+                    "longitude": 2.3522,
+                    "timezone": "Europe/Paris",
+                }
+            ]
+
+    candidates = await location_service.search_location(_FakeGeocodeClient(), "query")
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    for stored in (candidate.name, candidate.country, candidate.admin1):
+        assert stored is not None
+        assert "\r" not in stored
+        assert "\n" not in stored
+        assert "\x00" not in stored
+
+
+@pytest.mark.parametrize("_name,payload", _INJECTION_PAYLOADS, ids=_PAYLOAD_IDS)
+async def test_set_location_sanitises_client_supplied_name(
+    _name: str, payload: str, db_session
+) -> None:
+    """POST /api/v1/location's `name` is accepted directly from the client
+    (not verified against an actual search result), so it must be sanitised
+    at the set_location() write path too, not just in search_location()."""
+    from passlib.context import CryptContext
+
+    from app.models.user import User
+    from app.schemas.location import SetLocationRequest
+    from app.services import location_service
+
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    user = User(
+        first_name="Alice", last_name="Test", email=f"loc-{_name}@example.com",
+        password_hash=pwd_ctx.hash("pw"),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    # Payloads that exceed SetLocationRequest's 200-char cap are truncated
+    # by the schema before location_service ever sees them — trim here to
+    # keep this test focused on sanitise(), not Pydantic's max_length.
+    name = payload[:200] if len(payload) > 200 else payload
+    data = SetLocationRequest(name=name, latitude=48.8566, longitude=2.3522, timezone="Europe/Paris")
+    updated = await location_service.set_location(db_session, user, data)
+
+    stored = updated.location_name
+    assert stored is not None
     assert "\r" not in stored
     assert "\n" not in stored
     assert "\x00" not in stored

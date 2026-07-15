@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class CreateSubscriptionRequest(BaseModel):
-    type: Literal["launch", "agency"]
+    type: Literal["launch", "agency", "iss_pass"]
     ll2_id: str | None = None
     agency_name: str | None = None
     notify_email: bool = False

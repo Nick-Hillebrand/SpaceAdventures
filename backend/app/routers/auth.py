@@ -11,8 +11,11 @@ so forging the call gains them nothing. No CSRF token is needed.
 """
 from __future__ import annotations
 
+import secrets
+
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -27,6 +30,7 @@ from app.schemas.auth import (
     RefreshRequest,
     RegisterRequest,
     ResendOtpRequest,
+    SetProStatusRequest,
     TokenResponse,
     UserResponse,
     VerifyOtpRequest,
@@ -37,6 +41,8 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 REFRESH_COOKIE_NAME = "sa_refresh"
 REFRESH_COOKIE_PATH = "/api/v1/auth"
+
+_admin_bearer = HTTPBearer(auto_error=False)
 
 
 def _set_refresh_cookie(response: Response, raw_refresh: str, settings: Settings) -> None:
@@ -83,6 +89,18 @@ async def get_current_user_dep(
     except ValueError:
         raise HTTPException(status_code=401, detail={"error": {"code": "UNAUTHORIZED", "message": "Invalid or expired token"}})
     return user
+
+
+def require_admin_dep(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_admin_bearer),
+) -> None:
+    settings: Settings = request.app.state.settings
+    if not settings.admin_api_key or credentials is None:
+        raise HTTPException(status_code=401, detail={"error": {"code": "UNAUTHORIZED", "message": "Admin credentials required"}})
+    # Constant-time comparison — a plain != leaks key prefixes via timing.
+    if not secrets.compare_digest(credentials.credentials.encode(), settings.admin_api_key.encode()):
+        raise HTTPException(status_code=401, detail={"error": {"code": "UNAUTHORIZED", "message": "Admin credentials required"}})
 
 
 # ---------------------------------------------------------------------------
@@ -311,3 +329,21 @@ async def export_me(
 ) -> dict:
     """Export the current user's data as JSON (P1.10, GDPR/PIPEDA)."""
     return await auth_service.export_account(session, current_user)
+
+
+@router.post(
+    "/admin/users/{user_id}/pro",
+    response_model=UserResponse,
+    dependencies=[Depends(require_admin_dep)],
+)
+async def set_user_pro_status(
+    user_id: int,
+    body: SetProStatusRequest,
+    session: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Grant/revoke Pro (20-…md L1) — no billing integration exists yet, so
+    this is an operator action gated on the admin API key, not a webhook."""
+    user = await auth_service.set_pro_status(session, user_id, body.is_pro)
+    if user is None:
+        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "User not found"}})
+    return UserResponse.model_validate(user)

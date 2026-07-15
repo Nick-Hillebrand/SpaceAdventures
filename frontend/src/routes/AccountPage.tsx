@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useDeleteAccount, useExportAccount, useMe, useSetConsent } from "@/hooks/useAuth";
 import { useSubscriptions, useDeleteSubscription } from "@/hooks/useSubscriptions";
 import { usePush } from "@/hooks/usePush";
+import { useClearLocation, useSearchLocation, useSetLocation } from "@/hooks/useLocation";
 import { apiPost } from "@/lib/api";
 import { formatDate } from "@/lib/dateTime";
+import type { LocationCandidate } from "@/types/api";
 
 type Tab = "profile" | "subscriptions";
 
@@ -19,6 +21,9 @@ export default function AccountPage() {
   const deleteAccount = useDeleteAccount();
   const exportAccount = useExportAccount();
   const push = usePush();
+  const searchLocation = useSearchLocation();
+  const setLocation = useSetLocation();
+  const clearLocation = useClearLocation();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [resendStatus, setResendStatus] = useState<Record<string, "sent" | "failed">>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -26,6 +31,9 @@ export default function AccountPage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [locationQuery, setLocationQuery] = useState("");
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   if (isError && error && error.status === 401) {
     navigate("/login?return=/account");
@@ -75,6 +83,42 @@ export default function AccountPage() {
       navigate("/");
     } catch {
       setDeleteError(t("account.deleteFailed"));
+    }
+  }
+
+  async function handleLocationSearch(e: FormEvent) {
+    e.preventDefault();
+    setLocationError(null);
+    try {
+      await searchLocation.mutateAsync(locationQuery);
+    } catch {
+      setLocationError(t("account.locationSearchFailed"));
+    }
+  }
+
+  async function handleSelectLocation(candidate: LocationCandidate) {
+    setLocationError(null);
+    try {
+      await setLocation.mutateAsync({
+        name: candidate.name,
+        latitude: candidate.latitude,
+        longitude: candidate.longitude,
+        timezone: candidate.timezone,
+      });
+      setEditingLocation(false);
+      setLocationQuery("");
+      searchLocation.reset();
+    } catch {
+      setLocationError(t("account.locationSetFailed"));
+    }
+  }
+
+  async function handleClearLocation() {
+    setLocationError(null);
+    try {
+      await clearLocation.mutateAsync();
+    } catch {
+      setLocationError(t("account.locationClearFailed"));
     }
   }
 
@@ -193,6 +237,96 @@ export default function AccountPage() {
             </p>
           )}
 
+          <div data-testid="location-section">
+            <h2>{t("account.locationTitle")}</h2>
+            {user.location_name && !editingLocation ? (
+              <p data-testid="location-current">
+                <strong>{t("account.locationCurrentLabel")}:</strong> {user.location_name}{" "}
+                <button
+                  type="button"
+                  onClick={() => setEditingLocation(true)}
+                  data-testid="location-change-button"
+                >
+                  {t("account.locationChange")}
+                </button>{" "}
+                <button
+                  type="button"
+                  onClick={handleClearLocation}
+                  disabled={clearLocation.isPending}
+                  data-testid="location-clear-button"
+                >
+                  {t("account.locationClear")}
+                </button>
+              </p>
+            ) : (
+              <div data-testid="location-search">
+                {!user.location_name && (
+                  <p data-testid="location-not-set">{t("account.locationNotSet")}</p>
+                )}
+                <form onSubmit={handleLocationSearch}>
+                  <label htmlFor="location_search_input">
+                    {t("account.locationSearchLabel")}
+                    <input
+                      id="location_search_input"
+                      type="text"
+                      value={locationQuery}
+                      onChange={(e) => setLocationQuery(e.target.value)}
+                      placeholder={t("account.locationSearchPlaceholder")}
+                      data-testid="location-search-input"
+                    />
+                  </label>{" "}
+                  <button
+                    type="submit"
+                    disabled={searchLocation.isPending || !locationQuery.trim()}
+                    data-testid="location-search-button"
+                  >
+                    {searchLocation.isPending
+                      ? t("account.locationSearching")
+                      : t("account.locationSearchButton")}
+                  </button>{" "}
+                  {editingLocation && user.location_name && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingLocation(false);
+                        setLocationQuery("");
+                        searchLocation.reset();
+                      }}
+                      data-testid="location-cancel-button"
+                    >
+                      {t("account.deleteAccountCancel")}
+                    </button>
+                  )}
+                </form>
+                {searchLocation.data &&
+                  (searchLocation.data.candidates.length === 0 ? (
+                    <p data-testid="location-no-results">{t("account.locationNoResults")}</p>
+                  ) : (
+                    <ul data-testid="location-candidates-list">
+                      {searchLocation.data.candidates.map((c, i) => (
+                        <li key={`${c.latitude}-${c.longitude}-${i}`} data-testid={`location-candidate-${i}`}>
+                          {[c.name, c.admin1, c.country].filter(Boolean).join(", ")}{" "}
+                          <button
+                            type="button"
+                            onClick={() => handleSelectLocation(c)}
+                            disabled={setLocation.isPending}
+                            data-testid={`location-select-${i}`}
+                          >
+                            {t("account.locationUseThis")}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ))}
+              </div>
+            )}
+            {locationError && (
+              <span role="alert" data-testid="location-error">
+                {locationError}
+              </span>
+            )}
+          </div>
+
           <div className="account-danger-zone">
             <h2>{t("account.dangerZone")}</h2>
 
@@ -279,7 +413,9 @@ export default function AccountPage() {
                   <strong>
                     {sub.type === "launch"
                       ? t("account.subLaunchLabel", { id: sub.ll2_id ?? "—" })
-                      : t("account.subAgencyLabel", { name: sub.agency_name ?? "—" })}
+                      : sub.type === "agency"
+                        ? t("account.subAgencyLabel", { name: sub.agency_name ?? "—" })
+                        : t("account.subIssPassLabel")}
                   </strong>{" "}
                   <span>
                     {[

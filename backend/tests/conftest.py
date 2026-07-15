@@ -16,6 +16,7 @@ from app import models  # noqa: F401 — import registers all ORM models with Ba
 from app.config import Settings
 from app.database import Base, enable_sqlite_fk_pragma, get_db
 from app.main import create_app
+from app.services.geocode_client import GeocodeClient
 from app.services.horizons_client import HorizonsClient
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
@@ -70,6 +71,7 @@ async def settings() -> Settings:
         n2yo_base_url="https://api.n2yo.example/rest/v1/satellite",
         n2yo_hourly_cap=900,
         ll2_base_url="https://ll.thespacedevs.example",
+        geocode_base_url="https://geocoding-api.open-meteo.example",
     )
 
 
@@ -87,6 +89,7 @@ async def client(db_engine, settings) -> AsyncIterator[AsyncClient]:
     app.state.ll2_client = LL2Client(settings)
     app.state.mars_raw_images_client = MarsRawImagesClient(settings)
     app.state.horizons_client = HorizonsClient(settings)
+    app.state.geocode_client = GeocodeClient(settings)
     app.dependency_overrides[get_db] = _override_get_db
 
     transport = ASGITransport(app=app)
@@ -99,6 +102,7 @@ async def client(db_engine, settings) -> AsyncIterator[AsyncClient]:
         await app.state.ll2_client.close()
         await app.state.mars_raw_images_client.close()
         await app.state.horizons_client.close()
+        await app.state.geocode_client.close()
 
 
 def pytest_collection_modifyitems(config, items):

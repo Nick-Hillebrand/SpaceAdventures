@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -40,6 +41,20 @@ class User(Base):
     # rollover job.
     sms_sent_month: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sms_month: Mapped[str | None] = mapped_column(String, nullable=True)
+    # L1 (20-location-and-sky-alerts.md) — sky-alert location, set via the
+    # Open-Meteo geocoding proxy. lat/lng are rounded to 2 decimals at write
+    # time (~1.1km precision) — plenty for pass/aurora visibility, and it
+    # keeps pass_precompute's per-coordinate N2YO-call batching effective
+    # across users in the same city instead of one call per exact address.
+    location_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    location_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    location_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    location_tz: Mapped[str | None] = mapped_column(String, nullable=True)
+    # L1 — Pro flagship gating. No billing integration exists yet (see
+    # BusinessPlan); status is granted via the admin-only
+    # POST /api/v1/auth/admin/users/{id}/pro endpoint until a payment
+    # provider is wired up.
+    is_pro: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     otps: Mapped[list["Otp"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

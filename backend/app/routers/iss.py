@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.user import User
+from app.routers.auth import get_current_user_dep
 from app.schemas.iss import (
     IssPassesResponse,
     IssPositionsResponse,
@@ -133,6 +135,38 @@ async def get_radio_passes(
     try:
         passes, fetched_at, cached, quota_exhausted = await iss_service.get_passes(
             session, client, cap, "radio", lat, lng, alt
+        )
+    except N2YOError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"error": {"code": exc.code, "message": exc.message}},
+        )
+    return IssPassesResponse(
+        passes=passes,
+        fetched_at=fetched_at,
+        cached=cached,
+        quota_exhausted=quota_exhausted,
+    )
+
+
+@router.get("/passes", response_model=IssPassesResponse)
+async def get_my_passes(
+    current_user: User = Depends(get_current_user_dep),
+    session: AsyncSession = Depends(get_db),
+    client: N2YOClient = Depends(_get_n2yo_client),
+    cap: int = Depends(_get_cap),
+) -> IssPassesResponse:
+    """"Tonight over {city}" card data (20-location-and-sky-alerts.md L1) —
+    available to every authenticated user with a saved location, Pro or not;
+    only the alert-me subscribe toggle is Pro-gated (rule 11)."""
+    if current_user.location_lat is None or current_user.location_lng is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "LOCATION_REQUIRED", "message": "Set your sky location first"}},
+        )
+    try:
+        passes, fetched_at, cached, quota_exhausted = await iss_service.get_passes(
+            session, client, cap, "visual", current_user.location_lat, current_user.location_lng, 0.0
         )
     except N2YOError as exc:
         raise HTTPException(

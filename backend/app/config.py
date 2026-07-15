@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # the ephemeris_sync worker job.
     horizons_base_url: str = "https://ssd.jpl.nasa.gov/api/horizons.api"
 
+    # Open-Meteo Geocoding (20-location-and-sky-alerts.md — Foundation).
+    # Free, no key. The frontend never calls this directly — every request
+    # goes through GET /api/v1/location/search so the response is
+    # size-capped/schema-validated server-side first (25-security-testing.md §2.5).
+    geocode_base_url: str = "https://geocoding-api.open-meteo.com"
+
     # JWT
     jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"

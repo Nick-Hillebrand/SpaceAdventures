@@ -137,7 +137,18 @@
     "live": "Реальное время",
     "tleData": "Данные TLE",
     "globeTrackerAria": "Трекер МКС на глобусе",
-    "dataPanelAria": "Данные МКС"
+    "dataPanelAria": "Данные МКС",
+    "myPassesAria": "Предстоящие видимые пролёты МКС над вашим местоположением",
+    "tonightOverCity": "Сегодня ночью над {{city}}",
+    "setLocationPrompt": "Установите своё положение в небе, чтобы видеть предстоящие пролёты МКС над вами.",
+    "goToAccount": "Перейти в параметры аккаунта",
+    "myPassesUnavailable": "Не удалось загрузить ваши предстоящие пролёты",
+    "noUpcomingPasses": "В течение следующих нескольких дней видимых пролётов над вашим местоположением нет.",
+    "alertMe": "Уведомлять перед каждым пролётом (Pro)",
+    "alertMeDisable": "Отключить уведомления о пролётах",
+    "alertMeProRequired": "Уведомления о видимых пролётах МКС — функция Pro.",
+    "alertMeConsentRequired": "Включите согласие на уведомления в параметрах аккаунта, чтобы получать уведомления о пролётах.",
+    "alertMeFailed": "Не удалось обновить вашу подписку на уведомления о пролётах. Попробуйте ещё раз."
   },
   "launches": {
     "title": "Запуски ракет",
@@ -252,7 +263,22 @@
     "otpSendFailed": "Не удалось отправить OTP.",
     "subLaunchLabel": "Запуск: {{id}}",
     "subAgencyLabel": "Агентство: {{name}}",
-    "noChannels": "Нет каналов"
+    "noChannels": "Нет каналов",
+    "locationTitle": "Моё положение в небе",
+    "locationCurrentLabel": "Текущее местоположение",
+    "locationChange": "Изменить",
+    "locationClear": "Очистить",
+    "locationClearFailed": "Не удалось очистить местоположение. Попробуйте ещё раз.",
+    "locationNotSet": "Местоположение ещё не установлено.",
+    "locationSearchLabel": "Поиск города",
+    "locationSearchPlaceholder": "например, Ванкувер",
+    "locationSearchButton": "Найти",
+    "locationSearching": "Поиск…",
+    "locationSearchFailed": "Ошибка поиска местоположения. Попробуйте ещё раз.",
+    "locationSetFailed": "Не удалось установить местоположение. Попробуйте ещё раз.",
+    "locationNoResults": "Совпадающих местоположений не найдено.",
+    "locationUseThis": "Использовать это местоположение",
+    "subIssPassLabel": "Уведомления о видимых пролётах МКС"
   },
   "subscriptions": {
     "subscribeButton": "Подписаться",

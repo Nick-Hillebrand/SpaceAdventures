@@ -48,3 +48,14 @@ export function useIssQuota() {
     queryFn: () => apiGet<IssQuotaResponse>("/api/v1/iss/quota"),
   });
 }
+
+// "Tonight over {city}" card (20-location-and-sky-alerts.md L1) — uses the
+// user's saved location server-side, so it's only meaningful once logged in.
+export function useMyIssPasses(enabled: boolean) {
+  return useQuery<IssPassesResponse, ApiError>({
+    queryKey: ["iss", "passes", "mine"],
+    queryFn: () => apiGet<IssPassesResponse>("/api/v1/iss/passes"),
+    enabled,
+    retry: false,
+  });
+}

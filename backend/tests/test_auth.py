@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -1080,3 +1081,118 @@ async def test_service_get_current_user_not_found(db_session, settings):
     token = auth_service.create_access_token(99999, settings)
     with pytest.raises(ValueError, match="USER_NOT_FOUND"):
         await auth_service.get_current_user(db_session, token, settings)
+
+
+# ---------------------------------------------------------------------------
+# Admin pro-grant route (20-location-and-sky-alerts.md L1) — anonymous/wrong-
+# key rejection is covered by tests/security/test_route_matrix.py; these
+# cover the success/not-found branches, which need a real admin_api_key.
+# ---------------------------------------------------------------------------
+
+ADMIN_API_KEY = "test-admin-secret"
+
+
+@pytest_asyncio.fixture
+async def admin_client(db_engine):
+    from app.config import Settings as _Settings
+    from app.main import create_app as _create_app
+    from app.services.geocode_client import GeocodeClient
+    from app.services.horizons_client import HorizonsClient
+    from app.services.ll2_client import LL2Client
+    from app.services.mars_raw_images_client import MarsRawImagesClient
+    from app.services.n2yo_client import N2YOClient
+    from app.services.nasa_client import NasaClient
+
+    admin_settings = _Settings(  # type: ignore[call-arg]
+        require_secrets=False,
+        admin_api_key=ADMIN_API_KEY,
+        cookie_secure=False,
+        ll2_base_url="https://ll.thespacedevs.example",
+        n2yo_api_key="",
+        geocode_base_url="https://geocoding-api.open-meteo.example",
+    )
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, class_=AsyncSession)
+
+    async def _override_get_db():
+        async with factory() as session:
+            yield session
+
+    from app.database import get_db as _get_db
+
+    app = _create_app(settings=admin_settings)
+    app.state.nasa_client = NasaClient(admin_settings)
+    app.state.n2yo_client = N2YOClient(admin_settings)
+    app.state.ll2_client = LL2Client(admin_settings)
+    app.state.mars_raw_images_client = MarsRawImagesClient(admin_settings)
+    app.state.horizons_client = HorizonsClient(admin_settings)
+    app.state.geocode_client = GeocodeClient(admin_settings)
+    app.dependency_overrides[_get_db] = _override_get_db
+
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+    finally:
+        await app.state.nasa_client.close()
+        await app.state.n2yo_client.close()
+        await app.state.ll2_client.close()
+        await app.state.mars_raw_images_client.close()
+        await app.state.horizons_client.close()
+        await app.state.geocode_client.close()
+
+
+async def test_admin_grant_pro_success(admin_client, db_session):
+    user = User(
+        first_name="Grantee",
+        last_name="Test",
+        email="grantee@example.com",
+        password_hash="x",
+        email_verified=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    user_id = user.id
+
+    r = await admin_client.post(
+        f"/api/v1/auth/admin/users/{user_id}/pro",
+        json={"is_pro": True},
+        headers={"Authorization": f"Bearer {ADMIN_API_KEY}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["is_pro"] is True
+
+    db_session.expire_all()
+    refreshed = (await db_session.execute(select(User).where(User.id == user_id))).scalar_one()
+    assert refreshed.is_pro is True
+
+
+async def test_admin_revoke_pro_success(admin_client, db_session):
+    user = User(
+        first_name="Revokee",
+        last_name="Test",
+        email="revokee@example.com",
+        password_hash="x",
+        email_verified=True,
+        is_pro=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    user_id = user.id
+
+    r = await admin_client.post(
+        f"/api/v1/auth/admin/users/{user_id}/pro",
+        json={"is_pro": False},
+        headers={"Authorization": f"Bearer {ADMIN_API_KEY}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["is_pro"] is False
+
+
+async def test_admin_grant_pro_user_not_found(admin_client):
+    r = await admin_client.post(
+        "/api/v1/auth/admin/users/999999/pro",
+        json={"is_pro": True},
+        headers={"Authorization": f"Bearer {ADMIN_API_KEY}"},
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"]["error"]["code"] == "NOT_FOUND"

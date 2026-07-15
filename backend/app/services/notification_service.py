@@ -9,6 +9,7 @@ import logging
 import re
 import unicodedata  # noqa: F401
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import aiosmtplib
 import structlog
@@ -22,6 +23,7 @@ from sqlalchemy.orm import selectinload
 
 from app import observability
 from app.config import Settings
+from app.models.iss_pass_alert import IssPassAlert
 from app.models.launches import Launch
 from app.models.notification_log import NotificationLog, PendingNotification
 from app.models.push_subscription import PushSubscription
@@ -173,6 +175,49 @@ def _build_push_payload(
     title = f"Space Adventures — {name}"
     body = sanitise(_change_label(change_type, old_value, new_value))
     return json.dumps({"title": title, "body": body, "url": f"{_BASE_URL}/launches"})
+
+
+# ---------------------------------------------------------------------------
+# ISS pass alerts (20-location-and-sky-alerts.md L1) — a different content
+# shape (IssPassAlert, not Launch) and a different channel policy (push
+# preferred, email fallback, see _process_iss_pass_pending below).
+# ---------------------------------------------------------------------------
+
+_COMPASS_POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+
+
+def _compass_direction(azimuth_degrees: float) -> str:
+    index = round((azimuth_degrees % 360) / 45) % 8
+    return _COMPASS_POINTS[index]
+
+
+def _resolve_location_tz(location_tz: str | None) -> ZoneInfo | timezone:
+    """CLAUDE.md rule 4's one documented exception: notification templates
+    format with the user's stored `location_tz`; `dateTime.ts` is frontend-only."""
+    if not location_tz:
+        return timezone.utc
+    try:
+        return ZoneInfo(location_tz)
+    except (ZoneInfoNotFoundError, ValueError):
+        return timezone.utc
+
+
+def _build_iss_pass_content(alert: IssPassAlert, user: User) -> tuple[str, str]:
+    """Return (title, body) shared by the push payload and the email fallback."""
+    tz = _resolve_location_tz(user.location_tz)
+    local_start = alert.start_utc.astimezone(tz)
+    time_str = local_start.strftime("%H:%M")
+    direction = _compass_direction(alert.start_az)
+    duration_seconds = max(0, int((alert.end_utc - alert.start_utc).total_seconds()))
+    minutes, seconds = divmod(duration_seconds, 60)
+    duration_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+
+    title = "ISS pass visible tonight"
+    body = (
+        f"Visible at {time_str} from the {direction}, reaching "
+        f"{alert.max_el:.0f}° elevation, for about {duration_str}."
+    )
+    return title, body
 
 
 # ---------------------------------------------------------------------------
@@ -397,11 +442,122 @@ async def _send_email_and_log(
     )
 
 
+async def _process_iss_pass_pending(
+    session: AsyncSession,
+    settings: Settings,
+    pending: PendingNotification,
+    subscription: Subscription,
+    user: User,
+) -> None:
+    """ISS_PASS notifications are push-preferred with an email fallback
+    (20-location-and-sky-alerts.md L1) — unlike the launch path below, which
+    sends every channel the user opted into independently, here email is
+    only attempted if push didn't succeed."""
+    alert: IssPassAlert | None = await session.get(IssPassAlert, pending.iss_pass_alert_id)
+    if alert is None:
+        # Precomputed row cleaned up (or never existed) since pass_notify
+        # enqueued this — nothing left to send.
+        await session.delete(pending)
+        return
+
+    title, body = _build_iss_pass_content(alert, user)
+
+    success = False
+    error_detail: str | None = None
+    channel_attempted: str | None = None
+
+    if subscription.notify_push:
+        channel_attempted = "push"
+        push_payload = json.dumps({"title": title, "body": body, "url": f"{_BASE_URL}/iss"})
+        push_success, push_error = await _send_push_to_user(session, settings, user, push_payload)
+        if push_success:
+            session.add(
+                NotificationLog(
+                    user_id=user.id,
+                    iss_pass_alert_id=alert.id,
+                    change_type="ISS_PASS",
+                    channel="push",
+                    delivery_status="sent",
+                )
+            )
+            success = True
+            struct_logger.info("notification.sent", channel="push", iss_pass_alert_id=alert.id)
+        elif push_error is not None:
+            error_detail = _merge_error(error_detail, push_error)
+            struct_logger.warning(
+                "notification.failed", channel="push", reason=push_error, iss_pass_alert_id=alert.id
+            )
+
+    if not success and subscription.notify_email and user.email_verified and user.email:
+        channel_attempted = "email"
+        try:
+            unsubscribe_token = create_unsubscribe_token(subscription.id, user.id, settings)
+            unsubscribe_url = f"{_BASE_URL}/confirm-unsubscribe?token={unsubscribe_token}"
+            subject = f"Space Adventures — {title}"
+            body_text = f"{body}\n\nUnsubscribe: {unsubscribe_url}\n"
+            body_html = (
+                f"<html><body><h2>{html.escape(title)}</h2>"
+                f"<p>{html.escape(body)}</p>"
+                f'<hr><p style="font-size:small">'
+                f'<a href="{html.escape(unsubscribe_url, quote=True)}">Unsubscribe</a></p>'
+                f"</body></html>"
+            )
+            await _send_email(
+                settings,
+                to=user.email,
+                subject=subject,
+                body_text=body_text,
+                body_html=body_html,
+                list_unsubscribe=unsubscribe_url,
+            )
+            session.add(
+                NotificationLog(
+                    user_id=user.id,
+                    iss_pass_alert_id=alert.id,
+                    change_type="ISS_PASS",
+                    channel="email",
+                    delivery_status="sent",
+                )
+            )
+            success = True
+            struct_logger.info("notification.sent", channel="email", iss_pass_alert_id=alert.id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Email delivery failed for pending %d: %s", pending.id, exc)
+            error_detail = _merge_error(error_detail, scrub_error(exc))
+            struct_logger.warning(
+                "notification.failed", channel="email", reason=error_detail, iss_pass_alert_id=alert.id
+            )
+
+    any_channel_requested = subscription.notify_push or subscription.notify_email
+    if success or not any_channel_requested:
+        await session.delete(pending)
+    elif error_detail is not None:
+        was_dead = pending.attempt_count + 1 >= _MAX_ATTEMPTS
+        _reschedule_or_dead_letter(pending, error_detail)
+        if was_dead:
+            session.add(
+                NotificationLog(
+                    user_id=user.id,
+                    iss_pass_alert_id=alert.id,
+                    change_type="ISS_PASS",
+                    channel=channel_attempted or "push",
+                    delivery_status="failed",
+                    error_detail=error_detail,
+                )
+            )
+    else:
+        await session.delete(pending)
+
+
 async def _process_pending(
     session: AsyncSession, settings: Settings, pending: PendingNotification
 ) -> None:
     subscription = pending.subscription
     user = subscription.user
+
+    if pending.change_type == "ISS_PASS":
+        await _process_iss_pass_pending(session, settings, pending, subscription, user)
+        return
 
     launch: Launch | None = await session.get(Launch, pending.ll2_id)
     if launch is None:
