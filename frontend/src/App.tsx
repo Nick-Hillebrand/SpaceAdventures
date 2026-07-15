@@ -8,6 +8,7 @@ import RegisterPage from "@/routes/RegisterPage";
 import AccountPage from "@/routes/AccountPage";
 import ConfirmUnsubscribePage from "@/routes/ConfirmUnsubscribePage";
 import SettingsPage from "@/routes/SettingsPage";
+import WidgetsPage from "@/routes/WidgetsPage";
 import ApodPage from "@/routes/ApodPage";
 import LaunchesPage from "@/routes/LaunchesPage";
 import LaunchDetailPage from "@/routes/LaunchDetailPage";
@@ -60,6 +61,7 @@ function AppShell() {
             <Route path="/account" element={<AccountPage />} />
             <Route path="/confirm-unsubscribe" element={<ConfirmUnsubscribePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/widgets" element={<WidgetsPage />} />
             <Route path="/" element={<Navigate to="/apod" replace />} />
           </Routes>
         </Suspense>

@@ -363,6 +363,62 @@ async def test_seo_meta_escapes_untrusted_agency_rocket_pad_names(
 
 
 # ---------------------------------------------------------------------------
+# Embeddable widget rendering path: launches table fields → embed HTML
+# (23-seo-widgets-and-growth.md L3, Step L3).  Launch fields (mission_name,
+# agency_name, rocket_name, status_name) flow into the embed page as a JSON
+# object inside a <script> data variable.  The control is `_json_safe()`:
+# json.dumps() (which backslash-escapes `"` inside strings) + replace
+# "<" → "\\u003c" to prevent `</script>` breakout.  The entire Launch dict is
+# never inserted as raw HTML — only set via JS `textContent` (not innerHTML).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("_name,payload", _INJECTION_PAYLOADS, ids=_PAYLOAD_IDS)
+async def test_embed_escapes_untrusted_launch_fields(
+    _name: str, payload: str, client, db_session
+) -> None:
+    """LL2 fields (mission_name, agency_name, status_name) embedded in the
+    widget's <script> JSON data variable can never break out of the <script>
+    tag or inject raw HTML — verified end-to-end via the embed route."""
+    from app.services.launches_service import sync_launches
+    from tests.test_launches_service_unit import FakeLL2Client, _raw
+
+    mission_payload = payload[:200] if len(payload) > 200 else payload
+    await sync_launches(
+        db_session,
+        FakeLL2Client(
+            [
+                _raw(
+                    ll2_id="l-embed-inj",
+                    mission={"name": mission_payload, "description": "Test.", "type": "Comms"},
+                    launch_service_provider={"name": mission_payload, "type": "Commercial"},
+                )
+            ]
+        ),
+    )
+
+    resp = await client.get("/embed/next-launch")
+    assert resp.status_code == 200
+    body = resp.text
+
+    # The body must contain a valid <script> block that doesn't break.
+    # Verify the literal payload never appears raw in the HTML output:
+    # the dangerous substrings are always JSON-escaped (< → \\u003c) so
+    # `</script` can never form outside of a string literal's safe encoding.
+    assert "</script>" in body  # the script tag closes properly
+    assert "alert(1)</script>" not in body  # XSS payload not raw in output
+
+    # The <script> block must not contain a literal `<` from the payload.
+    script_start = body.index("<script>")
+    script_end = body.index("</script>", script_start)
+    script_content = body[script_start + len("<script>"):script_end]
+    if "<" in payload:
+        assert payload not in script_content, (
+            f"Injection payload ({_name}) survived unescaped into embed <script> content"
+        )
+
+
+# ---------------------------------------------------------------------------
 # SQL injection guard: ORM-only check (25-security-testing.md §2.3)
 # ---------------------------------------------------------------------------
 

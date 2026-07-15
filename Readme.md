@@ -30,6 +30,9 @@ A multilingual web application that fetches, caches, and visualises NASA data an
   an RFC 5545 VEVENT with SEQUENCE tracking launch-time changes and STATUS:CANCELLED for scrubbed missions.
   The feed URL is a capability-URL (no login required); it can be rotated from the Account page, which
   immediately invalidates the old URL
+- **Embeddable widgets** — self-contained `<iframe>`-ready HTML page (`/embed/next-launch?provider=&lang=`)
+  showing a live countdown to the next launch. ≤ 30 KB, no external assets, no cookies, `frame-ancestors *`.
+  Optional provider filter and 6-language support. A copy-paste snippet generator lives at `/widgets`
 
 ---
 

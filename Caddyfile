@@ -8,11 +8,11 @@
     header {
         Strict-Transport-Security  "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options     "nosniff"
-        X-Frame-Options            "DENY"
+        X-Frame-Options            "SAMEORIGIN"
         X-XSS-Protection           "1; mode=block"
         Referrer-Policy            "strict-origin-when-cross-origin"
-        Permissions-Policy         "geolocation=(self)"
-        Content-Security-Policy    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'"
+        Permissions-Policy         "geolocation=(), camera=(), microphone=()"
+        Content-Security-Policy    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.ingest.sentry.io; font-src 'self'; frame-ancestors 'self'"
         -Server
     }
 
@@ -52,6 +52,21 @@
     reverse_proxy @seo backend:8000 {
         health_uri      /api/v1/health
         health_interval 30s
+    }
+
+    # Embeddable widgets (23-seo-widgets-and-growth.md L3) — self-contained
+    # HTML served by the backend.  frame-ancestors * allows third-party iframes;
+    # X-Frame-Options is removed since the more capable CSP frame-ancestors
+    # directive supersedes it in modern browsers, and leaving SAMEORIGIN would
+    # block framing in older clients that ignore CSP frame-ancestors.
+    @embed path /embed/*
+    handle @embed {
+        header -X-Frame-Options
+        header Content-Security-Policy "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; frame-ancestors *"
+        reverse_proxy backend:8000 {
+            health_uri      /api/v1/health
+            health_interval 30s
+        }
     }
 
     handle /robots.txt {

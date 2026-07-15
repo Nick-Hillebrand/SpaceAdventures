@@ -391,6 +391,26 @@ async def get_launch_history(
     return list(result.scalars().all())
 
 
+async def get_next_launch(
+    session: AsyncSession, provider: str | None = None
+) -> "Launch | None":
+    """Return the next upcoming non-Gone launch, optionally filtered by provider.
+
+    Used by the embeddable widget (23-seo-widgets-and-growth.md L3).
+    Provider filter is a case-insensitive substring match on agency_name.
+    """
+    cutoff = datetime.now(timezone.utc)
+    stmt = (
+        select(Launch)
+        .where(Launch.net > cutoff, Launch.status_abbrev != "Gone")
+    )
+    if provider:
+        stmt = stmt.where(Launch.agency_name.ilike(f"%{provider}%"))
+    stmt = stmt.order_by(Launch.net.asc()).limit(1)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def get_sitemap_launches(session: AsyncSession) -> list[Launch]:
     """All upcoming + past-90-day launches (23-…md B2 sitemap) — excludes
     launches LL2 has stopped returning (status "Gone"), since those no

@@ -507,5 +507,18 @@
     "distanceFromEarth": "Distance à la Terre",
     "velocity": "Vélocité",
     "noData": "Pas de données de suivi pour cette date"
+  },
+  "widgets": {
+    "title": "Widgets intégrables",
+    "nextLaunchTitle": "Widget du prochain lancement",
+    "description": "Intégrez un compte à rebours en direct du prochain lancement de fusée sur n'importe quel site Web.",
+    "providerLabel": "Filtre des fournisseurs",
+    "providerPlaceholder": "Tous les fournisseurs (p. ex. SpaceX)",
+    "languageLabel": "Langue du widget",
+    "previewTitle": "Aperçu",
+    "snippetTitle": "Code d'intégration",
+    "copyButton": "Copier",
+    "copied": "Copié !",
+    "iframeTitle": "Prochain lancement de fusée"
   }
 }

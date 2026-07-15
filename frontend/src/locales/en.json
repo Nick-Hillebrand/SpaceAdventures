@@ -507,5 +507,18 @@
     "distanceFromEarth": "Distance from Earth",
     "velocity": "Velocity",
     "noData": "No tracking data for this date"
+  },
+  "widgets": {
+    "title": "Embeddable Widgets",
+    "nextLaunchTitle": "Next Launch Widget",
+    "description": "Embed a live countdown to the next rocket launch on any website.",
+    "providerLabel": "Provider filter",
+    "providerPlaceholder": "All providers (e.g. SpaceX)",
+    "languageLabel": "Widget language",
+    "previewTitle": "Preview",
+    "snippetTitle": "Embed code",
+    "copyButton": "Copy",
+    "copied": "Copied!",
+    "iframeTitle": "Next rocket launch"
   }
 }

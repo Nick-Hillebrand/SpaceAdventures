@@ -507,5 +507,18 @@
     "distanceFromEarth": "Distancia a la Tierra",
     "velocity": "Velocidad",
     "noData": "Sin datos de seguimiento para esta fecha"
+  },
+  "widgets": {
+    "title": "Widgets incrustables",
+    "nextLaunchTitle": "Widget del próximo lanzamiento",
+    "description": "Incrusta una cuenta regresiva en vivo del próximo lanzamiento de cohete en cualquier sitio web.",
+    "providerLabel": "Filtro de proveedor",
+    "providerPlaceholder": "Todos los proveedores (p. ej. SpaceX)",
+    "languageLabel": "Idioma del widget",
+    "previewTitle": "Vista previa",
+    "snippetTitle": "Código de incrustación",
+    "copyButton": "Copiar",
+    "copied": "¡Copiado!",
+    "iframeTitle": "Próximo lanzamiento de cohete"
   }
 }

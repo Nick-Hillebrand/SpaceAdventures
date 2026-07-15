@@ -6,7 +6,8 @@
       "url": [
         "http://localhost/apod",
         "http://localhost/launches",
-        "http://localhost/missions/apollo-11"
+        "http://localhost/missions/apollo-11",
+        "http://localhost/embed/next-launch"
       ],
       "numberOfRuns": 3,
       "settings": {

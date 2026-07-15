@@ -507,5 +507,18 @@
     "distanceFromEarth": "Abstand zur Erde",
     "velocity": "Geschwindigkeit",
     "noData": "Keine Verfolgungsdaten für diesen Termin"
+  },
+  "widgets": {
+    "title": "Einbettbare Widgets",
+    "nextLaunchTitle": "Nächster Start Widget",
+    "description": "Betten Sie einen Live-Countdown zum nächsten Raketenstart auf jeder Website ein.",
+    "providerLabel": "Anbieterfilter",
+    "providerPlaceholder": "Alle Anbieter (z.B. SpaceX)",
+    "languageLabel": "Widget-Sprache",
+    "previewTitle": "Vorschau",
+    "snippetTitle": "Einbettungscode",
+    "copyButton": "Kopieren",
+    "copied": "Kopiert!",
+    "iframeTitle": "Nächster Raketenstart"
   }
 }

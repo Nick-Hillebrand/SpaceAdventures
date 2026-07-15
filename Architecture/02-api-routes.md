@@ -126,6 +126,33 @@ POST /api/v1/ical/rotate        # auth required — rotates (or creates) users.i
 
 ---
 
+## Embeddable Widget Routes (23-seo-widgets-and-growth.md L3)
+
+```
+GET  /embed/next-launch?provider=&lang=
+```
+
+Returns a self-contained HTML page (≤ 30 KB, inline CSS + JS, no external
+assets) showing a live countdown to the next upcoming launch.  Consumers
+embed via `<iframe src="https://{domain}/embed/next-launch">`.
+
+- `?provider=` — optional, case-insensitive substring match on `agency_name`
+  (e.g. `?provider=SpaceX`); omit for the globally next launch.
+- `?lang=` — optional, one of `en|de|es|fr|ja|ru`; widget UI labels are
+  rendered in that language using inline translations (no locale-file fetch).
+  Date/time is formatted client-side via `Intl.DateTimeFormat`.
+- No cookies, no auth, no personal data.
+- `Cache-Control: public, max-age=60`.
+- `Content-Security-Policy: frame-ancestors *` — overrides the main-app
+  `frame-ancestors 'self'` so third-party sites can embed the widget.
+- The attribution backlink ("Powered by Space Adventures") is always present
+  and cannot be removed via query params (white-label is a later B2B feature).
+
+The SPA docs page at `/widgets` provides a copy-paste snippet generator
+(iframe code, provider filter, language dropdown, live preview).
+
+---
+
 ## Settings Routes
 
 ```

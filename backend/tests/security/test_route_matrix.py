@@ -84,6 +84,9 @@ ROUTE_TABLE: list[tuple[str, str, str]] = [
     ("GET", "/api/v1/ical/{token}.ics", "capability"),
     # L2 — token rotation: user-auth required + Pro-gated inline (403 for non-Pro).
     ("POST", "/api/v1/ical/rotate", "user"),
+    # L3 — embeddable widget (23-seo-widgets-and-growth.md L3): public, no auth,
+    # no personal data.  CSP frame-ancestors * allows third-party iframes.
+    ("GET", "/embed/next-launch", "public"),
     # FastAPI's auto-generated interactive docs — read-only schema/UI, no
     # data access. Declared explicitly so the completeness check stays green;
     # revisit before a public launch if the OpenAPI surface should be hidden.

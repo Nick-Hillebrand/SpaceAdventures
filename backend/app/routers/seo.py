@@ -55,6 +55,7 @@ _STATIC_ROUTES: tuple[str, ...] = (
     "/space-weather",
     "/solar-system",
     "/missions",
+    "/widgets",
 )
 
 _SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"

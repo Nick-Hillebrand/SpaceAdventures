@@ -507,5 +507,18 @@
     "distanceFromEarth": "地球からの距離",
     "velocity": "速度",
     "noData": "この日付のトラッキングデータはありません"
+  },
+  "widgets": {
+    "title": "組み込み可能なウィジェット",
+    "nextLaunchTitle": "次の打ち上げウィジェット",
+    "description": "任意のウェブサイトに次のロケット打ち上げへのライブカウントダウンを埋め込みます。",
+    "providerLabel": "プロバイダーフィルター",
+    "providerPlaceholder": "すべてのプロバイダー（例：SpaceX）",
+    "languageLabel": "ウィジェットの言語",
+    "previewTitle": "プレビュー",
+    "snippetTitle": "埋め込みコード",
+    "copyButton": "コピー",
+    "copied": "コピーしました！",
+    "iframeTitle": "次回ロケット打ち上げ"
   }
 }
