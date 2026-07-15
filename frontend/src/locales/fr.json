@@ -454,5 +454,19 @@
       "roverDeploy": "Déploiement du rover — le rover Sojourner se lance sur la surface de Mars.",
       "roverDeployNarration": "Les pétales de l'atterrisseur se déplient et le rover Sojourner descend sa rampe pour commencer l'exploration de la surface martienne."
     }
+  },
+  "spacecraft": {
+    "jwst": "Télescope spatial James-Webb",
+    "voyager1": "Voyager 1",
+    "voyager2": "Voyager 2",
+    "parkerSolarProbe": "Sonde Parker Solar",
+    "newHorizons": "New Horizons"
+  },
+  "simulator": {
+    "spacecraftToggle": "Vaisseaux spatiaux",
+    "spacecraft": "Vaisseau spatial",
+    "distanceFromEarth": "Distance à la Terre",
+    "velocity": "Vélocité",
+    "noData": "Pas de données de suivi pour cette date"
   }
 }

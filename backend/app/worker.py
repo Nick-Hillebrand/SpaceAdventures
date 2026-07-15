@@ -19,6 +19,7 @@ from app.config import Settings
 from app.database import dispose_engine, init_engine
 from app.jobs import register_jobs
 from app.services import translation_service
+from app.services.horizons_client import HorizonsClient
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
 from app.services.n2yo_client import N2YOClient
@@ -33,6 +34,7 @@ class Clients:
     n2yo_client: N2YOClient
     ll2_client: LL2Client
     mars_raw_images_client: MarsRawImagesClient
+    horizons_client: HorizonsClient
     translator: Any
 
 
@@ -42,6 +44,7 @@ def build_clients(settings: Settings) -> Clients:
         n2yo_client=N2YOClient(settings),
         ll2_client=LL2Client(settings),
         mars_raw_images_client=MarsRawImagesClient(settings),
+        horizons_client=HorizonsClient(settings),
         translator=translation_service.translate_fields,
     )
 
@@ -51,6 +54,7 @@ async def close_clients(clients: Clients) -> None:
     await clients.n2yo_client.close()
     await clients.ll2_client.close()
     await clients.mars_raw_images_client.close()
+    await clients.horizons_client.close()
 
 
 async def main() -> None:

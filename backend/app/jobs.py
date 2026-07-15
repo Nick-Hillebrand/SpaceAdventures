@@ -20,7 +20,7 @@ from app.config import Settings
 from app.database import get_sessionmaker
 from app.models.job_status import JobStatus
 from app.models.rate_limit import RateLimitEvent
-from app.services import launches_service, notification_service
+from app.services import ephemerides_service, launches_service, notification_service
 from app.services.advisory_lock import release_job_lock, try_job_lock
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ JOB_STALENESS_SECONDS: dict[str, int] = {
     "notification_drain": 4 * 60,
     "rate_limit_purge": 4 * 24 * 60 * 60,
     "worker_heartbeat": 5 * 60,
+    "ephemeris_sync": 4 * 24 * 60 * 60,
 }
 
 
@@ -127,6 +128,11 @@ async def _worker_heartbeat_body(clients: Any, settings: Settings) -> None:
     await _record_success("worker_heartbeat")
 
 
+async def _ephemeris_sync_body(clients: Any, settings: Settings) -> None:
+    async with get_sessionmaker()() as session:
+        await ephemerides_service.run_ephemeris_sync(session, clients.horizons_client)
+
+
 @dataclass
 class JobSpec:
     name: str
@@ -143,12 +149,14 @@ def register_jobs(scheduler: AsyncIOScheduler, settings: Settings, clients: Any)
         JobSpec("notification_drain", "interval", {"minutes": 1}),
         JobSpec("rate_limit_purge", "interval", {"hours": _RATE_LIMIT_EVENT_RETENTION_HOURS}),
         JobSpec("worker_heartbeat", "interval", {"seconds": 30}),
+        JobSpec("ephemeris_sync", "interval", {"hours": 24}),
     ]
     bodies: dict[str, Callable[[Any, Settings], Awaitable[None]]] = {
         "launches_sync": _launches_sync_body,
         "notification_drain": _notification_drain_body,
         "rate_limit_purge": _rate_limit_purge_body,
         "worker_heartbeat": _worker_heartbeat_body,
+        "ephemeris_sync": _ephemeris_sync_body,
     }
 
     for job in jobs:

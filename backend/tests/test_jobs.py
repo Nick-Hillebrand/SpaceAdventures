@@ -211,14 +211,16 @@ async def test_worker_heartbeat_body_records_success(db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_register_jobs_registers_all_four_jobs():
+def test_register_jobs_registers_all_five_jobs():
     scheduler = MagicMock()
     settings = MagicMock(ll2_sync_interval_minutes=30)
-    clients = SimpleNamespace(ll2_client=MagicMock(), translator=MagicMock())
+    clients = SimpleNamespace(
+        ll2_client=MagicMock(), translator=MagicMock(), horizons_client=MagicMock()
+    )
 
     jobs.register_jobs(scheduler, settings, clients)
 
-    assert scheduler.add_job.call_count == 4
+    assert scheduler.add_job.call_count == 5
     kwargs_list = [call.kwargs for call in scheduler.add_job.call_args_list]
     triggers = {kw["trigger"] for kw in kwargs_list}
     assert triggers == {"interval"}

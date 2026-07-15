@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.config import Settings
 from app.database import get_db
 from app.main import create_app
+from app.services.horizons_client import HorizonsClient
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
 from app.services.n2yo_client import N2YOClient
@@ -71,6 +72,7 @@ ROUTE_TABLE: list[tuple[str, str, str]] = [
     ("POST", "/api/v1/push/subscribe", "user"),
     ("DELETE", "/api/v1/push/subscribe", "user"),
     ("GET", "/api/v1/settings", "public"),
+    ("GET", "/api/v1/ephemerides/{slug}", "public"),
     # FastAPI's auto-generated interactive docs — read-only schema/UI, no
     # data access. Declared explicitly so the completeness check stays green;
     # revisit before a public launch if the OpenAPI surface should be hidden.
@@ -191,6 +193,7 @@ async def matrix_client(db_engine):
     app.state.n2yo_client = N2YOClient(admin_settings)
     app.state.ll2_client = LL2Client(admin_settings)
     app.state.mars_raw_images_client = MarsRawImagesClient(admin_settings)
+    app.state.horizons_client = HorizonsClient(admin_settings)
     app.dependency_overrides[get_db] = _override_get_db
 
     transport = ASGITransport(app=app)
@@ -202,6 +205,7 @@ async def matrix_client(db_engine):
         await app.state.n2yo_client.close()
         await app.state.ll2_client.close()
         await app.state.mars_raw_images_client.close()
+        await app.state.horizons_client.close()
 
 
 # Bodies for routes whose auth dependency is evaluated ahead of body

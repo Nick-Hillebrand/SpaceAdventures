@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import event, select
 
+from app.models.ephemerides import Ephemeris, TrackedObject
 from app.models.launches import Launch
 from app.models.subscription import Subscription
 from app.models.user import User
@@ -153,6 +154,84 @@ async def test_sitemap_query_count_is_row_count_independent(client, db_engine, d
     with count_queries(db_engine) as get_count:
         r = await client.get("/sitemap.xml")
     assert r.status_code == 200
+    count_at_100 = get_count()
+
+    assert count_at_10 == count_at_100, (
+        f"query count grew with row count ({count_at_10} at 10 rows vs "
+        f"{count_at_100} at 100 rows) — this is the N+1 signature"
+    )
+    assert count_at_100 <= MAX_STATEMENTS
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/ephemerides/{slug}
+# ---------------------------------------------------------------------------
+
+
+async def _seed_ephemerides(db_session, spk_id: str, n: int, offset: int = 0) -> None:
+    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    for i in range(offset, offset + n):
+        db_session.add(
+            Ephemeris(
+                spk_id=spk_id,
+                t_utc=base + timedelta(hours=i),
+                x_au=float(i),
+                y_au=float(i) * 2,
+                z_au=float(i) * 3,
+            )
+        )
+    await db_session.commit()
+
+
+async def _seed_tracked_object(db_session, spk_id: str, slug: str) -> None:
+    db_session.add(
+        TrackedObject(
+            spk_id=spk_id,
+            slug=slug,
+            name_key="spacecraft.perfTest",
+            kind="spacecraft",
+            active=True,
+            step_hours=1,
+        )
+    )
+    await db_session.commit()
+
+
+@pytest.mark.parametrize("row_count", [10, 100])
+async def test_ephemerides_query_count_within_budget(client, db_engine, db_session, row_count):
+    await _seed_tracked_object(db_session, "-170", "jwst-perf")
+    await _seed_ephemerides(db_session, "-170", row_count)
+
+    with count_queries(db_engine) as get_count:
+        response = await client.get(
+            "/api/v1/ephemerides/jwst-perf",
+            params={"from": "2024-01-01T00:00:00Z", "to": "2024-01-31T00:00:00Z"},
+        )
+    assert response.status_code == 200
+    assert len(response.json()["points"]) == row_count
+    assert get_count() <= MAX_STATEMENTS
+
+
+async def test_ephemerides_query_count_is_row_count_independent(client, db_engine, db_session):
+    await _seed_tracked_object(db_session, "-170", "jwst-perf")
+
+    await _seed_ephemerides(db_session, "-170", 10)
+    with count_queries(db_engine) as get_count:
+        r = await client.get(
+            "/api/v1/ephemerides/jwst-perf",
+            params={"from": "2024-01-01T00:00:00Z", "to": "2024-01-31T00:00:00Z"},
+        )
+    assert r.status_code == 200
+    count_at_10 = get_count()
+
+    await _seed_ephemerides(db_session, "-170", 90, offset=10)
+    with count_queries(db_engine) as get_count:
+        r = await client.get(
+            "/api/v1/ephemerides/jwst-perf",
+            params={"from": "2024-01-01T00:00:00Z", "to": "2024-01-31T00:00:00Z"},
+        )
+    assert r.status_code == 200
+    assert len(r.json()["points"]) == 100
     count_at_100 = get_count()
 
     assert count_at_10 == count_at_100, (

@@ -9,6 +9,12 @@ import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRe
 import { AU_KM, PLANETS, SUN, type MoonData, type PlanetData } from "./data";
 import { daysSinceJ2000, heliocentricPosition, moonPosition, orbitPath } from "./orbits";
 import type { MissionSpec } from "./mission";
+import {
+  interpolatePosition,
+  isWithinCoverage,
+  trailPoints,
+  type SpacecraftRenderObject,
+} from "./spacecraft";
 
 export type ScaleMode = "visible" | "true";
 
@@ -42,6 +48,20 @@ export interface SolarSceneHandle {
     /** Removes the mission layer and restores the prior clock, camera, and scale mode. */
     clear(): void;
   };
+  spacecraft: {
+    /**
+     * (Re)creates the live-spacecraft layer: a diamond marker + label + trail
+     * per object, positioned each frame by interpolating `points` at the sim
+     * clock (see `solar/spacecraft.ts`). Replaces the whole layer on every
+     * call — the caller re-invokes this with fresh pre-resolved `label`
+     * strings on locale change, mirroring `mission.load()`'s full-recreate
+     * pattern. `noDataTooltip` is shown on markers currently outside their
+     * cached point range.
+     */
+    setObjects(objects: SpacecraftRenderObject[], noDataTooltip: string): void;
+    /** Shows/hides the whole layer (markers, labels, trails). */
+    setVisible(visible: boolean): void;
+  };
 }
 
 /** World units per AU in true-scale mode. */
@@ -58,6 +78,14 @@ function visibleBodyRadius(radiusKm: number): number {
 function visibleDistance(aAu: number): number {
   return 62 * Math.pow(aAu, 0.55);
 }
+
+/** Decorative marker size (world units) — spacecraft have no meaningful
+ * physical radius to render at scale, so this is fixed regardless of
+ * scale mode (the same reasoning as the mission craft marker). */
+const SPACECRAFT_MARKER_R = 0.9;
+/** Opacity applied to a marker/label/trail while the sim clock sits outside
+ * that object's cached point range, instead of hiding it outright. */
+const SPACECRAFT_OUT_OF_COVERAGE_OPACITY = 0.3;
 
 interface MoonEntry {
   data: MoonData;
@@ -328,6 +356,7 @@ export function createSolarScene(
     sunMesh.rotation.y = ((days * 24) / SUN.rotationHours) * Math.PI * 2;
 
     if (missionActive) updateMissionCraft();
+    updateSpacecraftPositions();
   }
 
   // ---- selection & camera ------------------------------------------------
@@ -351,6 +380,12 @@ export function createSolarScene(
         }
       }
     }
+    for (const entry of spacecraftEntries) {
+      if (entry.id === id) {
+        entry.group.getWorldPosition(out);
+        return true;
+      }
+    }
     return false;
   }
 
@@ -362,6 +397,7 @@ export function createSolarScene(
         if (moon.data.id === id) return moonDisplayRadius(moon.data.radiusKm);
       }
     }
+    if (spacecraftEntries.some((entry) => entry.id === id)) return SPACECRAFT_MARKER_R;
     return 1;
   }
 
@@ -570,6 +606,147 @@ export function createSolarScene(
     }
   }
 
+  // ---- live spacecraft layer ---------------------------------------------
+  //
+  // A layer of independent markers (not a mode, unlike mission replay): each
+  // tracked object gets its own group (marker + label), positioned every
+  // frame by interpolating its cached ephemeris points at the sim clock, plus
+  // a standalone trail line holding absolute world positions (not nested
+  // under the marker group, so its historical points aren't re-offset by the
+  // marker's own current-position translation).
+
+  interface SpacecraftEntry {
+    id: string;
+    points: SpacecraftRenderObject["points"];
+    group: THREE.Group;
+    mesh: THREE.Mesh;
+    material: THREE.MeshBasicMaterial;
+    label: CSS2DObject;
+    labelEl: HTMLElement;
+    trailLine: THREE.Line;
+    trailMaterial: THREE.LineBasicMaterial;
+  }
+
+  let spacecraftEntries: SpacecraftEntry[] = [];
+  let spacecraftVisible = true;
+  let spacecraftNoDataTooltip = "";
+  const spacecraftGeometry = new THREE.OctahedronGeometry(SPACECRAFT_MARKER_R, 0);
+
+  function makeSpacecraftLabel(id: string, text: string): { object: CSS2DObject; el: HTMLElement } {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "solar-label solar-label--spacecraft";
+    el.textContent = text;
+    el.addEventListener("pointerdown", (e) => e.stopPropagation());
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectBody(id);
+    });
+    const object = new CSS2DObject(el);
+    return { object, el };
+  }
+
+  function teardownSpacecraftLayer() {
+    for (const entry of spacecraftEntries) {
+      // Note: don't dispose entry.mesh.geometry here — it's the shared
+      // `spacecraftGeometry` reused across setObjects() calls, disposed
+      // exactly once in the top-level dispose() below.
+      entry.group.parent?.remove(entry.group);
+      entry.material.dispose();
+      entry.trailLine.parent?.remove(entry.trailLine);
+      entry.trailLine.geometry.dispose();
+      entry.trailMaterial.dispose();
+    }
+    spacecraftEntries = [];
+  }
+
+  function setSpacecraftObjects(objects: SpacecraftRenderObject[], noDataTooltip: string) {
+    teardownSpacecraftLayer();
+    spacecraftNoDataTooltip = noDataTooltip;
+
+    spacecraftEntries = objects.map(({ id, label: text, points }) => {
+      const sorted = [...points].sort((a, b) => a.t - b.t);
+
+      const group = new THREE.Group();
+      const material = new THREE.MeshBasicMaterial({ color: 0x7fd8ff, transparent: true });
+      const mesh = new THREE.Mesh(spacecraftGeometry, material);
+      mesh.name = id;
+      group.add(mesh);
+      const label = makeSpacecraftLabel(id, text);
+      label.object.position.set(0, SPACECRAFT_MARKER_R * 1.6 + 0.3, 0);
+      group.add(label.object);
+      group.visible = spacecraftVisible;
+      scene.add(group);
+
+      const trailMaterial = new THREE.LineBasicMaterial({
+        color: 0x7fd8ff,
+        transparent: true,
+        opacity: 0.5,
+      });
+      const trailLine = new THREE.Line(new THREE.BufferGeometry(), trailMaterial);
+      trailLine.visible = spacecraftVisible;
+      scene.add(trailLine);
+
+      return {
+        id,
+        points: sorted,
+        group,
+        mesh,
+        material,
+        label: label.object,
+        labelEl: label.el,
+        trailLine,
+        trailMaterial,
+      };
+    });
+
+    updateSpacecraftPositions();
+  }
+
+  function setSpacecraftVisible(visible: boolean) {
+    spacecraftVisible = visible;
+    for (const entry of spacecraftEntries) {
+      entry.group.visible = visible;
+      entry.trailLine.visible = visible;
+    }
+  }
+
+  function worldVectorForAu(x: number, y: number, z: number): THREE.Vector3 {
+    if (scaleMode === "true") {
+      return new THREE.Vector3(x * UNITS_PER_AU, z * UNITS_PER_AU, -y * UNITS_PER_AU);
+    }
+    const r = Math.hypot(x, y, z) || 1e-9;
+    const f = visibleDistance(r) / r;
+    return new THREE.Vector3(x * f, z * f, -y * f);
+  }
+
+  function updateSpacecraftPositions() {
+    if (spacecraftEntries.length === 0 || !spacecraftVisible) return;
+    const nowMs = simDate.getTime();
+
+    for (const entry of spacecraftEntries) {
+      const pos = interpolatePosition(entry.points, nowMs);
+      if (!pos) {
+        entry.group.visible = false;
+        entry.trailLine.visible = false;
+        continue;
+      }
+      entry.group.visible = spacecraftVisible;
+      entry.trailLine.visible = spacecraftVisible;
+      entry.group.position.copy(worldVectorForAu(pos.x, pos.y, pos.z));
+
+      const withinCoverage = isWithinCoverage(entry.points, nowMs);
+      const opacity = withinCoverage ? 1 : SPACECRAFT_OUT_OF_COVERAGE_OPACITY;
+      entry.material.opacity = opacity;
+      entry.trailMaterial.opacity = withinCoverage ? 0.5 : 0.5 * SPACECRAFT_OUT_OF_COVERAGE_OPACITY;
+      entry.labelEl.classList.toggle("solar-label--dimmed", !withinCoverage);
+      entry.labelEl.title = withinCoverage ? "" : spacecraftNoDataTooltip;
+
+      const trail = trailPoints(entry.points, nowMs);
+      entry.trailLine.geometry.setFromPoints(trail.map((p) => worldVectorForAu(p.x, p.y, p.z)));
+    }
+  }
+
   function updateMoonLabelVisibility() {
     for (const body of bodies) {
       const parentSelected =
@@ -590,6 +767,9 @@ export function createSolarScene(
       }
     }
     sunLabel.el.classList.toggle("solar-label--active", id === "sun");
+    for (const entry of spacecraftEntries) {
+      entry.labelEl.classList.toggle("solar-label--active", id === entry.id);
+    }
     updateMoonLabelVisibility();
     focusOn(id);
     onSelect(id);
@@ -620,6 +800,9 @@ export function createSolarScene(
     for (const body of bodies) {
       meshes.push(body.mesh);
       for (const moon of body.moons) meshes.push(moon.mesh);
+    }
+    if (spacecraftVisible) {
+      for (const entry of spacecraftEntries) meshes.push(entry.mesh);
     }
     const hit = raycaster.intersectObjects(meshes, false)[0];
     selectBody(hit ? hit.object.name : null);
@@ -748,9 +931,19 @@ export function createSolarScene(
         clearMission();
       },
     },
+    spacecraft: {
+      setObjects(objects: SpacecraftRenderObject[], noDataTooltip: string) {
+        setSpacecraftObjects(objects, noDataTooltip);
+      },
+      setVisible(visible: boolean) {
+        setSpacecraftVisible(visible);
+      },
+    },
     dispose() {
       disposed = true;
       teardownMissionLayer();
+      teardownSpacecraftLayer();
+      spacecraftGeometry.dispose();
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);

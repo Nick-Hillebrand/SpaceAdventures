@@ -15,6 +15,7 @@ def test_build_clients_populates_all_fields():
     assert clients.n2yo_client is not None
     assert clients.ll2_client is not None
     assert clients.mars_raw_images_client is not None
+    assert clients.horizons_client is not None
     assert clients.translator is not None
 
 
@@ -24,6 +25,7 @@ async def test_close_clients_closes_every_client():
         n2yo_client=AsyncMock(),
         ll2_client=AsyncMock(),
         mars_raw_images_client=AsyncMock(),
+        horizons_client=AsyncMock(),
         translator=MagicMock(),
     )
 
@@ -33,6 +35,7 @@ async def test_close_clients_closes_every_client():
     clients.n2yo_client.close.assert_awaited_once()
     clients.ll2_client.close.assert_awaited_once()
     clients.mars_raw_images_client.close.assert_awaited_once()
+    clients.horizons_client.close.assert_awaited_once()
 
 
 async def test_main_starts_scheduler_registers_jobs_and_shuts_down_cleanly():
@@ -52,6 +55,7 @@ async def test_main_starts_scheduler_registers_jobs_and_shuts_down_cleanly():
          patch("app.worker.build_clients", return_value=worker.Clients(
              nasa_client=AsyncMock(), n2yo_client=AsyncMock(),
              ll2_client=AsyncMock(), mars_raw_images_client=AsyncMock(),
+             horizons_client=AsyncMock(),
              translator=MagicMock(),
          )), \
          patch("app.worker.AsyncIOScheduler", return_value=fake_scheduler), \

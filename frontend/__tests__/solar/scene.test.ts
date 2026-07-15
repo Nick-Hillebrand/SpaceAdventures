@@ -330,6 +330,7 @@ vi.mock("three", () => {
     SphereGeometry: vi.fn(() => state.makeDisposable()),
     RingGeometry: vi.fn(() => state.makeRingGeometry()),
     BufferGeometry: vi.fn(() => state.makeBufferGeometry()),
+    OctahedronGeometry: vi.fn(() => state.makeDisposable()),
     MeshBasicMaterial: vi.fn((opts: Record<string, unknown> = {}) => state.makeDisposable(opts)),
     MeshStandardMaterial: vi.fn((opts: Record<string, unknown> = {}) => state.makeDisposable(opts)),
     MeshLambertMaterial: vi.fn((opts: Record<string, unknown> = {}) => state.makeDisposable(opts)),
@@ -838,6 +839,181 @@ describe("solar/scene", () => {
       const container = makeContainer();
       const handle = create(container);
       handle.mission.load(makeMissionSpec());
+      expect(() => handle.dispose()).not.toThrow();
+      activeScenes = activeScenes.filter((s) => s !== handle);
+    });
+  });
+
+  describe("spacecraft layer", () => {
+    function point(t: string, x: number, y: number, z: number) {
+      return { t: Date.parse(t), x, y, z };
+    }
+
+    it("creates a marker + label per object and positions it via the true-scale AU mapping", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      handle.setScaleMode("true");
+      handle.setDate(new Date("2026-01-01T00:00:00Z"));
+
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "JWST", points: [point("2026-01-01T00:00:00Z", 2, 3, 0)] }],
+        "no data",
+      );
+
+      const mesh = findMeshNamed(state.sceneInstance!, "jwst")!;
+      const group = mesh.parent!;
+      const UNITS_PER_AU = 60;
+      expect(group.position.x).toBeCloseTo(2 * UNITS_PER_AU, 6);
+      expect(group.position.y).toBeCloseTo(0, 6);
+      expect(group.position.z).toBeCloseTo(-3 * UNITS_PER_AU, 6);
+
+      const labelButtons = Array.from(container.querySelectorAll(".solar-label--spacecraft")) as HTMLElement[];
+      expect(labelButtons.some((el) => el.textContent === "JWST")).toBe(true);
+    });
+
+    it("dims the marker/label and sets a tooltip when the sim clock is outside the object's covered range", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      handle.spacecraft.setObjects(
+        [
+          {
+            id: "voyager-1",
+            label: "Voyager 1",
+            points: [point("2026-01-01T00:00:00Z", 1, 0, 0), point("2026-01-02T00:00:00Z", 1.1, 0, 0)],
+          },
+        ],
+        "No data for this date",
+      );
+      const mesh = findMeshNamed(state.sceneInstance!, "voyager-1")!;
+      const label = container.querySelector(".solar-label--spacecraft") as HTMLElement;
+
+      handle.setDate(new Date("2026-01-01T12:00:00Z")); // within coverage
+      expect((mesh.material as { opacity: number }).opacity).toBe(1);
+      expect(label.classList.contains("solar-label--dimmed")).toBe(false);
+      expect(label.title).toBe("");
+
+      handle.setDate(new Date("2026-01-05T00:00:00Z")); // outside coverage
+      expect((mesh.material as { opacity: number }).opacity).toBeCloseTo(0.3, 10);
+      expect(label.classList.contains("solar-label--dimmed")).toBe(true);
+      expect(label.title).toBe("No data for this date");
+    });
+
+    it("hides the marker entirely when an object has no ephemeris points at all", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      expect(() =>
+        handle.spacecraft.setObjects([{ id: "ghost", label: "Ghost", points: [] }], "no data"),
+      ).not.toThrow();
+      const mesh = findMeshNamed(state.sceneInstance!, "ghost")!;
+      expect(mesh.parent!.visible).toBe(false);
+    });
+
+    it("setVisible toggles the marker group and trail line together", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      const before = state.sceneInstance!.children.length;
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "JWST", points: [point("2026-01-01T00:00:00Z", 1, 0, 0)] }],
+        "no data",
+      );
+      const added = state.sceneInstance!.children.slice(before);
+      expect(added).toHaveLength(2); // marker group + trail line
+      const [group, trailLine] = added;
+
+      expect(group.visible).toBe(true);
+      expect(trailLine.visible).toBe(true);
+
+      handle.spacecraft.setVisible(false);
+      expect(group.visible).toBe(false);
+      expect(trailLine.visible).toBe(false);
+
+      handle.spacecraft.setVisible(true);
+      expect(group.visible).toBe(true);
+      expect(trailLine.visible).toBe(true);
+    });
+
+    it("click-to-select includes spacecraft markers only while the layer is visible", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "JWST", points: [point("2026-01-01T00:00:00Z", 1, 0, 0)] }],
+        "no data",
+      );
+      state.setRaycastHit("jwst");
+      const mesh = findMeshNamed(state.sceneInstance!, "jwst")!;
+
+      state.rendererDomElement.dispatchEvent(new MouseEvent("pointerdown", { clientX: 0, clientY: 0 }));
+      state.rendererDomElement.dispatchEvent(new MouseEvent("pointerup", { clientX: 1, clientY: 1 }));
+      let meshesArg = state.raycasterInstance.intersectObjects.mock.calls.at(-1)![0] as unknown[];
+      expect(meshesArg).toContain(mesh);
+
+      handle.spacecraft.setVisible(false);
+      state.rendererDomElement.dispatchEvent(new MouseEvent("pointerdown", { clientX: 0, clientY: 0 }));
+      state.rendererDomElement.dispatchEvent(new MouseEvent("pointerup", { clientX: 1, clientY: 1 }));
+      meshesArg = state.raycasterInstance.intersectObjects.mock.calls.at(-1)![0] as unknown[];
+      expect(meshesArg).not.toContain(mesh);
+    });
+
+    it("selecting a spacecraft toggles its active label class and reports through onSelect", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "JWST", points: [point("2026-01-01T00:00:00Z", 1, 0, 0)] }],
+        "no data",
+      );
+      handle.select("jwst");
+      expect(onSelect).toHaveBeenCalledWith("jwst");
+      const label = container.querySelector(".solar-label--spacecraft") as HTMLElement;
+      expect(label.classList.contains("solar-label--active")).toBe(true);
+    });
+
+    it("re-invoking setObjects with fresh label text renders the new text (locale-switch pattern)", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "James Webb Space Telescope", points: [point("2026-01-01T00:00:00Z", 1, 0, 0)] }],
+        "no data",
+      );
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "James-Webb-Weltraumteleskop", points: [point("2026-01-01T00:00:00Z", 1, 0, 0)] }],
+        "keine Daten",
+      );
+
+      const labelButtons = Array.from(container.querySelectorAll(".solar-label--spacecraft")) as HTMLElement[];
+      expect(labelButtons.some((el) => el.textContent === "James-Webb-Weltraumteleskop")).toBe(true);
+    });
+
+    it("re-invoking setObjects tears down old markers without disposing the shared marker geometry, which disposes exactly once on scene dispose()", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "JWST", points: [point("2026-01-01T00:00:00Z", 1, 0, 0)] }],
+        "no data",
+      );
+      const firstMesh = findMeshNamed(state.sceneInstance!, "jwst")!;
+      const geometry = (firstMesh as unknown as { geometry: { dispose: ReturnType<typeof vi.fn> } }).geometry;
+
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "JWST (updated)", points: [point("2026-01-01T00:00:00Z", 1, 0, 0)] }],
+        "no data",
+      );
+      expect(geometry.dispose).not.toHaveBeenCalled();
+
+      const secondMesh = findMeshNamed(state.sceneInstance!, "jwst")!;
+      expect((secondMesh as unknown as { geometry: unknown }).geometry).toBe(geometry);
+
+      handle.dispose();
+      expect(geometry.dispose).toHaveBeenCalledTimes(1);
+      activeScenes = activeScenes.filter((s) => s !== handle);
+    });
+
+    it("dispose() while spacecraft are loaded tears down the layer too", () => {
+      const container = makeContainer();
+      const handle = create(container);
+      handle.spacecraft.setObjects(
+        [{ id: "jwst", label: "JWST", points: [point("2026-01-01T00:00:00Z", 1, 0, 0)] }],
+        "no data",
+      );
       expect(() => handle.dispose()).not.toThrow();
       activeScenes = activeScenes.filter((s) => s !== handle);
     });

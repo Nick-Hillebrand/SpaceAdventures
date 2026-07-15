@@ -21,6 +21,7 @@ from app.models.job_status import JobStatus
 from app.models.n2yo_quota import N2yoQuota
 from app.models.notification_log import PendingNotification
 from app.routers import apod as apod_router
+from app.routers import ephemerides as ephemerides_router
 from app.routers import iss as iss_router
 from app.routers import mars as mars_router
 from app.routers import neo as neo_router
@@ -32,6 +33,7 @@ from app.routers import seo as seo_router
 from app.routers import subscriptions as subscriptions_router
 from app.routers import settings as settings_router
 from app.services import translation_service
+from app.services.horizons_client import HorizonsClient
 from app.services.ll2_client import LL2Client
 from app.services.mars_raw_images_client import MarsRawImagesClient
 from app.services.n2yo_client import N2YOClient
@@ -48,6 +50,7 @@ async def lifespan(app: FastAPI):
     app.state.n2yo_client = N2YOClient(settings)
     app.state.ll2_client = LL2Client(settings)
     app.state.mars_raw_images_client = MarsRawImagesClient(settings)
+    app.state.horizons_client = HorizonsClient(settings)
     app.state.translator = translation_service.translate_fields
 
     # The web tier never schedules background work (CLAUDE.md rule 7) — ALL
@@ -59,6 +62,7 @@ async def lifespan(app: FastAPI):
     if settings.scheduler_in_app:
         clients = SimpleNamespace(
             ll2_client=app.state.ll2_client,
+            horizons_client=app.state.horizons_client,
             translator=app.state.translator,
         )
         scheduler = AsyncIOScheduler()
@@ -74,6 +78,7 @@ async def lifespan(app: FastAPI):
         await app.state.n2yo_client.close()
         await app.state.ll2_client.close()
         await app.state.mars_raw_images_client.close()
+        await app.state.horizons_client.close()
         await dispose_engine()
 
 
@@ -188,6 +193,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     app.include_router(apod_router.router)
+    app.include_router(ephemerides_router.router)
     app.include_router(neo_router.router)
     app.include_router(space_weather_router.router)
     app.include_router(mars_router.router)

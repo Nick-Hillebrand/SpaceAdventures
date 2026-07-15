@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import MissionPanel from "@/components/MissionPanel";
-import { PLANETS, SUN, type MoonData, type PlanetData } from "@/solar/data";
+import { AU_KM, PLANETS, SUN, type MoonData, type PlanetData } from "@/solar/data";
 import { fetchMissionIndex, fetchMissionSpec, type MissionIndexEntry, type MissionSpec } from "@/solar/mission";
+import { daysSinceJ2000, heliocentricPosition } from "@/solar/orbits";
 import { createSolarScene, type ScaleMode, type SolarSceneHandle } from "@/solar/scene";
+import {
+  distanceAu,
+  interpolatePosition,
+  isWithinCoverage,
+  velocityAuPerDay,
+  type EphemerisSample,
+} from "@/solar/spacecraft";
+import { useTrackedSpacecraftEphemerides } from "@/hooks/useEphemerides";
 
 const MIN_SPEED = 0.01; // days per second
 const MAX_SPEED = 365;
@@ -43,6 +52,9 @@ export default function SolarSystemPage() {
   const [missionSlug, setMissionSlug] = useState<string | null>(null);
   const [missionError, setMissionError] = useState(false);
 
+  const [spacecraftOpen, setSpacecraftOpen] = useState(false);
+  const spacecraftData = useTrackedSpacecraftEphemerides();
+
   const speed = sliderToSpeed(slider);
 
   const numberFmt = useMemo(
@@ -75,6 +87,33 @@ export default function SolarSystemPage() {
   useEffect(() => {
     sceneRef.current?.refreshLabels();
   }, [i18n.resolvedLanguage]);
+
+  // Re-passes the whole spacecraft layer (fresh pre-resolved labels) whenever
+  // a query resolves or the locale changes — dataUpdatedAt/resolvedLanguage
+  // are primitives, so this only re-fires on an actual data/locale change,
+  // not on every render (unlike depending on the wrapper array itself, which
+  // is a new reference every render and would churn the layer every ~250ms
+  // alongside the sim-clock tick).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const objects = spacecraftData
+      .filter((s) => s.query.data)
+      .map((s) => ({
+        id: s.slug,
+        label: t(s.nameKey),
+        points: s.query.data!.points.map((p) => ({
+          t: Date.parse(p.t),
+          x: p.x,
+          y: p.y,
+          z: p.z,
+        })) as EphemerisSample[],
+      }));
+    sceneRef.current?.spacecraft.setObjects(objects, t("simulator.noData"));
+  }, [i18n.resolvedLanguage, ...spacecraftData.map((s) => s.query.dataUpdatedAt)]);
+
+  useEffect(() => {
+    sceneRef.current?.spacecraft.setVisible(spacecraftOpen);
+  }, [spacecraftOpen]);
 
   useEffect(() => {
     // While a mission is loaded, MissionPanel owns the sim clock's speed —
@@ -141,6 +180,30 @@ export default function SolarSystemPage() {
     selectedId === "sun" ? null : PLANETS.find((p) => p.id === selectedId) ?? null;
   const selectedMoon = !selectedPlanet && selectedId && selectedId !== "sun" ? findMoon(selectedId) : null;
   const sunSelected = selectedId === "sun";
+  const selectedSpacecraft =
+    !selectedPlanet && !selectedMoon && !sunSelected && selectedId
+      ? spacecraftData.find((s) => s.slug === selectedId)
+      : undefined;
+
+  const spacecraftPoints: EphemerisSample[] = selectedSpacecraft?.query.data
+    ? selectedSpacecraft.query.data.points.map((p) => ({ t: Date.parse(p.t), x: p.x, y: p.y, z: p.z }))
+    : [];
+  const spacecraftPos = spacecraftPoints.length
+    ? interpolatePosition(spacecraftPoints, simDate.getTime())
+    : null;
+  const spacecraftWithinCoverage =
+    spacecraftPoints.length > 0 && isWithinCoverage(spacecraftPoints, simDate.getTime());
+  const spacecraftVelocityAuPerDay = spacecraftPoints.length
+    ? velocityAuPerDay(spacecraftPoints, simDate.getTime())
+    : null;
+  const sunDistanceAu = spacecraftPos ? distanceAu(spacecraftPos) : null;
+  const earthDistanceAu = (() => {
+    if (!spacecraftPos) return null;
+    const earth = PLANETS.find((p) => p.id === "earth");
+    if (!earth) return null;
+    const earthPos = heliocentricPosition(earth.orbit, daysSinceJ2000(simDate));
+    return distanceAu(spacecraftPos, earthPos);
+  })();
 
   const speedLabel =
     speed >= 1
@@ -177,6 +240,14 @@ export default function SolarSystemPage() {
         >
           {t("missions.toggle")}
         </button>
+        <button
+          type="button"
+          className="solar-btn"
+          aria-pressed={spacecraftOpen}
+          onClick={() => setSpacecraftOpen((o) => !o)}
+        >
+          {t("simulator.spacecraftToggle")}
+        </button>
       </div>
 
       <div className="solar-stage">
@@ -187,10 +258,10 @@ export default function SolarSystemPage() {
           aria-label={t("solar.canvasLabel")}
         />
 
-        {(selectedPlanet || selectedMoon || sunSelected) && (
+        {(selectedPlanet || selectedMoon || sunSelected || selectedSpacecraft) && (
           <aside className="solar-info" aria-label={t("solar.infoPanelLabel")}>
             <div className="solar-info__head">
-              <h2>{getLabel(selectedId!)}</h2>
+              <h2>{selectedSpacecraft ? t(selectedSpacecraft.nameKey) : getLabel(selectedId!)}</h2>
               <button
                 type="button"
                 className="solar-info__close"
@@ -303,6 +374,62 @@ export default function SolarSystemPage() {
                 </button>
               </>
             )}
+
+            {selectedSpacecraft && (
+              <>
+                <p className="solar-info__type">{t("simulator.spacecraft")}</p>
+                {spacecraftPos ? (
+                  <dl className="solar-facts">
+                    <div>
+                      <dt>{t("solar.factDistance")}</dt>
+                      <dd>
+                        {numberFmt.format(sunDistanceAu!)} AU ({numberFmt.format(sunDistanceAu! * AU_KM)} km)
+                      </dd>
+                    </div>
+                    {earthDistanceAu !== null && (
+                      <div>
+                        <dt>{t("simulator.distanceFromEarth")}</dt>
+                        <dd>
+                          {numberFmt.format(earthDistanceAu)} AU ({numberFmt.format(earthDistanceAu * AU_KM)} km)
+                        </dd>
+                      </div>
+                    )}
+                    {spacecraftVelocityAuPerDay !== null && (
+                      <div>
+                        <dt>{t("simulator.velocity")}</dt>
+                        <dd>{numberFmt.format((spacecraftVelocityAuPerDay * AU_KM) / 86_400)} km/s</dd>
+                      </div>
+                    )}
+                  </dl>
+                ) : (
+                  <p className="solar-info__desc">{t("simulator.noData")}</p>
+                )}
+                {spacecraftPos && !spacecraftWithinCoverage && (
+                  <p className="solar-info__desc solar-info__desc--dim" title={t("simulator.noData")}>
+                    {t("simulator.noData")}
+                  </p>
+                )}
+              </>
+            )}
+          </aside>
+        )}
+
+        {spacecraftOpen && (
+          <aside className="spacecraft-dock" aria-label={t("simulator.spacecraftToggle")}>
+            <h2>{t("simulator.spacecraftToggle")}</h2>
+            <ul className="spacecraft-dock__list">
+              {spacecraftData.map((s) => (
+                <li key={s.slug}>
+                  <button
+                    type="button"
+                    className={`solar-btn solar-btn--toggle${selectedId === s.slug ? " solar-btn--active" : ""}`}
+                    onClick={() => handleSelect(s.slug)}
+                  >
+                    {t(s.nameKey)}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </aside>
         )}
 

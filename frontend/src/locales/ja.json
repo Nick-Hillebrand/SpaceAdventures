@@ -454,5 +454,19 @@
       "roverDeploy": "ローバー展開 — Sojourner ローバーが火星表面に出発する。",
       "roverDeployNarration": "ランダーの花弁が展開して、Sojourner ローバーが斜面を降りて火星表面の探査を開始する。"
     }
+  },
+  "spacecraft": {
+    "jwst": "ジェームス・ウェッブ宇宙望遠鏡",
+    "voyager1": "ボイジャー 1",
+    "voyager2": "ボイジャー 2",
+    "parkerSolarProbe": "パーカー・ソーラー・プローブ",
+    "newHorizons": "ニュー・ホライズンズ"
+  },
+  "simulator": {
+    "spacecraftToggle": "宇宙船",
+    "spacecraft": "宇宙船",
+    "distanceFromEarth": "地球からの距離",
+    "velocity": "速度",
+    "noData": "この日付のトラッキングデータはありません"
   }
 }

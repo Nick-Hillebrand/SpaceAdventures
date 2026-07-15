@@ -108,6 +108,7 @@ async def test_health_admin_tier_full_response(admin_client):
     assert body["jobs"]["worker_heartbeat"] == "stale"
     assert set(body["jobs"].keys()) == {
         "launches_sync", "notification_drain", "rate_limit_purge", "worker_heartbeat",
+        "ephemeris_sync",
     }
 
 

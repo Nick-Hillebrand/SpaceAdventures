@@ -454,5 +454,19 @@
       "roverDeploy": "Rover deployment — the Sojourner rover rolls onto the surface of Mars.",
       "roverDeployNarration": "The lander's petals unfold and the Sojourner rover rolls down its ramp to begin exploring the Martian surface."
     }
+  },
+  "spacecraft": {
+    "jwst": "James Webb Space Telescope",
+    "voyager1": "Voyager 1",
+    "voyager2": "Voyager 2",
+    "parkerSolarProbe": "Parker Solar Probe",
+    "newHorizons": "New Horizons"
+  },
+  "simulator": {
+    "spacecraftToggle": "Spacecraft",
+    "spacecraft": "Spacecraft",
+    "distanceFromEarth": "Distance from Earth",
+    "velocity": "Velocity",
+    "noData": "No tracking data for this date"
   }
 }

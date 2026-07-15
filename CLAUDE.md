@@ -226,7 +226,7 @@ Read: `18-slip-history-and-reliability.md` (Stage 1 only)
     unaffected (no new routes in Stage 1).
   - Step P4 is now complete. Next: Step B1 (Outbox hardening + Web Push).
 
-### Milestone B — Beta ⭐ current focus (50–100 users; the test is notification correctness)
+### Milestone B — Beta ✅ complete (50–100 users; the test is notification correctness; all steps shipped 2026-07-14)
 
 **Step B1 — Outbox hardening + Web Push.** ✅ complete (shipped 2026-07-13)
 Read: `19-notification-channels-v2.md` (B1 sections), `08-subscriptions.md`
@@ -331,10 +331,72 @@ Read: `23-seo-widgets-and-growth.md` (B2), `06-launches.md`
     backend modules, all frontend files ≥ 80%).
   - Step B2 is now complete. Next: Step B3 (Live spacecraft in simulator).
 
-**Step B3 — Live spacecraft in simulator.**
+**Step B3 — Live spacecraft in simulator.** ✅ complete (shipped 2026-07-14)
 Read: `22-ephemeris-and-mission-replay.md` (foundation + B3)
+  - ✅ Shipped 2026-07-14: Backend foundation — `app/services/horizons_client.py`
+    (JPL Horizons vectors-API client, courtesy rules enforced: batched
+    queries, no per-request proxying, `parse_vectors_csv()` raises
+    `HorizonsError("HORIZONS_PARSE_ERROR", ...)` on any non-numeric field
+    rather than trusting upstream CSV shape); `tracked_objects`/`ephemerides`
+    tables + migration; `ephemeris_sync` worker job (`app/jobs.py`, 24h
+    interval, 4-day advisory-lock timeout) populating a rolling cache via
+    `app/services/ephemerides_service.py`; `GET /api/v1/ephemerides/{slug}`
+    (`app/routers/ephemerides.py`, public, `from`/`to` query window
+    defaulting to 30 days) returning `{slug, name_key, points: [{t,x,y,z}]}`
+    in the same heliocentric-ecliptic-J2000-AU frame `orbits.ts` already
+    uses. Frontend — `solar/spacecraft.ts` (pure math: `interpolatePosition`,
+    `isWithinCoverage`, `distanceAu`, `velocityAuPerDay`, `trailPoints`, plus
+    the hardcoded `TRACKED_SPACECRAFT` catalog: JWST, Voyager 1/2, Parker
+    Solar Probe, New Horizons — no backend list endpoint exists for this yet);
+    `hooks/useEphemerides.ts` (`useEphemerides` single-slug query,
+    `useTrackedSpacecraftEphemerides` fixed-length `useQueries` over the
+    catalog); `solar/scene.ts` gained a `spacecraft: { setObjects, setVisible }`
+    sub-API on `SolarSceneHandle` (mirrors the existing `mission.load/clear`
+    full-recreate-on-every-call precedent) — marker + label per tracked
+    object, dimmed/tooltip state when the sim clock falls outside an object's
+    ephemeris coverage window, reusing the existing true/visible-scale AU→
+    scene-units transform unchanged; `SolarSystemPage.tsx` gained a
+    "Spacecraft" toggle opening a dock listing the catalog, with an info card
+    showing distance-from-Earth/velocity facts (or a no-data message) for the
+    selected craft. Two new i18n namespaces (`spacecraft`, `simulator`) across
+    all six locales. New tests: `test_horizons_client.py`,
+    `test_ephemerides_service.py`, `test_ephemeris_sync` (worker job),
+    `test_ephemerides.py` (router) on the backend;
+    `__tests__/solar/spacecraft.test.ts` (20 tests, pure math),
+    `__tests__/hooks/useEphemerides.test.tsx` (5 tests), a new "spacecraft
+    layer" block in `__tests__/solar/scene.test.ts` (9 tests, including a
+    regression test for a shared-geometry double-dispose bug caught and
+    fixed during development), and a new "live spacecraft" block in
+    `__tests__/routes/SolarSystemPage.test.tsx` (5 tests) on the frontend.
+    `GET /api/v1/ephemerides/{slug}` is in the route-authorization matrix
+    (public) and JPL Horizons' untrusted CSV response is covered in the
+    injection-fixture matrix via `test_horizons_client.py`'s parse-error
+    test (documented inline in `test_injection.py` rather than duplicated,
+    since no string-typed Horizons field ever reaches storage or an output
+    context). 735 backend tests green (4 skipped, 97.36% coverage), 485
+    frontend tests green, per-module/per-file branch coverage gates both
+    passed (36 backend modules, all frontend files ≥ 80%).
+  - `/code-review --effort low` pass (2026-07-15) surfaced and fixed 2
+    findings: (1) `horizons_client.py`'s `parse_vectors_csv` accepted
+    `"nan"`/`"inf"`/`"-Infinity"` spellings via bare `float()` — Horizons'
+    response is untrusted upstream input (rule 9) and a stored NaN/Infinity
+    would round-trip as an invalid JSON token; fixed with a
+    `math.isfinite()` check that raises `HorizonsError` alongside the
+    existing non-numeric-field branch, plus a new parametrized test in
+    `test_horizons_client.py`. (2) `scene.ts`'s `updateSpacecraftPositions`
+    ran full interpolation and a per-object trail-geometry GPU re-upload on
+    every animation frame (60 fps) regardless of whether the Spacecraft
+    layer was toggled visible — since ephemerides load and `setObjects()`
+    fires on every Solar System page visit independent of the toggle, this
+    burned CPU/GPU for every visitor whether or not they ever opened the
+    dock; fixed by gating the function on `spacecraftVisible`, verified
+    against the existing scene.test.ts/SolarSystemPage.test.tsx suites (61
+    tests, no regressions). 740 backend tests green (4 skipped, 97.36%
+    coverage), 485 frontend tests green, coverage gates unaffected.
+  - Step B3 is now complete. Next: Step L1 (Location + ISS visual pass
+    alerts).
 
-### Milestone L — Public launch (time to a major launch event)
+### Milestone L — Public launch ⭐ current focus (time to a major launch event)
 
 **Step L1 — Location + ISS visual pass alerts (Pro flagship).**
 Read: `20-location-and-sky-alerts.md` (foundation + L1), `05-iss-tracker.md`

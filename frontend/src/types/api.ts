@@ -179,6 +179,19 @@ export interface LaunchHistoryResponse {
   data: LaunchHistoryEntry[];
 }
 
+export interface EphemerisPointDto {
+  t: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface EphemeridesResponse {
+  slug: string;
+  name_key: string;
+  points: EphemerisPointDto[];
+}
+
 export interface SubscriptionData {
   id: string;
   type: "launch" | "agency";

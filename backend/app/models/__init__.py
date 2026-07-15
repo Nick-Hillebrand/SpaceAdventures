@@ -1,4 +1,5 @@
 from app.models.apod import Apod
+from app.models.ephemerides import Ephemeris, TrackedObject
 from app.models.iss import IssPassSet, IssPositionBatch, IssTle
 from app.models.job_status import JobStatus
 from app.models.launch_net_changes import LaunchNetChange
@@ -15,6 +16,7 @@ from app.models.user import LoginAttempt, Otp, RefreshToken, User
 
 __all__ = [
     "Apod",
+    "Ephemeris",
     "IssPassSet",
     "IssPositionBatch",
     "IssTle",
@@ -33,5 +35,6 @@ __all__ = [
     "RefreshToken",
     "SpaceWeatherEvent",
     "Subscription",
+    "TrackedObject",
     "User",
 ]

@@ -20,6 +20,7 @@ const { mockScene, createSolarScene } = vi.hoisted(() => {
     refreshLabels: vi.fn(),
     dispose: vi.fn(),
     mission: { load: vi.fn(), clear: vi.fn() },
+    spacecraft: { setObjects: vi.fn(), setVisible: vi.fn() },
   };
   const createSolarScene = vi.fn(
     (_container: HTMLElement, _options: unknown) => mockScene,
@@ -52,8 +53,16 @@ function sceneOptions(): SolarSceneOptions {
 
 // Reset in beforeEach, not afterEach: testing-library's automatic cleanup
 // (which unmounts and calls dispose) runs after our afterEach hooks would.
+// useTrackedSpacecraftEphemerides fires one request per catalog entry on
+// every mount, so every test needs a default handler even when it isn't
+// exercising the spacecraft feature itself.
 beforeEach(() => {
   vi.clearAllMocks();
+  server.use(
+    http.get("/api/v1/ephemerides/:slug", ({ params }) =>
+      HttpResponse.json({ slug: params.slug, name_key: `spacecraft.${params.slug}`, points: [] }),
+    ),
+  );
 });
 
 afterEach(async () => {
@@ -256,6 +265,94 @@ describe("SolarSystemPage", () => {
 
       expect(await within(dock).findByText(/could not be loaded/i)).toBeInTheDocument();
       expect(mockScene.mission.load).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("live spacecraft", () => {
+    // The page's sim clock defaults to `new Date()` (real "now"), and
+    // velocityAuPerDay/isWithinCoverage are only non-null/true inside the
+    // fetched sample window — so the fixture window must bracket "now",
+    // not a fixed past date, or the info card's dimmed/no-data branch fires
+    // instead of the in-coverage facts this test wants to exercise.
+    const now = Date.now();
+    const JWST_RESPONSE = {
+      slug: "jwst",
+      name_key: "spacecraft.jwst",
+      points: [
+        { t: new Date(now - 86_400_000).toISOString(), x: 1, y: 0, z: 0 },
+        { t: new Date(now + 86_400_000).toISOString(), x: 1.01, y: 0.01, z: 0 },
+      ],
+    };
+
+    beforeEach(() => {
+      server.use(http.get("/api/v1/ephemerides/jwst", () => HttpResponse.json(JWST_RESPONSE)));
+    });
+
+    it("toggling Spacecraft opens the dock, lists the catalog, and shows/hides the scene layer", async () => {
+      renderWithProviders(<SolarSystemPage />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Spacecraft" }));
+      await waitFor(() => expect(mockScene.spacecraft.setVisible).toHaveBeenLastCalledWith(true));
+
+      const dock = await screen.findByRole("complementary", { name: "Spacecraft" });
+      expect(
+        await within(dock).findByRole("button", { name: "James Webb Space Telescope" }),
+      ).toBeInTheDocument();
+      expect(within(dock).getByRole("button", { name: "Voyager 1" })).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Spacecraft" }));
+      expect(mockScene.spacecraft.setVisible).toHaveBeenLastCalledWith(false);
+    });
+
+    it("selecting a spacecraft from the dock forwards the slug to the scene", async () => {
+      renderWithProviders(<SolarSystemPage />);
+      await userEvent.click(screen.getByRole("button", { name: "Spacecraft" }));
+      const dock = await screen.findByRole("complementary", { name: "Spacecraft" });
+
+      await userEvent.click(await within(dock).findByRole("button", { name: "James Webb Space Telescope" }));
+      expect(mockScene.select).toHaveBeenCalledWith("jwst");
+    });
+
+    it("shows distance/velocity facts for a selected spacecraft with cached data", async () => {
+      renderWithProviders(<SolarSystemPage />);
+      await waitFor(() => expect(mockScene.spacecraft.setObjects).toHaveBeenCalled());
+      act(() => sceneOptions().onSelect("jwst"));
+
+      const panel = await screen.findByRole("complementary", { name: /Body details/i });
+      expect(within(panel).getByRole("heading", { name: "James Webb Space Telescope" })).toBeInTheDocument();
+      expect(within(panel).getByText("Spacecraft")).toBeInTheDocument();
+      expect(within(panel).getByText("Distance from Earth")).toBeInTheDocument();
+      expect(within(panel).getByText("Velocity")).toBeInTheDocument();
+    });
+
+    it("shows a no-data message for a selected spacecraft with an empty cached series", async () => {
+      server.use(
+        http.get("/api/v1/ephemerides/voyager-1", () =>
+          HttpResponse.json({ slug: "voyager-1", name_key: "spacecraft.voyager1", points: [] }),
+        ),
+      );
+      renderWithProviders(<SolarSystemPage />);
+      await waitFor(() => expect(mockScene.spacecraft.setObjects).toHaveBeenCalled());
+      act(() => sceneOptions().onSelect("voyager-1"));
+
+      const panel = await screen.findByRole("complementary", { name: /Body details/i });
+      expect(within(panel).getByText("No tracking data for this date")).toBeInTheDocument();
+    });
+
+    it("re-passes the spacecraft layer with translated labels when the language changes", async () => {
+      renderWithProviders(<SolarSystemPage />);
+      await waitFor(() => expect(mockScene.spacecraft.setObjects).toHaveBeenCalled());
+      mockScene.spacecraft.setObjects.mockClear();
+
+      await act(async () => {
+        await i18n.changeLanguage("de");
+      });
+
+      await waitFor(() => expect(mockScene.spacecraft.setObjects).toHaveBeenCalled());
+      const [objects, noDataTooltip] = mockScene.spacecraft.setObjects.mock.calls.at(-1)!;
+      const jwst = (objects as Array<{ id: string; label: string }>).find((o) => o.id === "jwst");
+      expect(jwst?.label).toBe("James-Webb-Weltraumteleskop");
+      expect(noDataTooltip).toBe("Keine Verfolgungsdaten für diesen Termin");
     });
   });
 });

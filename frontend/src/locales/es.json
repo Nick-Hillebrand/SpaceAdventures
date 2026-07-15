@@ -454,5 +454,19 @@
       "roverDeploy": "Despliegue del rover — el rover Sojourner rueda sobre la superficie de Marte.",
       "roverDeployNarration": "Los pétalos del módulo se despliegan y el rover Sojourner desciende por su rampa para comenzar a explorar la superficie marciana."
     }
+  },
+  "spacecraft": {
+    "jwst": "Telescopio Espacial James Webb",
+    "voyager1": "Voyager 1",
+    "voyager2": "Voyager 2",
+    "parkerSolarProbe": "Sonda Parker Solar",
+    "newHorizons": "New Horizons"
+  },
+  "simulator": {
+    "spacecraftToggle": "Naves espaciales",
+    "spacecraft": "Nave espacial",
+    "distanceFromEarth": "Distancia a la Tierra",
+    "velocity": "Velocidad",
+    "noData": "Sin datos de seguimiento para esta fecha"
   }
 }

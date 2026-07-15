@@ -454,5 +454,19 @@
       "roverDeploy": "Rover-Einsatz — der Sojourner-Rover rollt auf die Marsoberfläche.",
       "roverDeployNarration": "Die Landerblütenblätter entfalten sich und der Sojourner-Rover rollt seine Rampe hinab, um die Marsoberfläche zu erkunden."
     }
+  },
+  "spacecraft": {
+    "jwst": "James-Webb-Weltraumteleskop",
+    "voyager1": "Voyager 1",
+    "voyager2": "Voyager 2",
+    "parkerSolarProbe": "Parker Solar Probe",
+    "newHorizons": "New Horizons"
+  },
+  "simulator": {
+    "spacecraftToggle": "Raumfahrzeuge",
+    "spacecraft": "Raumfahrzeug",
+    "distanceFromEarth": "Abstand zur Erde",
+    "velocity": "Geschwindigkeit",
+    "noData": "Keine Verfolgungsdaten für diesen Termin"
   }
 }

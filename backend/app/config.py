@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     ll2_api_key: str = ""
     ll2_sync_interval_minutes: int = 30
 
+    # JPL Horizons (22-ephemeris-and-mission-replay.md — Foundation). Free,
+    # no key. Courtesy rules are hard requirements: batch queries, cache for
+    # days, never proxy a user request to JPL — all traffic originates from
+    # the ephemeris_sync worker job.
+    horizons_base_url: str = "https://ssd.jpl.nasa.gov/api/horizons.api"
+
     # JWT
     jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"

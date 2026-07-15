@@ -12,7 +12,9 @@ A multilingual web application that fetches, caches, and visualises NASA data an
 - **Mars Explorer** — Curiosity, Opportunity, Spirit and Perseverance rover photos with lightbox and camera/sol filters
 - **Near-Earth Objects** — Sortable asteroid table with close-approach data and hazard flags
 - **Space Weather** — Solar flares, geomagnetic storms, CMEs, SEP and radiation belt events
-- **Solar System Explorer** — 3D true-scale/didactic-scale simulator of the Sun, planets and major moons
+- **Solar System Explorer** — 3D true-scale/didactic-scale simulator of the Sun, planets and major moons, plus
+  a live "Spacecraft" layer tracking JWST, Voyager 1/2, Parker Solar Probe and New Horizons from a JPL Horizons
+  ephemeris cache (distance-from-Earth and velocity facts for the selected craft)
 - **Mission Replay** — 3D playback of historic spaceflight trajectories (Apollo 11, Mars Pathfinder) with a
   timeline scrubber and milestone cards, at `/missions`, `/missions/:slug` and a chrome-less `/missions/:slug/embed`,
   and as an in-context panel on the Solar System page. Key milestones (Apollo 11 landing/first EVA, Pathfinder
@@ -271,7 +273,11 @@ See the repo-root `Caddyfile` for the full production config (HSTS/CSP headers, 
 ## Mission Replay Content Tooling
 
 Mission Replay data (`frontend/public/missions/*.json`) is static content generated
-offline — nothing in this section runs in production or is imported by the app.
+offline — nothing in this section runs in production or is imported by the app. This
+is separate from the live spacecraft tracking in the Solar System Explorer, which
+pulls current-day positions through the `ephemeris_sync` worker job into an
+`ephemerides` DB cache served at `GET /api/v1/ephemerides/{slug}` — see
+`Architecture/22-ephemeris-and-mission-replay.md`.
 
 ```bash
 cd backend

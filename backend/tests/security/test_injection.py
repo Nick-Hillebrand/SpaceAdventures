@@ -19,6 +19,19 @@ bound parameters). `endpoint` is instead an SSRF concern (§2.5 — the worker
 later makes an outbound HTTP request to whatever URL is stored), which is
 covered separately: see `test_push.py::test_subscribe_rejects_unsafe_endpoint`
 and `_validate_push_endpoint()` in `app/schemas/push.py`.
+
+Step B3 (JPL Horizons, `22-ephemeris-and-mission-replay.md`): the `result`
+CSV text block returned by Horizons is untrusted upstream input, but its
+fields (`JDTDB`, X/Y/Z vector components) are constrained to be numeric —
+`parse_vectors_csv()` in `app/services/horizons_client.py` parses every
+field with `float()` and raises `HorizonsError("HORIZONS_PARSE_ERROR", ...)`
+on anything that fails to convert, including injection-shaped strings (see
+`test_horizons_client.py::test_parse_vectors_csv_non_numeric_field_raises_parse_error`,
+parametrized over `<script>`/SQLi/non-numeric payloads). There is no
+string-typed Horizons field that ever reaches storage or an output context
+(HTML/ICS/SEO-meta/JSON-LD/SMS/social) — like Web Push's opaque keys, this
+source is out of scope for the fixture matrix below, and coverage lives in
+`test_horizons_client.py` instead.
 """
 from __future__ import annotations
 
