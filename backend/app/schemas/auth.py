@@ -91,5 +91,9 @@ class UserResponse(BaseModel):
     location_lat: float | None = None
     location_lng: float | None = None
     location_tz: str | None = None
+    # L2: ical_token is included so the frontend can construct the webcal://
+    # URL without a separate round-trip. The token IS the credential for the
+    # iCal feed — do not strip it from the export; it belongs in the profile.
+    ical_token: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

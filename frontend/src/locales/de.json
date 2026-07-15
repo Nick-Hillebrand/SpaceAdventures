@@ -278,7 +278,20 @@
     "locationSetFailed": "Fehler beim Festlegen des Ortes. Versuchen Sie es erneut.",
     "locationNoResults": "Keine passenden Orte gefunden.",
     "locationUseThis": "Diesen Ort verwenden",
-    "subIssPassLabel": "ISS sichtbare Durchgangswarnungen"
+    "subIssPassLabel": "ISS sichtbare Durchgangswarnungen",
+    "icalTitle": "Kalender-Feed",
+    "icalDescription": "Abonnieren Sie Ihre bevorstehenden Starts in jeder Kalender-App.",
+    "icalProRequired": "Upgrade auf Pro, um auf den Kalender-Feed zuzugreifen.",
+    "icalNotSetup": "Generieren Sie eine Feed-URL, um sich in Google Calendar, Apple Calendar oder einer anderen iCal-App zu abonnieren.",
+    "icalGetUrl": "Feed-URL abrufen",
+    "icalCopyUrl": "Feed-URL kopieren",
+    "icalCopied": "Kopiert!",
+    "icalRotate": "URL erneuern",
+    "icalRotateConfirmTitle": "Kalender-URL erneuern?",
+    "icalRotateConfirmBody": "Ihr bestehendes Kalenderabonnement wird nicht mehr aktualisiert. Fortfahren?",
+    "icalRotateConfirm": "Erneuern",
+    "icalRotateCancel": "Abbrechen",
+    "icalRotateError": "Feed-URL konnte nicht generiert werden. Bitte versuchen Sie es erneut."
   },
   "subscriptions": {
     "subscribeButton": "Abonnieren",

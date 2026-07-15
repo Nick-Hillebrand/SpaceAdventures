@@ -17,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import event, select
 
+import secrets
+
 from app.models.ephemerides import Ephemeris, TrackedObject
 from app.models.launches import Launch
 from app.models.subscription import Subscription
@@ -283,5 +285,78 @@ async def test_list_subscriptions_query_count_is_row_count_independent(client, d
     assert count_at_10 == count_at_100, (
         f"query count grew with row count ({count_at_10} at 10 rows vs "
         f"{count_at_100} at 100 rows) — this is the N+1 signature"
+    )
+    assert count_at_100 <= MAX_STATEMENTS
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/ical/{token}.ics
+# ---------------------------------------------------------------------------
+
+
+async def _seed_ical_user(db_session, n_subs: int, token: str) -> None:
+    """Create a Pro user with `n_subs` launch subscriptions and a set ical_token."""
+    from passlib.context import CryptContext
+
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    user = User(
+        first_name="Ical",
+        last_name="Perf",
+        email=f"ical-perf-{token[:8]}@example.com",
+        password_hash=pwd_ctx.hash("pw"),
+        is_pro=True,
+        ical_token=token,
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for i in range(n_subs):
+        ll2_id = f"ical-perf-launch-{token[:4]}-{i}"
+        db_session.add(
+            Launch(
+                ll2_id=ll2_id,
+                name=f"Perf Launch {i}",
+                net=now + timedelta(hours=i + 1),
+                status_abbrev="Go",
+                status_name="Go for Launch",
+                agency_name="Perf Agency",
+                rocket_name="Perf Rocket",
+                pad_name="Pad 1",
+                pad_location="Perf Site",
+            )
+        )
+        db_session.add(Subscription(user_id=user.id, type="launch", ll2_id=ll2_id))
+    await db_session.commit()
+
+
+@pytest.mark.parametrize("sub_count", [10, 100])
+async def test_ical_feed_query_count_within_budget(client, db_engine, db_session, sub_count):
+    token = secrets.token_urlsafe(32)
+    await _seed_ical_user(db_session, sub_count, token)
+    with count_queries(db_engine) as get_count:
+        response = await client.get(f"/api/v1/ical/{token}.ics")
+    assert response.status_code == 200
+    assert get_count() <= MAX_STATEMENTS
+
+
+async def test_ical_feed_query_count_is_row_count_independent(client, db_engine, db_session):
+    token_10 = secrets.token_urlsafe(32)
+    await _seed_ical_user(db_session, 10, token_10)
+    with count_queries(db_engine) as get_count:
+        r = await client.get(f"/api/v1/ical/{token_10}.ics")
+    assert r.status_code == 200
+    count_at_10 = get_count()
+
+    token_100 = secrets.token_urlsafe(32)
+    await _seed_ical_user(db_session, 100, token_100)
+    with count_queries(db_engine) as get_count:
+        r = await client.get(f"/api/v1/ical/{token_100}.ics")
+    assert r.status_code == 200
+    count_at_100 = get_count()
+
+    assert count_at_10 == count_at_100, (
+        f"query count grew with subscription count ({count_at_10} at 10 subs vs "
+        f"{count_at_100} at 100 subs) — this is the N+1 signature"
     )
     assert count_at_100 <= MAX_STATEMENTS

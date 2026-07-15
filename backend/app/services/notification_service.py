@@ -56,6 +56,23 @@ def sanitise(text: str) -> str:
     return text.strip()
 
 
+def ical_escape(value: str) -> str:
+    """RFC 5545 §3.3.11 TEXT escaping for iCal property values.
+
+    Backslash must be escaped first (to avoid double-escaping the escapes
+    added for the other characters). Newlines are normalised to \\n — RFC
+    5545 allows \\N or \\n; we always emit lowercase.
+    """
+    value = value.replace("\\", "\\\\")
+    value = value.replace(";", "\\;")
+    value = value.replace(",", "\\,")
+    # Normalise all newline variants to the RFC 5545 \\n sequence.
+    value = value.replace("\r\n", "\\n")
+    value = value.replace("\r", "\\n")
+    value = value.replace("\n", "\\n")
+    return value
+
+
 def scrub_error(exc: Exception) -> str:
     """Remove secrets from exception message before logging to DB."""
     detail = f"{type(exc).__name__}: {exc}"

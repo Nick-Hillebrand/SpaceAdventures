@@ -278,7 +278,20 @@
     "locationSetFailed": "Не удалось установить местоположение. Попробуйте ещё раз.",
     "locationNoResults": "Совпадающих местоположений не найдено.",
     "locationUseThis": "Использовать это местоположение",
-    "subIssPassLabel": "Уведомления о видимых пролётах МКС"
+    "subIssPassLabel": "Уведомления о видимых пролётах МКС",
+    "icalTitle": "Календарный канал",
+    "icalDescription": "Подпишитесь на предстоящие запуски в любом приложении календаря.",
+    "icalProRequired": "Обновитесь до Pro для доступа к календарному каналу.",
+    "icalNotSetup": "Создайте URL-адрес канала для подписки в Google Calendar, Apple Calendar или любом приложении iCal.",
+    "icalGetUrl": "Получить URL канала",
+    "icalCopyUrl": "Скопировать URL канала",
+    "icalCopied": "Скопировано!",
+    "icalRotate": "Переформировать URL",
+    "icalRotateConfirmTitle": "Переформировать URL календаря?",
+    "icalRotateConfirmBody": "Ваша существующая подписка на календарь перестанет обновляться. Продолжить?",
+    "icalRotateConfirm": "Переформировать",
+    "icalRotateCancel": "Отмена",
+    "icalRotateError": "Не удалось создать URL канала. Пожалуйста, попробуйте ещё раз."
   },
   "subscriptions": {
     "subscribeButton": "Подписаться",

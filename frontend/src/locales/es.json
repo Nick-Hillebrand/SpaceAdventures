@@ -278,7 +278,20 @@
     "locationSetFailed": "Error al establecer la ubicación. Inténtalo de nuevo.",
     "locationNoResults": "No se encontraron ubicaciones coincidentes.",
     "locationUseThis": "Usar esta ubicación",
-    "subIssPassLabel": "Alertas de pase visible de la ISS"
+    "subIssPassLabel": "Alertas de pase visible de la ISS",
+    "icalTitle": "Feed de calendario",
+    "icalDescription": "Suscríbete a tus próximos lanzamientos en cualquier aplicación de calendario.",
+    "icalProRequired": "Actualiza a Pro para acceder al feed de calendario.",
+    "icalNotSetup": "Genera una URL de feed para suscribirte en Google Calendar, Apple Calendar o cualquier aplicación iCal.",
+    "icalGetUrl": "Obtener URL del feed",
+    "icalCopyUrl": "Copiar URL del feed",
+    "icalCopied": "¡Copiado!",
+    "icalRotate": "Regenerar URL",
+    "icalRotateConfirmTitle": "¿Regenerar URL de calendario?",
+    "icalRotateConfirmBody": "Tu suscripción de calendario existente dejará de actualizarse. ¿Continuar?",
+    "icalRotateConfirm": "Regenerar",
+    "icalRotateCancel": "Cancelar",
+    "icalRotateError": "No se pudo generar la URL del feed. Por favor, inténtalo de nuevo."
   },
   "subscriptions": {
     "subscribeButton": "Suscribirse",

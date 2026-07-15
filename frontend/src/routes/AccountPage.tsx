@@ -5,6 +5,7 @@ import { useDeleteAccount, useExportAccount, useMe, useSetConsent } from "@/hook
 import { useSubscriptions, useDeleteSubscription } from "@/hooks/useSubscriptions";
 import { usePush } from "@/hooks/usePush";
 import { useClearLocation, useSearchLocation, useSetLocation } from "@/hooks/useLocation";
+import { useRotateIcalToken } from "@/hooks/useIcal";
 import { apiPost } from "@/lib/api";
 import { formatDate } from "@/lib/dateTime";
 import type { LocationCandidate } from "@/types/api";
@@ -34,6 +35,10 @@ export default function AccountPage() {
   const [locationQuery, setLocationQuery] = useState("");
   const [editingLocation, setEditingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const rotateIcal = useRotateIcalToken();
+  const [icalCopied, setIcalCopied] = useState(false);
+  const [icalRotateConfirm, setIcalRotateConfirm] = useState(false);
+  const [icalError, setIcalError] = useState<string | null>(null);
 
   if (isError && error && error.status === 401) {
     navigate("/login?return=/account");
@@ -83,6 +88,31 @@ export default function AccountPage() {
       navigate("/");
     } catch {
       setDeleteError(t("account.deleteFailed"));
+    }
+  }
+
+  function icalFeedUrl(token: string): string {
+    return `webcal://${window.location.host}/api/v1/ical/${token}.ics`;
+  }
+
+  async function handleCopyIcalUrl() {
+    if (!user.ical_token) return;
+    try {
+      await navigator.clipboard.writeText(icalFeedUrl(user.ical_token));
+      setIcalCopied(true);
+      setTimeout(() => setIcalCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable — no-op (the URL is displayed inline).
+    }
+  }
+
+  async function handleRotateIcal() {
+    setIcalError(null);
+    setIcalRotateConfirm(false);
+    try {
+      await rotateIcal.mutateAsync();
+    } catch {
+      setIcalError(t("account.icalRotateError"));
     }
   }
 
@@ -323,6 +353,73 @@ export default function AccountPage() {
             {locationError && (
               <span role="alert" data-testid="location-error">
                 {locationError}
+              </span>
+            )}
+          </div>
+
+          <div data-testid="ical-section">
+            <h2>{t("account.icalTitle")}</h2>
+            <p>{t("account.icalDescription")}</p>
+            {!user.is_pro ? (
+              <p data-testid="ical-pro-required">{t("account.icalProRequired")}</p>
+            ) : user.ical_token ? (
+              <>
+                <p data-testid="ical-url" style={{ wordBreak: "break-all" }}>
+                  {icalFeedUrl(user.ical_token)}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyIcalUrl}
+                  data-testid="ical-copy-button"
+                >
+                  {icalCopied ? t("account.icalCopied") : t("account.icalCopyUrl")}
+                </button>{" "}
+                {!icalRotateConfirm ? (
+                  <button
+                    type="button"
+                    onClick={() => setIcalRotateConfirm(true)}
+                    data-testid="ical-rotate-button"
+                  >
+                    {t("account.icalRotate")}
+                  </button>
+                ) : (
+                  <span data-testid="ical-rotate-confirm">
+                    <strong>{t("account.icalRotateConfirmTitle")}</strong>{" "}
+                    {t("account.icalRotateConfirmBody")}{" "}
+                    <button
+                      type="button"
+                      onClick={handleRotateIcal}
+                      disabled={rotateIcal.isPending}
+                      data-testid="ical-rotate-confirm-button"
+                    >
+                      {t("account.icalRotateConfirm")}
+                    </button>{" "}
+                    <button
+                      type="button"
+                      onClick={() => setIcalRotateConfirm(false)}
+                      data-testid="ical-rotate-cancel-button"
+                    >
+                      {t("account.icalRotateCancel")}
+                    </button>
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <p data-testid="ical-not-setup">{t("account.icalNotSetup")}</p>
+                <button
+                  type="button"
+                  onClick={handleRotateIcal}
+                  disabled={rotateIcal.isPending}
+                  data-testid="ical-get-url-button"
+                >
+                  {t("account.icalGetUrl")}
+                </button>
+              </>
+            )}
+            {icalError && (
+              <span role="alert" data-testid="ical-error">
+                {icalError}
               </span>
             )}
           </div>

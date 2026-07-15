@@ -278,7 +278,20 @@
     "locationSetFailed": "位置情報の設定に失敗しました。もう一度お試しください。",
     "locationNoResults": "一致する位置が見つかりません。",
     "locationUseThis": "この位置を使用",
-    "subIssPassLabel": "ISSの可視パス通知"
+    "subIssPassLabel": "ISSの可視パス通知",
+    "icalTitle": "カレンダーフィード",
+    "icalDescription": "任意のカレンダーアプリで今後の打ち上げを購読できます。",
+    "icalProRequired": "Proにアップグレードするとカレンダーフィードにアクセスできます。",
+    "icalNotSetup": "Google Calendar、Apple Calendar、または任意のiCalアプリで購読するためのフィードURLを生成してください。",
+    "icalGetUrl": "フィードURLを取得",
+    "icalCopyUrl": "フィードURLをコピー",
+    "icalCopied": "コピーしました!",
+    "icalRotate": "URLを再生成",
+    "icalRotateConfirmTitle": "カレンダーURLを再生成しますか?",
+    "icalRotateConfirmBody": "既存のカレンダー購読は更新されなくなります。続行しますか?",
+    "icalRotateConfirm": "再生成",
+    "icalRotateCancel": "キャンセル",
+    "icalRotateError": "フィードURLを生成できませんでした。もう一度お試しください。"
   },
   "subscriptions": {
     "subscribeButton": "購読",

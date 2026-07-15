@@ -278,7 +278,20 @@
     "locationSetFailed": "Erreur lors de la définition de l'emplacement. Veuillez réessayer.",
     "locationNoResults": "Aucun emplacement correspondant trouvé.",
     "locationUseThis": "Utiliser cet emplacement",
-    "subIssPassLabel": "Alertes de passage visible de l'ISS"
+    "subIssPassLabel": "Alertes de passage visible de l'ISS",
+    "icalTitle": "Flux calendrier",
+    "icalDescription": "Abonnez-vous à vos prochains lancements dans n'importe quelle application de calendrier.",
+    "icalProRequired": "Mettez à niveau vers Pro pour accéder au flux calendrier.",
+    "icalNotSetup": "Générez une URL de flux pour vous abonner dans Google Calendar, Apple Calendar ou toute application iCal.",
+    "icalGetUrl": "Obtenir l'URL du flux",
+    "icalCopyUrl": "Copier l'URL du flux",
+    "icalCopied": "Copié !",
+    "icalRotate": "Régénérer l'URL",
+    "icalRotateConfirmTitle": "Régénérer l'URL du calendrier ?",
+    "icalRotateConfirmBody": "Votre abonnement calendrier existant ne sera plus mis à jour. Continuer ?",
+    "icalRotateConfirm": "Régénérer",
+    "icalRotateCancel": "Annuler",
+    "icalRotateError": "Impossible de générer l'URL du flux. Veuillez réessayer."
   },
   "subscriptions": {
     "subscribeButton": "S'abonner",

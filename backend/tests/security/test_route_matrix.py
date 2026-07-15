@@ -79,6 +79,11 @@ ROUTE_TABLE: list[tuple[str, str, str]] = [
     ("DELETE", "/api/v1/push/subscribe", "user"),
     ("GET", "/api/v1/settings", "public"),
     ("GET", "/api/v1/ephemerides/{slug}", "public"),
+    # L2 (19-notification-channels-v2.md) — iCal feed: capability-URL auth
+    # (wrong/non-Pro token → 404, no oracle; §2.1). Pro gating is inline.
+    ("GET", "/api/v1/ical/{token}.ics", "capability"),
+    # L2 — token rotation: user-auth required + Pro-gated inline (403 for non-Pro).
+    ("POST", "/api/v1/ical/rotate", "user"),
     # FastAPI's auto-generated interactive docs — read-only schema/UI, no
     # data access. Declared explicitly so the completeness check stays green;
     # revisit before a public launch if the OpenAPI surface should be hidden.
@@ -96,6 +101,7 @@ _PATH_PARAM_FILLS = {
     "ll2_id": "route-matrix-test-id",
     "lang": "en",
     "user_id": "999999",
+    "token": "route-matrix-test-token",
 }
 
 

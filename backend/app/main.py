@@ -22,6 +22,7 @@ from app.models.n2yo_quota import N2yoQuota
 from app.models.notification_log import PendingNotification
 from app.routers import apod as apod_router
 from app.routers import ephemerides as ephemerides_router
+from app.routers import ical as ical_router
 from app.routers import iss as iss_router
 from app.routers import location as location_router
 from app.routers import mars as mars_router
@@ -199,6 +200,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(apod_router.router)
     app.include_router(ephemerides_router.router)
+    app.include_router(ical_router.router)
     app.include_router(neo_router.router)
     app.include_router(space_weather_router.router)
     app.include_router(mars_router.router)

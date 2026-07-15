@@ -15,6 +15,7 @@ const mockUser = {
   location_lat: null,
   location_lng: null,
   location_tz: null,
+  ical_token: null,
 };
 
 export const handlers = [
@@ -95,5 +96,9 @@ export const handlers = [
       cached: false,
       quota_exhausted: false,
     }),
+  ),
+
+  http.post("/api/v1/ical/rotate", () =>
+    HttpResponse.json({ ical_token: "test-ical-token-abc123" }),
   ),
 ];

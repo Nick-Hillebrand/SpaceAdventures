@@ -55,6 +55,12 @@ class User(Base):
     # POST /api/v1/auth/admin/users/{id}/pro endpoint until a payment
     # provider is wired up.
     is_pro: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # L2 (19-notification-channels-v2.md) — capability-URL token for the
+    # iCal feed. Generated on first rotate request, stored as a 32-byte
+    # urlsafe random string. Null until the user requests a feed URL.
+    # The token IS the auth for GET /api/v1/ical/{token}.ics — calendar
+    # apps cannot send Bearer headers. Rotation invalidates the old URL.
+    ical_token: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
 
     otps: Mapped[list["Otp"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

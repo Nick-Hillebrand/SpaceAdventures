@@ -112,6 +112,20 @@ DELETE /api/v1/push/subscribe                 # auth required — { endpoint }; 
 
 ---
 
+## iCal Feed Routes (19-notification-channels-v2.md L2)
+
+```
+GET  /api/v1/ical/{token}.ics   # capability-URL auth — no Bearer header; Pro-gated; returns RFC 5545 ICS; 404 if token unknown (no oracle), 403 PRO_REQUIRED if user is not Pro; Cache-Control: private, max-age=900
+POST /api/v1/ical/rotate        # auth required — rotates (or creates) users.ical_token; returns { ical_token }; old URL is immediately invalid
+```
+
+- `GET /api/v1/auth/me` now includes `ical_token: str | null` (null until first rotate).
+- The token is a 32-byte URL-safe secret (`secrets.token_urlsafe(32)`); rotating invalidates the previous URL.
+- SEQUENCE field = count of `launch_net_changes` rows with `change_type = 'net'` for that launch.
+- `status_abbrev == "Gone"` launches get `STATUS:CANCELLED` in the VEVENT.
+
+---
+
 ## Settings Routes
 
 ```

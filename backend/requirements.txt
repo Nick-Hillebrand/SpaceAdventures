@@ -21,7 +21,8 @@ sentry-sdk==2.19.2
 # Dev tooling only (scripts/build_mission.py) — not imported by app/
 PyYAML==6.0.3
 
-# Testing
+# Testing (icalendar used in tests/test_ical.py to validate generated ICS)
+icalendar==6.1.0
 pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0

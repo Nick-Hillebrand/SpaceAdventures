@@ -571,6 +571,159 @@ describe("AccountPage", () => {
     );
   });
 
+  describe("calendar feed (iCal)", () => {
+    const baseUser = {
+      id: 1,
+      first_name: "Alice",
+      last_name: "Liddell",
+      email: "alice@example.com",
+      phone: null,
+      email_verified: true,
+      phone_verified: false,
+      created_at: "2024-01-01T00:00:00Z",
+      consent_notifications_at: "2024-01-01T00:00:00Z",
+      ical_token: null as string | null,
+    };
+
+    it("shows Pro-required message for non-Pro user", async () => {
+      server.use(
+        http.get("/api/v1/auth/me", () =>
+          HttpResponse.json({ ...baseUser, is_pro: false, ical_token: null }),
+        ),
+      );
+
+      renderWithProviders(<AccountPage />);
+      await screen.findByText(/Alice Liddell/i);
+
+      expect(screen.getByTestId("ical-pro-required")).toBeInTheDocument();
+      expect(screen.queryByTestId("ical-get-url-button")).not.toBeInTheDocument();
+    });
+
+    it("shows Get feed URL button for Pro user with no token", async () => {
+      server.use(
+        http.get("/api/v1/auth/me", () =>
+          HttpResponse.json({ ...baseUser, is_pro: true, ical_token: null }),
+        ),
+      );
+
+      renderWithProviders(<AccountPage />);
+      await screen.findByText(/Alice Liddell/i);
+
+      expect(screen.getByTestId("ical-not-setup")).toBeInTheDocument();
+      expect(screen.getByTestId("ical-get-url-button")).toBeInTheDocument();
+      expect(screen.queryByTestId("ical-pro-required")).not.toBeInTheDocument();
+    });
+
+    it("shows webcal:// URL and rotate button for Pro user with token", async () => {
+      server.use(
+        http.get("/api/v1/auth/me", () =>
+          HttpResponse.json({ ...baseUser, is_pro: true, ical_token: "tok123" }),
+        ),
+      );
+
+      renderWithProviders(<AccountPage />);
+      await screen.findByText(/Alice Liddell/i);
+
+      const urlEl = await screen.findByTestId("ical-url");
+      expect(urlEl.textContent).toContain("webcal://");
+      expect(urlEl.textContent).toContain("tok123");
+      expect(screen.getByTestId("ical-copy-button")).toBeInTheDocument();
+      expect(screen.getByTestId("ical-rotate-button")).toBeInTheDocument();
+    });
+
+    it("Get feed URL button calls rotate and shows URL after success", async () => {
+      let token: string | null = null;
+      server.use(
+        http.get("/api/v1/auth/me", () =>
+          HttpResponse.json({ ...baseUser, is_pro: true, ical_token: token }),
+        ),
+        http.post("/api/v1/ical/rotate", () => {
+          token = "new-token-xyz";
+          return HttpResponse.json({ ical_token: "new-token-xyz" });
+        }),
+      );
+
+      const user = userEvent.setup();
+      renderWithProviders(<AccountPage />);
+      await screen.findByText(/Alice Liddell/i);
+
+      await user.click(screen.getByTestId("ical-get-url-button"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("ical-url")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("ical-url").textContent).toContain("new-token-xyz");
+    });
+
+    it("rotate button opens confirm dialog then rotates on confirm", async () => {
+      server.use(
+        http.get("/api/v1/auth/me", () =>
+          HttpResponse.json({ ...baseUser, is_pro: true, ical_token: "old-tok" }),
+        ),
+        http.post("/api/v1/ical/rotate", () =>
+          HttpResponse.json({ ical_token: "new-tok" }),
+        ),
+      );
+
+      const user = userEvent.setup();
+      renderWithProviders(<AccountPage />);
+      await screen.findByText(/Alice Liddell/i);
+
+      await user.click(await screen.findByTestId("ical-rotate-button"));
+      expect(screen.getByTestId("ical-rotate-confirm")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("ical-rotate-confirm-button"));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("ical-rotate-confirm")).not.toBeInTheDocument();
+      });
+    });
+
+    it("rotate cancel hides the confirm dialog", async () => {
+      server.use(
+        http.get("/api/v1/auth/me", () =>
+          HttpResponse.json({ ...baseUser, is_pro: true, ical_token: "old-tok" }),
+        ),
+      );
+
+      const user = userEvent.setup();
+      renderWithProviders(<AccountPage />);
+      await screen.findByText(/Alice Liddell/i);
+
+      await user.click(await screen.findByTestId("ical-rotate-button"));
+      expect(screen.getByTestId("ical-rotate-confirm")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("ical-rotate-cancel-button"));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("ical-rotate-confirm")).not.toBeInTheDocument();
+      });
+      expect(screen.getByTestId("ical-rotate-button")).toBeInTheDocument();
+    });
+
+    it("rotate error shows error alert", async () => {
+      server.use(
+        http.get("/api/v1/auth/me", () =>
+          HttpResponse.json({ ...baseUser, is_pro: true, ical_token: "old-tok" }),
+        ),
+        http.post("/api/v1/ical/rotate", () =>
+          HttpResponse.json({ error: { code: "SERVER_ERROR", message: "boom" } }, { status: 500 }),
+        ),
+      );
+
+      const user = userEvent.setup();
+      renderWithProviders(<AccountPage />);
+      await screen.findByText(/Alice Liddell/i);
+
+      await user.click(await screen.findByTestId("ical-rotate-button"));
+      await user.click(screen.getByTestId("ical-rotate-confirm-button"));
+
+      expect(await screen.findByTestId("ical-error")).toHaveTextContent(
+        /Failed to generate feed URL/i,
+      );
+    });
+  });
+
   describe("sky location", () => {
     const baseUser = {
       id: 1,

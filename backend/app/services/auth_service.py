@@ -260,6 +260,7 @@ async def export_account(session: AsyncSession, user: User) -> dict:
             "location_lat": user.location_lat,
             "location_lng": user.location_lng,
             "location_tz": user.location_tz,
+            "ical_token": user.ical_token,
         },
         "subscriptions": [
             {

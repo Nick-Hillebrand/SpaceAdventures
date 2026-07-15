@@ -278,7 +278,20 @@
     "locationSetFailed": "Failed to set location. Please try again.",
     "locationNoResults": "No matching locations found.",
     "locationUseThis": "Use this location",
-    "subIssPassLabel": "ISS visible pass alerts"
+    "subIssPassLabel": "ISS visible pass alerts",
+    "icalTitle": "Calendar feed",
+    "icalDescription": "Subscribe to your upcoming launches in any calendar app.",
+    "icalProRequired": "Upgrade to Pro to access the calendar feed.",
+    "icalNotSetup": "Generate a feed URL to subscribe in Google Calendar, Apple Calendar, or any iCal app.",
+    "icalGetUrl": "Get feed URL",
+    "icalCopyUrl": "Copy feed URL",
+    "icalCopied": "Copied!",
+    "icalRotate": "Regenerate URL",
+    "icalRotateConfirmTitle": "Regenerate calendar URL?",
+    "icalRotateConfirmBody": "Your existing calendar subscription will stop updating. Continue?",
+    "icalRotateConfirm": "Regenerate",
+    "icalRotateCancel": "Cancel",
+    "icalRotateError": "Failed to generate feed URL. Please try again."
   },
   "subscriptions": {
     "subscribeButton": "Subscribe",

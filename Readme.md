@@ -25,6 +25,11 @@ A multilingual web application that fetches, caches, and visualises NASA data an
 - **Sky location + ISS pass alerts (Pro)** — save a home location via city search (Open-Meteo geocoding),
   see upcoming visible ISS passes over it on the ISS Tracker page, and (Pro subscribers) get notified
   before each pass. Free tier can view passes for their saved location; alerting is the Pro-gated feature
+- **iCal feeds (Pro)** — Pro subscribers can subscribe to their personal rocket-launch calendar via a
+  `webcal://` URL that imports into any calendar app (Google, Apple, Outlook). Each subscribed launch is
+  an RFC 5545 VEVENT with SEQUENCE tracking launch-time changes and STATUS:CANCELLED for scrubbed missions.
+  The feed URL is a capability-URL (no login required); it can be rotated from the Account page, which
+  immediately invalidates the old URL
 
 ---
 

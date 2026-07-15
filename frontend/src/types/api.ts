@@ -245,6 +245,11 @@ export interface UserResponse {
   location_lat: number | null;
   location_lng: number | null;
   location_tz: string | null;
+  ical_token: string | null;
+}
+
+export interface IcalRotateResponse {
+  ical_token: string;
 }
 
 export interface SettingsStatus {

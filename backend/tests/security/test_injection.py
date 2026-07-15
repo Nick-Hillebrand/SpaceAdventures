@@ -46,6 +46,14 @@ scope for the fixture matrix below, and coverage lives in
 `test_iss_pass_alert_service.py::test_parse_pass_rejects_injection_shaped_numeric_fields`
 instead.
 
+Step L2 (iCal feeds, `19-notification-channels-v2.md`): LL2 data (mission_name,
+status_name, livestream URLs) flows into ICS SUMMARY/DESCRIPTION fields — a new
+output context. The control is `ical_escape()` applied after `sanitise()` on
+every string field. This is validated in `test_ical.py::test_ical_escape_roundtrips`
+(unit test on the escape helper) and `test_ical_feed_escapes_injection_payloads`
+(end-to-end: stored launch with injection payload → ICS → payload not raw in
+output). Both tests are in `tests/test_ical.py`; no duplication here.
+
 Step L1 (Open-Meteo geocoding, `20-location-and-sky-alerts.md`): unlike
 Horizons/N2YO, `name`/`country`/`admin1` from Open-Meteo *are* string fields
 that reach storage (`users.location_name`) and the API response — and
