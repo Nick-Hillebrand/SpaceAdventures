@@ -14,13 +14,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "users",
-        sa.Column("ical_token", sa.String(), nullable=True),
-    )
-    op.create_unique_constraint("uq_users_ical_token", "users", ["ical_token"])
+    # batch mode — SQLite (dev) cannot ALTER constraints in place; on
+    # Postgres this compiles to plain ALTER TABLE statements.
+    with op.batch_alter_table("users", schema=None) as batch_op:
+        batch_op.add_column(sa.Column("ical_token", sa.String(), nullable=True))
+        batch_op.create_unique_constraint("uq_users_ical_token", ["ical_token"])
 
 
 def downgrade() -> None:
-    op.drop_constraint("uq_users_ical_token", "users", type_="unique")
-    op.drop_column("users", "ical_token")
+    with op.batch_alter_table("users", schema=None) as batch_op:
+        batch_op.drop_constraint("uq_users_ical_token", type_="unique")
+        batch_op.drop_column("ical_token")

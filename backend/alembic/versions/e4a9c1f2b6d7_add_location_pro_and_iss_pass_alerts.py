@@ -1,7 +1,7 @@
 """add location/pro columns and iss_pass_alerts table (Step L1)
 
 Revision ID: e4a9c1f2b6d7
-Revises: d80da57a25c5
+Revises: 9cd57e6874ae
 Create Date: 2026-07-15 09:00:00.000000
 """
 from alembic import op
@@ -12,7 +12,7 @@ import app.database
 
 # revision identifiers, used by Alembic.
 revision = 'e4a9c1f2b6d7'
-down_revision = 'd80da57a25c5'
+down_revision = '9cd57e6874ae'
 branch_labels = None
 depends_on = None
 
